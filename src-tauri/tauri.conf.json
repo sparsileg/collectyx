@@ -11,8 +11,8 @@
         "windows": [
             {
                 "title": "Scriptum",
-                "width": 1700,
-                "height": 1700,
+                "width": 1200,
+                "height": 1000,
                 "resizable": true,
                 "fullscreen": false
             }

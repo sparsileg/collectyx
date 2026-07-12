@@ -29,20 +29,22 @@ async function populateCategorySelects() {
     if (categorySelect) {
         categorySelect.innerHTML = categoryOptions;
     }
-    const editCategorySelect = document.getElementById('editCategory');
-    if (editCategorySelect) {
-        editCategorySelect.innerHTML = categoryOptions;
-    }
+    // Note: editCategory is intentionally NOT populated here. showView() calls
+    // this function on every view change (fire-and-forget), and editReadBookById()
+    // needs to populate + select editCategory in one deterministic sequence.
+    // If both did it, whichever async call resolved last would win the race —
+    // clearing the selection depending on timing (more visible in Tauri due to
+    // invoke latency). See editReadBookById().
 }
 
-function enterReadBook(event) {
+async function enterReadBook(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
     const book = {
-        id: generateBookId()
+        id: generateBookId(),
+        DateAdded: new Date().toISOString()
     };
 
-    // Map form data to storage format with capitalized field names
     // Map form data to storage format with capitalized field names
     for (let [key, value] of formData.entries()) {
         if (key === 'finished') {
@@ -66,7 +68,15 @@ function enterReadBook(event) {
     book['Author'] = `${authorSurname}, ${authorGiven}`.trim();
 
     books.push(book);
-    saveData();
+
+    try {
+        await saveBook(book);
+    } catch (e) {
+        console.error('Failed to save book:', e);
+        showMessage('Failed to save book: ' + (e.message || e), CONSTANTS.MESSAGE_TYPES.ERROR);
+        return;
+    }
+
     event.target.reset();
 
     // Check if this was initiated from reading list and remove the item
@@ -82,7 +92,6 @@ function enterReadBook(event) {
     // Navigate to Books Read view
     showView(CONSTANTS.VIEWS.REVIEW, document.querySelector('[onclick*="review"]'));
 }
-
 
 function cancelAddBook() {
     // Clear the form
@@ -203,7 +212,7 @@ function lookupBookISBNById(id) {
 }
 
 
-function editReadBookById(id) {
+async function editReadBookById(id) {
     const book = findBookById(id);
     if (!book) {
         showMessage('Book not found', CONSTANTS.MESSAGE_TYPES.ERROR);
@@ -221,13 +230,15 @@ function editReadBookById(id) {
 
     showView(CONSTANTS.VIEWS.EDIT);
 
-    setTimeout(() => {
-        document.getElementById('editCategory').value = book[CONSTANTS.BOOK_FIELDS.CATEGORY] || '';
-    }, 10);
+    // Populate and select the category in one deterministic sequence —
+    // no timer, no race with showView()'s populateCategorySelects().
+    const editCategorySelect = document.getElementById('editCategory');
+    editCategorySelect.innerHTML = await generateCategoryOptions();
+    editCategorySelect.value = book[CONSTANTS.BOOK_FIELDS.CATEGORY] || '';
 }
 
 
-function saveEditReadBook(event) {
+async function saveEditReadBook(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
     const id = formData.get('editIndex'); // This is now an ID, not index
@@ -238,7 +249,7 @@ function saveEditReadBook(event) {
         return;
     }
 
-    const book = { id }; // Preserve the ID
+    const book = { ...books[bookIndex] }; // Preserve fields not present in the edit form (e.g. DateAdded, Rating)
 
     // Map form data to storage format with capitalized field names
     for (let [key, value] of formData.entries()) {
@@ -257,15 +268,22 @@ function saveEditReadBook(event) {
     }
 
     books[bookIndex] = book;
-    saveData();
+
+    try {
+        await saveBook(book);
+    } catch (e) {
+        console.error('Failed to save book:', e);
+        showMessage('Failed to save book: ' + (e.message || e), CONSTANTS.MESSAGE_TYPES.ERROR);
+        return;
+    }
+
     showView('review');
     renderReadBooks();
-    showMessage('Book updated successfully. Export > Save Data (JSON) to preserve changes', CONSTANTS.MESSAGE_TYPES.INFO);
-
+    showMessage('Book updated successfully', CONSTANTS.MESSAGE_TYPES.SUCCESS);
 }
 
 
-function deleteReadBookById(id) {
+async function deleteReadBookById(id) {
     const book = findBookById(id);
     const bookIndex = findBookIndexById(id);
 
@@ -276,13 +294,21 @@ function deleteReadBookById(id) {
 
     const confirmed = confirm(`⚠️ REMOVE BOOK?\n\nTitle: "${book.Title}"\nAuthor: ${book.Author}\n\nThis cannot be undone.`);
 
-    if (confirmed) {
-        books.splice(bookIndex, 1);
-        saveData();
-        showMessage(`"${book.Title}" removed from the Books Read list`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
-        showView('review');
-        renderReadBooks();
+    if (!confirmed) return;
+
+    books.splice(bookIndex, 1);
+
+    try {
+        await deleteBook(id);
+    } catch (e) {
+        console.error('Failed to delete book:', e);
+        showMessage('Failed to delete book: ' + (e.message || e), CONSTANTS.MESSAGE_TYPES.ERROR);
+        return;
     }
+
+    showMessage(`"${book.Title}" removed from the Books Read list`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
+    showView('review');
+    renderReadBooks();
 }
 
 
@@ -362,6 +388,15 @@ function applySortAndGroup(books) {
 
         if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
         if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+
+        // Tiebreaker: when Finished dates are equal, order by entry time (DateAdded)
+        if (currentSort.field === 'Finished') {
+            const aAdded = a.DateAdded || '';
+            const bAdded = b.DateAdded || '';
+            if (aAdded < bAdded) return currentSort.direction === 'asc' ? -1 : 1;
+            if (aAdded > bAdded) return currentSort.direction === 'asc' ? 1 : -1;
+        }
+
         return 0;
     });
 

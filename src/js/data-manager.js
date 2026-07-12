@@ -94,16 +94,20 @@ async function saveData() {
     const currentCount = await DBManager.getAll(CONSTANTS.STORES.BOOKS_READ).then(r => r.length).catch(() => 0);
     if (currentCount > 10 && books.length < currentCount * 0.9) {
         console.warn(`saveData() blocked — in-memory books (${books.length}) is less than 90% of SQLite count (${currentCount}). Possible data loss prevented.`);
-        console.trace();
-        return;
+        return false;
     }
     if (books.length === 0) {
         console.warn('saveData() called with empty books array — skipping to prevent data loss');
-        console.trace();
-        return;
+        return false;
     }
-    await DBManager.clear(CONSTANTS.STORES.BOOKS_READ);
-    await DBManager.putBulk(CONSTANTS.STORES.BOOKS_READ, books);
+    try {
+        await DBManager.replaceAll(CONSTANTS.STORES.BOOKS_READ, books);
+        return true;
+    } catch (e) {
+        console.error('saveData() failed:', e);
+        showMessage('Failed to save books: ' + (e.message || e), CONSTANTS.MESSAGE_TYPES.ERROR);
+        return false;
+    }
 }
 
 async function saveBook(book) {
@@ -123,10 +127,16 @@ async function loadReadingListData() {
 async function saveReadingListData() {
     if (readingList.length === 0) {
         console.warn('saveReadingListData() called with empty readingList array — skipping to prevent data loss');
-        return;
+        return false;
     }
-    await DBManager.clear(CONSTANTS.STORES.READING_LIST);
-    await DBManager.putBulk(CONSTANTS.STORES.READING_LIST, readingList);
+    try {
+        await DBManager.replaceAll(CONSTANTS.STORES.READING_LIST, readingList);
+        return true;
+    } catch (e) {
+        console.error('saveReadingListData() failed:', e);
+        showMessage('Failed to save reading list: ' + (e.message || e), CONSTANTS.MESSAGE_TYPES.ERROR);
+        return false;
+    }
 }
 
 async function saveReadingListItem(item) {
@@ -150,10 +160,16 @@ async function loadMyLibraryData() {
 async function saveMyLibraryData() {
     if (myLibrary.length === 0) {
         console.warn('saveMyLibraryData() called with empty myLibrary array — skipping to prevent data loss');
-        return;
+        return false;
     }
-    await DBManager.clear(CONSTANTS.STORES.MY_LIBRARY);
-    await DBManager.putBulk(CONSTANTS.STORES.MY_LIBRARY, myLibrary);
+    try {
+        await DBManager.replaceAll(CONSTANTS.STORES.MY_LIBRARY, myLibrary);
+        return true;
+    } catch (e) {
+        console.error('saveMyLibraryData() failed:', e);
+        showMessage('Failed to save library: ' + (e.message || e), CONSTANTS.MESSAGE_TYPES.ERROR);
+        return false;
+    }
 }
 
 async function saveMyLibraryBook(book) {

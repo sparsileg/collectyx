@@ -86,7 +86,7 @@ pub fn get_all_books_read(state: State<ScriptumState>) -> Result<Vec<BookRead>, 
                 isbn, comments, tags, finished, rating, cover_url,
                 date_added, modified
          FROM books_read
-         ORDER BY finished DESC"
+         ORDER BY finished DESC, date_added DESC"
     ).map_err(|e| e.to_string())?;
 
     let books = stmt.query_map([], |row| row_to_book(row))
@@ -157,5 +157,39 @@ pub fn clear_books_read(state: State<ScriptumState>) -> Result<(), String> {
     db.execute("DELETE FROM books_read", [])
         .map_err(|e| e.to_string())?;
     log::warn!("clear_books_read complete");
+    Ok(())
+}
+
+/// Atomically replaces all rows in books_read: DELETE + INSERT in a single
+/// transaction. If any row fails to insert (e.g. serialization mismatch),
+/// the whole transaction rolls back and the table is left unchanged —
+/// unlike the old clear() + putBulk() two-invoke sequence, which could
+/// leave the table empty if putBulk failed after clear() had already committed.
+#[tauri::command]
+pub fn replace_all_books_read(state: State<ScriptumState>, books: Vec<BookRead>) -> Result<(), String> {
+    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let tx = db.transaction().map_err(|e| e.to_string())?;
+    {
+        tx.execute("DELETE FROM books_read", [])
+            .map_err(|e| e.to_string())?;
+
+        let mut stmt = tx.prepare(
+            "INSERT OR REPLACE INTO books_read
+             (id, title, author, author2, pages, category, recommend,
+              isbn, comments, tags, finished, rating, cover_url,
+              date_added, modified)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)"
+        ).map_err(|e| e.to_string())?;
+
+        for book in &books {
+            stmt.execute(params![
+                book.id, book.title, book.author, book.author2,
+                book.pages, book.category, book.recommend,
+                book.isbn, book.comments, book.tags, book.finished,
+                book.rating, book.cover_url, book.date_added, book.modified
+            ]).map_err(|e| e.to_string())?;
+        }
+    }
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }

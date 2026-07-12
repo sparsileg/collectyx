@@ -49,18 +49,21 @@ pub fn run() {
             commands::books_read::delete_book_read,
             commands::books_read::save_books_read_bulk,
             commands::books_read::clear_books_read,
+            commands::books_read::replace_all_books_read,
             // reading_list
             commands::reading_list::get_all_reading_list,
             commands::reading_list::save_reading_list_item,
             commands::reading_list::delete_reading_list_item,
             commands::reading_list::save_reading_list_bulk,
             commands::reading_list::clear_reading_list,
+            commands::reading_list::replace_all_reading_list,
             // my_library
             commands::my_library::get_all_my_library,
             commands::my_library::save_library_book,
             commands::my_library::delete_library_book,
             commands::my_library::save_library_bulk,
             commands::my_library::clear_my_library,
+            commands::my_library::replace_all_my_library,
             // settings
             commands::settings::get_settings,
             commands::settings::save_settings,

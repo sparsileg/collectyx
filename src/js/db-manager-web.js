@@ -108,7 +108,7 @@ const DBManagerWeb = {
         });
     },
 
-    /**
+/**
      * Bulk put — all items in a single transaction for speed.
      */
     async putBulk(storeName, items) {
@@ -121,6 +121,25 @@ const DBManagerWeb = {
             tx.onerror    = () => reject(tx.error);
 
             items.forEach(item => store.put(item));
+        });
+    },
+
+    /**
+     * Atomically replaces all items in a store — clear + put-all in a
+     * single IndexedDB transaction, matching DBManagerTauri's replaceAll
+     * interface. If any put fails, the whole transaction aborts and the
+     * store is left unchanged (IndexedDB transactions are all-or-nothing).
+     */
+    async replaceAll(storeName, items) {
+        return new Promise((resolve, reject) => {
+            const tx = this.db.transaction([storeName], 'readwrite');
+            const store = tx.objectStore(storeName);
+
+            tx.oncomplete = () => resolve();
+            tx.onerror    = () => reject(tx.error);
+
+            store.clear();
+            (items || []).forEach(item => store.put(item));
         });
     },
 };

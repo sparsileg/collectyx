@@ -150,3 +150,34 @@ pub fn clear_my_library(state: State<ScriptumState>) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     Ok(())
 }
+
+/// Atomically replaces all rows in my_library: DELETE + INSERT in a single
+/// transaction. See replace_all_books_read for rationale.
+#[tauri::command]
+pub fn replace_all_my_library(state: State<ScriptumState>, books: Vec<LibraryBook>) -> Result<(), String> {
+    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let tx = db.transaction().map_err(|e| e.to_string())?;
+    {
+        tx.execute("DELETE FROM my_library", [])
+            .map_err(|e| e.to_string())?;
+
+        let mut stmt = tx.prepare(
+            "INSERT OR REPLACE INTO my_library
+             (id, title, author, author2, pages, category, isbn,
+              comments, tags, location, patron, checked_out,
+              date_added, modified)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)"
+        ).map_err(|e| e.to_string())?;
+
+        for book in &books {
+            stmt.execute(params![
+                book.id, book.title, book.author, book.author2,
+                book.pages, book.category, book.isbn,
+                book.comments, book.tags, book.location,
+                book.patron, book.checked_out, book.date_added, book.modified
+            ]).map_err(|e| e.to_string())?;
+        }
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
