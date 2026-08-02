@@ -1,0 +1,1 @@
+../Misc/devtools/update-scriptum-issues.sh

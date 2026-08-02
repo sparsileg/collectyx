@@ -282,10 +282,13 @@ async function enableDashboardDragDrop() {
         card.ondragstart = function(e) {
             draggedCard = this;
             this.style.opacity = '0.5';
+            e.dataTransfer.setData('text/plain', this.id);
+            e.dataTransfer.effectAllowed = 'move';
         };
 
         card.ondragover = function(e) {
             e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
         };
 
         card.ondrop = async function(e) {
@@ -317,15 +320,13 @@ async function enableDashboardDragDrop() {
 async function saveDashboardOrder() {
     const cards = document.querySelectorAll('.dashboard-card');
     const order = Array.from(cards).map(card => card.id);
-    await DBManager.put(CONSTANTS.STORES.SETTINGS, {
-        id: 'dashboard-order',
-        data: order
-    });
+    const current = await loadSettingsFromDB() || {};
+    await saveSettingsToDB({ ...current, dashboardCardOrder: order });
 }
 
 async function loadDashboardOrder() {
-    const row = await DBManager.get(CONSTANTS.STORES.SETTINGS, 'dashboard-order');
-    const savedOrder = row ? row.data : null;
+    const settings = await loadSettingsFromDB() || {};
+    const savedOrder = settings.dashboardCardOrder;
     if (!savedOrder || !Array.isArray(savedOrder) || savedOrder.length !== 6) return false;
 
     const dashboardGrid = document.querySelector('.dashboard-grid');

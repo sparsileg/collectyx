@@ -1,0 +1,315 @@
+NUMBER  STATUS  TITLE
+1       To Do   Too many ways to export
+4       To Do   Add Author2 to UI
+6       To Do   C2. Rust `ReadingListItem` silently drops `Source` and `IsCheckedOut`
+7       To Do   C3. Dashboard reorder in Tauri destroys all settings
+8       To Do   C4. Empty-array guards block legitimate deletes and clears
+9       To Do   C5. Editing a Books Read entry silently drops non-form fields
+11      To Do   H1. Dashboard "This Year" stats are broken
+12      To Do   H2. Restore leaves in-memory My Library Tags as JSON strings
+13      To Do   H3. Import doesn't convert legacy `DD-MMM-YYYY` dates
+14      To Do   H4. Recommend filter can never match
+15      To Do   H5. Unescaped `innerHTML` throughout (~50 sites)
+16      To Do   H6. Bulk ISBN lookup matches by Title+Author, not id
+17      To Do   M1. Duplicate function definitions.
+18      To Do   M2. Drag-and-drop listener accumulation.
+19      To Do   M3. CheckedOutDate format inconsistency
+20      To Do   M4. `populateFinishedBookForm` sets `finished` to `YYYY-MM-DD`
+21      To Do   M5. Author concatenation dangles commas.
+22      To Do   M6. `importUnifiedDatabase` writes `localStorage.selectedTheme`
+23      To Do   M7. `console.trace()` ×2 left in `saveData()`
+24      To Do   M8. Tag regex `^[a-z0-9]+$` forbids hyphens
+25      To Do   M9. Rust structs silently drop unknown JSON fields
+26      To Do   M10. Missing 90% guard on reading list / library saves
+27      To Do   M11. Version skew.
+28      To Do   M12. Books Read table shows raw `YYYY-MM-DD`
+29      To Do   M13. Dead code: dashboard `setTimeout` reads `dailyReadingPages` from   localStorage
+30      To Do   M14. `window.onclick` assignment in read-books.js
+31      To Do   L1
+32      To Do   L2
+33      To Do   L3
+34      To Do   L4
+35      To Do   L5
+36      To Do   L6
+37      To Do   L7
+38      To Do   L8
+39      To Do   L9
+============================================================
+#1  To Do  Too many ways to export
+  Body:
+    - On the Dashboard view, we have "BACKUP DATABASE" in the Quick Actions card (JSON with GZ compression)
+    - There is no option to load a backup (JSON with gz compression)
+    - On the Books Read view, there is an Export dropdown with JSON, CSV, and TSV as options
+    - On the My Library view, there is an Export dropdown with JSON and CSV as options
+    - On the Admin view, there is a Save Database option (JSON) and a Load Database option (JSON)
+
+    How to change it:
+
+    - Backup database on both the Dashboard view/Quick Actions card and in the Admin view, replacing Save Database
+    - Admin view also has a Load Backup, replacing Load Database
+    - In Books Read view, keep current export capability
+    - In the My Library view, keep the current export capability and add TSV as an export option
+  Comments: (none)
+============================================================
+#4  To Do  Add Author2 to UI
+  Body:
+    adding the Author2 fields (given name, surname) to the appropriate Create and Update operations for books read, books to read, and books in the library.
+  Comments: (none)
+============================================================
+#6  To Do  C2. Rust `ReadingListItem` silently drops `Source` and `IsCheckedOut`
+  Body:
+    The struct has no fields for them and the table has no columns. In Tauri
+    they vanish on the first save: after restart, every item renders "Source:
+    undefined", the checked-out styling disappears, and
+    `checkInMyLibraryBook`'s `item.IsCheckedOut` match fails. In web mode
+    (IndexedDB is schemaless) they persist — so the two backends diverge. This
+    violates "never silently drop data."
+
+    **Fix direction:** add `source` and `is_checked_out` columns via a schema
+    v2 migration + struct fields, or fold them into an extras JSON column.
+  Comments: (none)
+============================================================
+#7  To Do  C3. Dashboard reorder in Tauri destroys all settings
+  Body:
+    `saveDashboardOrder()` writes a settings-store row with `id:
+    'dashboard-order'`, but `DBManagerTauri._settings.put()` ignores `row.id`
+    and Rust `save_settings` always writes the `'app-settings'` key. So
+    dragging a dashboard card **replaces your entire settings JSON (theme,
+    categories, backup folder, daily pages) with the card-order array.** Also,
+    `loadDashboardOrder()` can never find `'dashboard-order'` in Tauri
+    (`_settings.getAll` returns only the app-settings row), so card order never
+    restores.
+
+    **Fix direction:** store `dashboardCardOrder` as a key inside the
+    app-settings object instead of a separate row (works identically in both
+    backends).
+  Comments: (none)
+============================================================
+#8  To Do  C4. Empty-array guards block legitimate deletes and clears
+  Body:
+    - `clearAllMyLibraryBooks()` sets `myLibrary = []` then calls
+      `saveMyLibraryData()`, which skips on empty — **Clear All never
+      persists.** Books reappear on reload.
+    - Deleting the *last* remaining book in any collection never persists for
+      the same reason.
+
+    **Fix direction:** give the destructive paths an explicit intentional-clear
+    route (e.g., call `DBManager.clear()` directly) instead of routing through
+    the guarded bulk save.
+  Comments: (none)
+============================================================
+#9  To Do  C5. Editing a Books Read entry silently drops non-form fields
+  Body:
+    `saveEditReadBook()` rebuilds the book as `{ id }` plus form fields
+    only. Any field not in the edit form — `Rating`, `CoverUrl`, `DateAdded`,
+    `Modified`, `Tags`, `ISBN13`, anything from an import — is discarded on
+    every edit. Fix: start from `{ ...books[bookIndex] }` and overlay form
+    values.
+  Comments: (none)
+============================================================
+#11  To Do  H1. Dashboard "This Year" stats are broken
+  Body:
+    `dashboard.js` lines 10 and 116: `book.Finished.split('-')[2]` — for
+    `YYYY-MM-DD` that's the **day**, not the year. "This Year" count, pages,
+    and the reading-goal chart's actual-pages all compute to
+    zero. `statistics.js` already has the correct dual-format logic
+    (`parts[0].length === 4 ? parts[0] : parts[2]`) — reuse it.
+  Comments: (none)
+============================================================
+#12  To Do  H2. Restore leaves in-memory My Library Tags as JSON strings
+  Body:
+    `importUnifiedDatabase()` assigns `myLibrary = prepared` where Tags were
+    stringified for storage. Until reload: tag quick-search fails, and editing
+    a book pushes `''` through `tagsToString` → **tags lost on first
+    post-restore edit.** Fix: after import, re-run
+    `loadData()`/`loadReadingListData()`/`loadMyLibraryData()` (and re-render
+    reading list + library, not just books/dashboard).
+  Comments: (none)
+============================================================
+#13  To Do  H3. Import doesn't convert legacy `DD-MMM-YYYY` dates
+  Body:
+    Phase 2 rules require conversion on import; `importUnifiedDatabase()` never
+    touches `Finished`. Legacy dates land raw in SQLite, breaking the `ORDER BY
+    finished DESC` in Rust and the schema contract. (The onboarding note "all
+    legacy dates converted" covered the existing DB, not future imports.)
+  Comments: (none)
+============================================================
+#14  To Do  H4. Recommend filter can never match
+  Body:
+    `applyCurrentFilters` equals: `fieldValue === filter.values[0]` compares
+    integer `1`/`0` to string `"1"`/`"0"` — always false. And
+    `book[filter.field] || ''` coerces `Recommend: 0` to `''`, so "Is Empty"
+    wrongly matches every N book.
+  Comments: (none)
+============================================================
+#15  To Do  H5. Unescaped `innerHTML` throughout (~50 sites)
+  Body:
+    Titles, authors, tags, categories, patrons are interpolated into
+    `innerHTML` and into inline `onclick='...('${value}')'` attributes across
+    read-books, reading-list, my-library, tags, category-management, restore. A
+    title containing `&`, `<`, `"` or `'` breaks rendering or the onclick
+    handlers at minimum; imported/API data could inject script — and with
+    `"csp": null` in `tauri.conf.json`, injected script has `invoke()` access
+    to the whole DB. Fix: one `escapeHtml()` helper applied at render sites,
+    replace inline-onclick string interpolation with `data-id` attributes +
+    event delegation, and set a basic CSP.
+  Comments: (none)
+============================================================
+#16  To Do  H6. Bulk ISBN lookup matches by Title+Author, not id
+  Body:
+    `bulkISBNLookupGeneric` finds the target with `findIndex` on Title+Author —
+    with multiple reads of the same book it always updates the first
+    occurrence. The id is already on `bookWithoutISBN`; use it.
+  Comments: (none)
+============================================================
+#17  To Do  M1. Duplicate function definitions.
+  Body:
+    `migrateReadingListItems` and
+      `migrateMyLibraryItems` exist in both `data-manager.js` and
+      `reading-list.js`/`my-library.js`; script order means the data-manager
+      copies are dead. Keep one.
+  Comments: (none)
+============================================================
+#18  To Do  M2. Drag-and-drop listener accumulation.
+  Body:
+    `initializeDragAndDrop()`
+      adds four listeners to `readingListContainer` on **every** render; they
+      stack for the life of the page (leak + duplicate handler executions). Add
+      once (init flag) or use `{ once: false }` with removal.
+  Comments: (none)
+============================================================
+#19  To Do  M3. CheckedOutDate format inconsistency
+  Body:
+    Checkout stores
+      `YYYY-MM-DD`; the edit modal displays it raw in an MM/DD/YYYY-validated
+      input (blur validation will clear it) and saves whatever's typed without
+      `dateToStorage()`. Route through `dateFromStorage`/`dateToStorage`.
+  Comments: (none)
+============================================================
+#20  To Do  M4. `populateFinishedBookForm` sets `finished` to `YYYY-MM-DD`
+  Body:
+    in the
+      MM/DD/YYYY input — blur validation wipes it if the field is touched. Use
+      `dateFromStorage(today)`.
+  Comments: (none)
+============================================================
+#21  To Do  M5. Author concatenation dangles commas.
+  Body:
+    `` `${surname},
+      ${given}`.trim() `` produces `"Twain,"` or `", Mark"` when one part is
+      empty. (Relevant to your upcoming Author2 work — worth fixing the helper
+      once and reusing it.)
+  Comments: (none)
+============================================================
+#22  To Do  M6. `importUnifiedDatabase` writes `localStorage.selectedTheme`
+  Body:
+    reintroducing a key the migration removed — and calls `loadTheme()`
+      un-awaited. Drop both; the settings save covers it.
+  Comments: (none)
+============================================================
+#23  To Do  M7. `console.trace()` ×2 left in `saveData()`
+  Body:
+    a known past failure
+      class.
+  Comments: (none)
+============================================================
+#24  To Do  M8. Tag regex `^[a-z0-9]+$` forbids hyphens
+  Body:
+    your own schema
+      comments use `"sci-fi"` as the example tag.
+  Comments: (none)
+============================================================
+#25  To Do  M9. Rust structs silently drop unknown JSON fields
+  Body:
+    on save (serde
+      default). For the Tauri path, that *is* the silent-drop mechanism behind
+      C2. Decide a policy: extras column, explicit columns, or documented
+      whitelist with a load-time warning.
+  Comments: (none)
+============================================================
+#26  To Do  M10. Missing 90% guard on reading list / library saves
+  Body:
+    The
+      onboarding claims all three have it; only `saveData()` does.
+  Comments: (none)
+============================================================
+#27  To Do  M11. Version skew.
+  Body:
+    `tauri.conf.json` = 0.1.0, `Cargo.toml` = 0.7.0,
+      `constants.js` = '0.7'. Exported backups record `appVersion:
+      0.7`. Single-source or at least sync at release time.
+  Comments: (none)
+============================================================
+#28  To Do  M12. Books Read table shows raw `YYYY-MM-DD`
+  Body:
+    while entry/edit use
+      MM/DD/YYYY. Pick one display format (`dateFromStorage` in
+      `createReadBookRow`).
+  Comments: (none)
+============================================================
+#29  To Do  M13. Dead code: dashboard `setTimeout` reads `dailyReadingPages` from   localStorage
+  Body:
+    (migrated away) — that chart re-render branch never
+      fires. `renderReadingGoals()` already handles it from the DB.
+  Comments: (none)
+============================================================
+#30  To Do  M14. `window.onclick` assignment in read-books.js
+  Body:
+    a second
+      assignment anywhere would clobber the export-dropdown close behavior. Use
+      `addEventListener`.
+  Comments: (none)
+============================================================
+#31  To Do  L1
+  Body:
+    *L1.** `lookupBookISBNGeneric`: no null check on `book` before
+      `book.Title` (throws if id not found).
+  Comments: (none)
+============================================================
+#32  To Do  L2
+  Body:
+    Duplicate `case 'gte':` in `updateFilterValue` switch.
+  Comments: (none)
+============================================================
+#33  To Do  L3
+  Body:
+    Duplicated comment line in `enterReadBook`.
+  Comments: (none)
+============================================================
+#34  To Do  L4
+  Body:
+    `DBManagerTauri.get()` fetches all rows to find one — fine for
+      settings, but a per-id Rust query would be cleaner if usage grows.
+  Comments: (none)
+============================================================
+#35  To Do  L5
+  Body:
+    Window size 1700×1700 — taller than 1080p/1440p displays; the
+      window will be clipped on most monitors.
+  Comments: (none)
+============================================================
+#36  To Do  L6
+  Body:
+    `frontendDist: "../src"` bundles `utilities/*.py` into the
+      app. Move utilities out of `src/` or exclude.
+  Comments: (none)
+============================================================
+#37  To Do  L7
+  Body:
+    `fs` capability grants `$HOME/**` write. Acceptable for a
+      personal app; could be narrowed to the backup folder's parent scope
+      later.
+  Comments: (none)
+============================================================
+#38  To Do  L8
+  Body:
+    `restore.js` interpolates the uploaded filename into `innerHTML`
+      (same class as H5, lower exposure).
+  Comments: (none)
+============================================================
+#39  To Do  L9
+  Body:
+    Native `prompt()`/`confirm()` for rename/delete flows — works,
+      but inconsistent with your modal patterns and historically quirky on
+      WebKitGTK. Candidate for the ongoing UI tweaks pass.
+  Comments: (none)
