@@ -793,10 +793,11 @@ function applyCurrentFilters(books) {
             }
 
             // Existing filter logic
-            const fieldValue = book[filter.field] || '';
+            const rawValue = book[filter.field];
+            const fieldValue = (rawValue !== null && rawValue !== undefined) ? rawValue : '';
             switch (filter.operator) {
             case 'isEmpty':
-                return fieldValue === '' || fieldValue === null || fieldValue === undefined;
+                return rawValue === '' || rawValue === null || rawValue === undefined;
             case 'contains':
                 return fieldValue.toLowerCase().includes((filter.values[0] || '').toLowerCase());
             case 'between':
@@ -820,7 +821,7 @@ function applyCurrentFilters(books) {
                     return parseInt(fieldValue) >= parseInt(filter.values[0] || 0);
                 }
             case 'equals':
-                return fieldValue === filter.values[0];
+                return String(fieldValue) === String(filter.values[0]);
             default:
                 return true;
             }

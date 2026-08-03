@@ -7,8 +7,8 @@ async function renderDashboard() {
     const currentYear = new Date().getFullYear();
     const thisYearBooks = books.filter(book => {
         if (!book[CONSTANTS.BOOK_FIELDS.FINISHED]) return false;
-        const year = book[CONSTANTS.BOOK_FIELDS.FINISHED].split('-')[2];
-        return parseInt(year) === currentYear;
+        const year = getYearFromFinishedDate(book[CONSTANTS.BOOK_FIELDS.FINISHED]);
+        return year === currentYear;
     });
     const thisYearBooksCount = thisYearBooks.length;
     const thisYearPages = thisYearBooks.reduce((sum, book) => sum + (parseInt(book.Pages) || 0), 0);
@@ -113,8 +113,8 @@ function renderReadingGoalChart(dailyGoal) {
     // Get actual pages read this year
     const thisYearBooks = books.filter(book => {
         if (!book[CONSTANTS.BOOK_FIELDS.FINISHED]) return false;
-        const year = book[CONSTANTS.BOOK_FIELDS.FINISHED].split('-')[2];
-        return parseInt(year) === currentYear;
+        const year = getYearFromFinishedDate(book[CONSTANTS.BOOK_FIELDS.FINISHED]);
+        return year === currentYear;
     });
     const actualPages = thisYearBooks.reduce((sum, book) =>
         sum + (parseInt(book[CONSTANTS.BOOK_FIELDS.PAGES]) || 0), 0);

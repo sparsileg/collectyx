@@ -95,6 +95,15 @@ function clearMessage() {
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
+// Extracts the year from a Finished date string, handling both current
+// (YYYY-MM-DD) and legacy (DD-MMM-YYYY) storage formats.
+function getYearFromFinishedDate(finishedDate) {
+    if (!finishedDate) return null;
+    const parts = finishedDate.split('-');
+    const year = parts[0].length === 4 ? parts[0] : parts[2];
+    return parseInt(year);
+}
+
 /**
  * Validates a MM/DD/YYYY date input on blur.
  * Shows an error toast and clears the field if invalid.

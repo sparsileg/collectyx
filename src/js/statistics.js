@@ -6,10 +6,7 @@ let categoryChart, yearlyChart;
 function generateStatistics() {
     // Filter books with dates and extract year
     const datedBooks = books.filter(book => book.Finished).map(book => {
-        const parts = book.Finished.split('-');
-        // Handle both YYYY-MM-DD and DD-MMM-YYYY legacy format
-        const year = parts[0].length === 4 ? parts[0] : parts[2];
-        return { ...book, year: parseInt(year) };
+        return { ...book, year: getYearFromFinishedDate(book.Finished) };
     });
 
     // Calculate totals
