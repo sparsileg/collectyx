@@ -34,13 +34,13 @@ function addToReadingList(event) {
     // Replace the author assignment with:
     const authorGiven = formData.get('authorGiven') || '';
     const authorSurname = formData.get('authorSurname') || '';
-    const fullAuthor = `${authorSurname}, ${authorGiven}`.trim();
+    const fullAuthor = formatAuthorName(authorSurname, authorGiven);
 
     const newBook = {
         [CONSTANTS.BOOK_FIELDS.ID]: generateReadingListId(),
         [CONSTANTS.BOOK_FIELDS.TITLE]: formData.get('title'),
         [CONSTANTS.BOOK_FIELDS.AUTHOR]: fullAuthor,
-        Source: 'Other',  // Always set to "Other" for manual entries
+        Source: formData.get('source')?.trim() || 'Other',
         Rank: rank,
         MyLibraryId: null  // No My Library ID for manual entries
     };
@@ -195,10 +195,11 @@ function editReadingListItem(id) {
         Math.max(...otherRankedBooks.map(b => b.Rank)) : 0;
     const maxAllowedRank = maxRank + 1;
 
-    // Populate the modal form (removed Source field)
+    // Populate the modal form
     document.getElementById('editReadingListId').value = id;
     document.getElementById('editReadingListTitle').value = book[CONSTANTS.BOOK_FIELDS.TITLE];
     document.getElementById('editReadingListAuthor').value = book[CONSTANTS.BOOK_FIELDS.AUTHOR];
+    document.getElementById('editReadingListSource').value = book.Source || '';
     document.getElementById('editReadingListRank').value = book.Rank || '';
 
     // Set the max attribute on the rank input
@@ -225,6 +226,7 @@ function saveReadingListEdit(event) {
 
     const newTitle = document.getElementById('editReadingListTitle').value;
     const newAuthor = document.getElementById('editReadingListAuthor').value;
+    const newSource = document.getElementById('editReadingListSource').value.trim() || 'Other';
     const newRankStr = document.getElementById('editReadingListRank').value;
     const newRank = newRankStr ? parseInt(newRankStr) : null;
 
@@ -251,9 +253,10 @@ function saveReadingListEdit(event) {
         }
     }
 
-    // Update book properties (removed Source)
+    // Update book properties
     book[CONSTANTS.BOOK_FIELDS.TITLE] = newTitle;
     book[CONSTANTS.BOOK_FIELDS.AUTHOR] = newAuthor;
+    book.Source = newSource;
 
     // Close modal and update display
     document.getElementById('readingListEditModal').style.display = 'none';
@@ -333,10 +336,14 @@ let draggedItem = null;
 function initializeDragAndDrop() {
     const container = document.getElementById('readingListContainer');
 
+    if (container.dataset.dragInitialized) return;
+
     container.addEventListener('dragstart', handleDragStart);
     container.addEventListener('dragover', handleDragOver);
     container.addEventListener('drop', handleDrop);
     container.addEventListener('dragend', handleDragEnd);
+
+    container.dataset.dragInitialized = 'true';
 }
 
 function handleDragStart(e) {
@@ -515,6 +522,10 @@ async function startFinishingBook(readingListId) {
     // Store the reading list ID for removal after successful book entry
     sessionStorage.setItem('pendingReadingListRemoval', readingListId);
 
+    // Clear the "Looking up book information..." status before navigating —
+    // it's an INFO message, so clearMessage() (error-only) won't touch it.
+    document.getElementById('messageArea').textContent = '';
+
     // Navigate to the finished book form and populate it
     populateFinishedBookForm(bookData);
     showView(CONSTANTS.VIEWS.ENTER_FINISHED, document.querySelector('[onclick*="enterFinished"]'));
@@ -524,11 +535,13 @@ async function startFinishingBook(readingListId) {
 function populateFinishedBookForm(bookData) {
     // Set today's date
     const today = new Date().toISOString().split('T')[0];
-    document.getElementById('finished').value = today;
+    document.getElementById('finished').value = dateFromStorage(today);
 
     // Populate form fields
     document.getElementById('title').value = bookData.title;
-    document.getElementById('author').value = bookData.author;
+    const authorInfo = parseAuthorName(bookData.author);
+    document.getElementById('authorGiven').value = authorInfo.first;
+    document.getElementById('authorSurname').value = authorInfo.last;
     document.getElementById('pages').value = bookData.pages;
     document.getElementById('isbn').value = bookData.isbn;
     document.getElementById('recommend').value = bookData.recommend;

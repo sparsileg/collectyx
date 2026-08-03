@@ -268,31 +268,9 @@ async function migrateExistingBooks() {
     }
 }
 
-async function migrateReadingListItems() {
-    let migrated = 0;
-    readingList.forEach(item => {
-        if (!item.id) {
-            item.id = generateBookId();
-            migrated++;
-        }
-    });
-    if (migrated > 0) {
-        await saveReadingListData();
-    }
-}
-
-async function migrateMyLibraryItems() {
-    let migrated = 0;
-    myLibrary.forEach(item => {
-        if (!item.id) {
-            item.id = generateBookId();
-            migrated++;
-        }
-    });
-    if (migrated > 0) {
-        await saveMyLibraryData();
-    }
-}
+// migrateReadingListItems() and migrateMyLibraryItems() live in
+// reading-list.js and my-library.js respectively — those load after this
+// file and are the versions actually in effect.
 
 // ── Export / Import ───────────────────────────────────────────────────────────
 

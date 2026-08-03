@@ -4,7 +4,7 @@ function parseTagsFromString(tagString) {
     
     return tagString.split(',')
         .map(tag => tag.trim().toLowerCase())
-        .filter(tag => tag.length > 0 && /^[a-z0-9]+$/i.test(tag))
+        .filter(tag => tag.length > 0 && /^[a-z0-9_-]+$/i.test(tag))
         .filter((tag, index, arr) => arr.indexOf(tag) === index); // Remove duplicates
 }
 
@@ -34,8 +34,8 @@ function validateTagName(tagName, existingTags, originalTag = null) {
     
     const cleanTag = tagName.trim().toLowerCase();
     
-    if (!/^[a-z0-9]+$/i.test(cleanTag)) {
-        return { valid: false, message: 'Tags can only contain letters and numbers' };
+    if (!/^[a-z0-9_-]+$/i.test(cleanTag)) {
+        return { valid: false, message: 'Tags can only contain letters, numbers, hyphens, and underscores' };
     }
     
     if (cleanTag !== originalTag && existingTags.hasOwnProperty(cleanTag)) {

@@ -2,7 +2,8 @@
 // Constants for magic strings
 const CONSTANTS = {
     APP_NAME: 'scriptum',
-    APP_VERSION: '0.7',
+    // Keep in sync with src-tauri/Cargo.toml's [package] version.
+    APP_VERSION: '0.7.0',
 
     DB: {
         NAME:    'scriptum-db',

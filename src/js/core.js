@@ -22,6 +22,11 @@ window.onload = async function () {
     populateCategorySelects();
     renderReadBooks();
     renderDashboard();
+
+    const versionDisplay = document.getElementById('appVersionDisplay');
+    if (versionDisplay) {
+        versionDisplay.textContent = CONSTANTS.APP_VERSION;
+    }
 };
 
 // ── View routing ──────────────────────────────────────────────────────────────
@@ -211,6 +216,18 @@ function escapeHtml(str) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+// ── Author formatting ─────────────────────────────────────────────────────────
+
+// Combines surname/given-name into a single display string, omitting the
+// separating comma when only one part is present (rather than producing
+// "Twain," or ", Mark").
+function formatAuthorName(surname, given) {
+    const s = (surname || '').trim();
+    const g = (given || '').trim();
+    if (s && g) return `${s}, ${g}`;
+    return s || g;
 }
 
 // ── ID generation ─────────────────────────────────────────────────────────────

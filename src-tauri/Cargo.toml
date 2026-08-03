@@ -1,5 +1,6 @@
 [package]
 name = "scriptum"
+# Keep in sync with src/js/constants.js's CONSTANTS.APP_VERSION.
 version = "0.7.0"
 description = "Scriptum — Book Tracker"
 authors = ["Sparsile"]

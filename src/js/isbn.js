@@ -3,7 +3,12 @@
 // Updated generic ISBN lookup with better ISBN handling
 async function lookupBookISBNGeneric(bookId, collection, saveCallback, renderCallback) {
     const book = collection.find(b => b.id === bookId);
-    
+
+    if (!book) {
+        showMessage('Book not found', CONSTANTS.MESSAGE_TYPES.ERROR);
+        return;
+    }
+
     if (!book.Title || !book.Author) {
         showMessage('Book must have title and author for ISBN lookup', CONSTANTS.MESSAGE_TYPES.ERROR);
         return;

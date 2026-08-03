@@ -352,6 +352,8 @@
             <button type="button" class="btn btn-secondary" onclick="resetSettings()">Reset to Defaults</button>
           </div>
         </form>
+
+        <p class="version-info">Scriptum v<span id="appVersionDisplay"></span></p>
       </div> <!-- end of Settings View -->
 
       <!-- To Read View -->
@@ -384,6 +386,13 @@
                   <input type="text" id="readingAuthorSurname" name="authorSurname" required>
                 </div>
               </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="readingSource">Source:</label>
+                  <input type="text" id="readingSource" name="source"
+                         placeholder="e.g. a friend, a website, a podcast">
+                </div>
+              </div>
               <button type="submit" class="btn btn-primary">Add to Reading List</button>
             </form>
           </div>
@@ -411,6 +420,11 @@
             <div class="form-group">
               <label for="editReadingListAuthor">Author:</label>
               <input type="text" id="editReadingListAuthor" required>
+            </div>
+            <div class="form-group">
+              <label for="editReadingListSource">Source:</label>
+              <input type="text" id="editReadingListSource"
+                     placeholder="e.g. a friend, a website, a podcast">
             </div>
             <div class="form-group">
               <label for="editReadingListRank">Rank:</label>

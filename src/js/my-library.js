@@ -91,7 +91,7 @@ function addToMyLibrary(event) {
     // Replace the author assignment with:
     const authorGiven = document.getElementById('myLibraryAddAuthorGiven').value;
     const authorSurname = document.getElementById('myLibraryAddAuthorSurname').value;
-    const fullAuthor = `${authorSurname}, ${authorGiven}`.trim();
+    const fullAuthor = formatAuthorName(authorSurname, authorGiven);
     const tagsInput = document.getElementById('myLibraryAddTags').value;
     const tags = parseTagsFromString(tagsInput);
 
@@ -131,7 +131,7 @@ function editMyLibraryBook(id) {
     document.getElementById('myLibraryEditISBN').value = book.ISBN || '';
     document.getElementById('myLibraryEditPages').value = book.Pages || '';
     document.getElementById('myLibraryEditPatron').value = book.Patron || '';
-    document.getElementById('myLibraryEditCheckedOutDate').value = book.CheckedOutDate || '';
+    document.getElementById('myLibraryEditCheckedOutDate').value = dateFromStorage(book.CheckedOutDate || '');
     document.getElementById('myLibraryEditTags').value = tagsToString(book.Tags || []);
 
     // Handle location
@@ -175,7 +175,8 @@ function saveMyLibraryEdit(event) {
     book.Pages = document.getElementById('myLibraryEditPages').value;
     book.Location = location;
     book.Patron = document.getElementById('myLibraryEditPatron').value || null;
-    book.CheckedOutDate = document.getElementById('myLibraryEditCheckedOutDate').value || null;
+    const checkedOutDateInput = document.getElementById('myLibraryEditCheckedOutDate').value;
+    book.CheckedOutDate = checkedOutDateInput ? dateToStorage(checkedOutDateInput) : null;
     book.Tags = tags;
 
     saveMyLibraryData();

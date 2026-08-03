@@ -1,7 +1,6 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
     "productName": "Scriptum",
-    "version": "0.1.0",
     "identifier": "com.scriptum.app",
     "build": {
         "beforeDevCommand": "node src-tauri/scripts/clear-webview-cache.js",

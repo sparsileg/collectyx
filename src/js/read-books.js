@@ -65,7 +65,7 @@ async function enterReadBook(event) {
     // Handle author name concatenation
     const authorGiven = formData.get('authorGiven') || '';
     const authorSurname = formData.get('authorSurname') || '';
-    book['Author'] = `${authorSurname}, ${authorGiven}`.trim();
+    book['Author'] = formatAuthorName(authorSurname, authorGiven);
 
     books.push(book);
 
@@ -703,7 +703,6 @@ function updateFilterValue(operatorSelect) {
     case 'contains':
     case 'lte':
     case 'gte':
-    case 'gte':
         if (field === 'MultipleReads') {
             valueContainer.innerHTML = '<input type="text" class="filter-value-input" value="2" readonly>';
         } else {
@@ -953,7 +952,7 @@ function toggleExportDropdown() {
 
 
 // Close dropdown when clicking outside
-window.onclick = function(event) {
+window.addEventListener('click', function(event) {
     if (!event.target.matches('.export-btn')) {
         const dropdowns = document.getElementsByClassName("export-dropdown-content");
         for (let openDropdown of dropdowns) {
@@ -962,7 +961,7 @@ window.onclick = function(event) {
             }
         }
     }
-}
+});
 
 
 function generateExportMetadata() {

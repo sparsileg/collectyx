@@ -35,15 +35,8 @@ async function renderDashboard() {
     renderWhatsNext();
     renderLibraryStats();
 
-    // Re-render charts and enable drag-drop after content is loaded
+    // Enable drag-drop after content is loaded
     setTimeout(() => {
-        const dailyGoal = parseInt(localStorage.getItem(CONSTANTS.STORAGE_KEYS.DAILY_READING_PAGES)) || null;
-        if (dailyGoal) {
-            const chartCanvas = document.getElementById('readingGoalChart');
-            if (chartCanvas) {
-                renderReadingGoalChart(dailyGoal);
-            }
-        }
         enableDashboardDragDrop();
     }, 50);
 }
