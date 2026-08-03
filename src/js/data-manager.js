@@ -323,6 +323,7 @@ async function importUnifiedDatabase(data) {
                 ...book,
                 id: book.id || generateBookId(),
                 Pages: book.Pages ? parseInt(book.Pages) || null : null,
+                Finished: book.Finished ? dateToStorage(dateFromStorage(book.Finished)) : book.Finished,
                 Recommend: book.Recommend === 'Y' || book.Recommend === true  || book.Recommend === 1 ? 1
                          : book.Recommend === 'N' || book.Recommend === false || book.Recommend === 0 ? 0
                          : null,
@@ -350,6 +351,7 @@ async function importUnifiedDatabase(data) {
                 id:    book.id || generateBookId(),
                 Tags:  JSON.stringify(Array.isArray(book.Tags) ? book.Tags : []),
                 Pages: book.Pages ? parseInt(book.Pages) || null : null,
+                CheckedOutDate: book.CheckedOutDate ? dateToStorage(dateFromStorage(book.CheckedOutDate)) : book.CheckedOutDate,
             }));
             await DBManager.clear(CONSTANTS.STORES.MY_LIBRARY);
             await DBManager.putBulk(CONSTANTS.STORES.MY_LIBRARY, prepared);

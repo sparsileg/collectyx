@@ -175,7 +175,7 @@ function createReadBookRow(book, index) {
         }
     };
 
-    const displayDate = book.Finished ? book.Finished : '';
+    const displayDate = book.Finished ? dateFromStorage(book.Finished) : '';
     const hasISBN = book.ISBN || book.ISBN13 ? '📚' : '❓';
 
     row.innerHTML = `
