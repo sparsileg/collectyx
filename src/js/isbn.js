@@ -93,8 +93,7 @@ async function bulkISBNLookupGeneric(collection, saveCallback, renderCallback, c
     for (const bookWithoutISBN of booksWithoutISBN) {
         try {
             const originalIndex = collection.findIndex(originalBook => 
-                originalBook.Title === bookWithoutISBN.Title && 
-                originalBook.Author === bookWithoutISBN.Author
+                originalBook.id === bookWithoutISBN.id
             );
             
             if (originalIndex === -1) continue;
