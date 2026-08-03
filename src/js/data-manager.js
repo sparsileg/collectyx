@@ -86,7 +86,11 @@ function sanitiseThemePath(path) {
 // ── BooksRead ─────────────────────────────────────────────────────────────────
 
 async function loadData() {
-    books = await DBManager.getAll(CONSTANTS.STORES.BOOKS_READ);
+    const raw = await DBManager.getAll(CONSTANTS.STORES.BOOKS_READ);
+    books = raw.map(book => ({
+        ...book,
+        Tags: typeof book.Tags === 'string' ? JSON.parse(book.Tags) : (book.Tags || []),
+    }));
 }
 
 async function saveData() {
@@ -382,10 +386,11 @@ async function importUnifiedDatabase(data) {
             if (data.Settings.displayTheme) {
                 const sanitised = sanitiseThemePath(data.Settings.displayTheme);
                 data.Settings.displayTheme = sanitised;
-                localStorage.setItem(CONSTANTS.STORAGE_KEYS.SELECTED_THEME, sanitised);
-                loadTheme();
             }
             await saveSettingsToDB(data.Settings);
+            if (data.Settings.displayTheme) {
+                await loadTheme();
+            }
         }
 
         return {

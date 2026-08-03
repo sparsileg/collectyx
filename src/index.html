@@ -134,11 +134,21 @@
           <div class="form-row">
             <div class="form-group">
               <label for="authorGiven">Given Name(s):</label>
-              <input type="text" id="authorGiven" name="authorGiven" required>
+              <input type="text" id="authorGiven" name="authorGiven">
             </div>
             <div class="form-group">
               <label for="authorSurname">Surname:</label>
-              <input type="text" id="authorSurname" name="authorSurname" required>
+              <input type="text" id="authorSurname" name="authorSurname">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="author2Given">Second Author — Given Name(s):</label>
+              <input type="text" id="author2Given" name="author2Given">
+            </div>
+            <div class="form-group">
+              <label for="author2Surname">Second Author — Surname:</label>
+              <input type="text" id="author2Surname" name="author2Surname">
             </div>
           </div>
           <div class="form-row">
@@ -163,6 +173,17 @@
                 <option value="1">Yes</option>
                 <option value="0">No</option>
               </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="tagsInput">Tags:</label>
+            <div class="tag-chip-container">
+              <div class="tag-chip-field">
+                <input type="text" id="tagsInput" placeholder="Type a tag and press Enter" autocomplete="off">
+                <div class="tag-chip-suggestions" id="tagsSuggestions"></div>
+              </div>
+              <div class="tag-chip-row" id="tagsChipRow"></div>
+              <input type="hidden" id="tags" name="tags">
             </div>
           </div>
           <div class="form-group">
@@ -244,9 +265,25 @@
             <label for="editTitle">Title:</label>
             <input type="text" id="editTitle" name="title" required>
           </div>
-          <div class="form-group">
-            <label for="editAuthor">Author:</label>
-            <input type="text" id="editAuthor" name="author" required>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="editAuthorGiven">Given Name(s):</label>
+              <input type="text" id="editAuthorGiven" name="authorGiven">
+            </div>
+            <div class="form-group">
+              <label for="editAuthorSurname">Surname:</label>
+              <input type="text" id="editAuthorSurname" name="authorSurname">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="editAuthor2Given">Second Author — Given Name(s):</label>
+              <input type="text" id="editAuthor2Given" name="author2Given">
+            </div>
+            <div class="form-group">
+              <label for="editAuthor2Surname">Second Author — Surname:</label>
+              <input type="text" id="editAuthor2Surname" name="author2Surname">
+            </div>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -270,6 +307,17 @@
                 <option value="1">Yes</option>
                 <option value="0">No</option>
               </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="editTagsInput">Tags:</label>
+            <div class="tag-chip-container">
+              <div class="tag-chip-field">
+                <input type="text" id="editTagsInput" placeholder="Type a tag and press Enter" autocomplete="off">
+                <div class="tag-chip-suggestions" id="editTagsSuggestions"></div>
+              </div>
+              <div class="tag-chip-row" id="editTagsChipRow"></div>
+              <input type="hidden" id="editTags" name="tags">
             </div>
           </div>
           <div class="form-group">
@@ -338,8 +386,8 @@
             <div style="display: flex; gap: 8px; align-items: center;">
               <input type="text" id="backupFolder" name="backupFolder" placeholder="No folder selected"
                      style="flex: 1; min-width: 40ch;" readonly>
-              <button type="button" class="btn btn-secondary" onclick="selectBackupFolder()">Browse...</button>
-              <button type="button" class="btn btn-secondary" onclick="clearBackupFolder()">Clear</button>
+              <button type="button" id="backupFolderBrowseBtn" class="btn btn-secondary" onclick="selectBackupFolder()">Browse...</button>
+              <button type="button" id="backupFolderClearBtn" class="btn btn-secondary" onclick="clearBackupFolder()">Clear</button>
             </div>
           </div>
           <div class="form-group">
@@ -379,11 +427,21 @@
               <div class="form-row">
                 <div class="form-group">
                   <label for="readingAuthorGiven">Given Name(s):</label>
-                  <input type="text" id="readingAuthorGiven" name="authorGiven" required>
+                  <input type="text" id="readingAuthorGiven" name="authorGiven">
                 </div>
                 <div class="form-group">
                   <label for="readingAuthorSurname">Surname:</label>
-                  <input type="text" id="readingAuthorSurname" name="authorSurname" required>
+                  <input type="text" id="readingAuthorSurname" name="authorSurname">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="readingAuthor2Given">Second Author — Given Name(s):</label>
+                  <input type="text" id="readingAuthor2Given" name="author2Given">
+                </div>
+                <div class="form-group">
+                  <label for="readingAuthor2Surname">Second Author — Surname:</label>
+                  <input type="text" id="readingAuthor2Surname" name="author2Surname">
                 </div>
               </div>
               <div class="form-row">
@@ -418,8 +476,20 @@
               <input type="text" id="editReadingListTitle" required>
             </div>
             <div class="form-group">
-              <label for="editReadingListAuthor">Author:</label>
-              <input type="text" id="editReadingListAuthor" required>
+              <label for="editReadingListAuthorGiven">Given Name(s):</label>
+              <input type="text" id="editReadingListAuthorGiven">
+            </div>
+            <div class="form-group">
+              <label for="editReadingListAuthorSurname">Surname:</label>
+              <input type="text" id="editReadingListAuthorSurname">
+            </div>
+            <div class="form-group">
+              <label for="editReadingListAuthor2Given">Second Author — Given Name(s):</label>
+              <input type="text" id="editReadingListAuthor2Given">
+            </div>
+            <div class="form-group">
+              <label for="editReadingListAuthor2Surname">Second Author — Surname:</label>
+              <input type="text" id="editReadingListAuthor2Surname">
             </div>
             <div class="form-group">
               <label for="editReadingListSource">Source:</label>
@@ -528,11 +598,19 @@
             </div>
             <div class="form-group">
               <label for="myLibraryAddAuthorGiven">Given Name(s):</label>
-              <input type="text" id="myLibraryAddAuthorGiven" required>
+              <input type="text" id="myLibraryAddAuthorGiven">
             </div>
             <div class="form-group">
               <label for="myLibraryAddAuthorSurname">Surname:</label>
-              <input type="text" id="myLibraryAddAuthorSurname" required>
+              <input type="text" id="myLibraryAddAuthorSurname">
+            </div>
+            <div class="form-group">
+              <label for="myLibraryAddAuthor2Given">Second Author — Given Name(s):</label>
+              <input type="text" id="myLibraryAddAuthor2Given">
+            </div>
+            <div class="form-group">
+              <label for="myLibraryAddAuthor2Surname">Second Author — Surname:</label>
+              <input type="text" id="myLibraryAddAuthor2Surname">
             </div>
             <div class="form-group">
               <label for="myLibraryAddCategory">Category:</label>
@@ -549,8 +627,15 @@
               <input type="number" id="myLibraryAddPages" min="1">
             </div>
             <div class="form-group">
-              <label for="myLibraryAddTags">Tags:</label>
-              <input type="text" id="myLibraryAddTags" placeholder="astronomy, photography (comma-separated)">
+              <label for="myLibraryAddTagsInput">Tags:</label>
+              <div class="tag-chip-container">
+                <div class="tag-chip-field">
+                  <input type="text" id="myLibraryAddTagsInput" placeholder="Type a tag and press Enter" autocomplete="off">
+                  <div class="tag-chip-suggestions" id="myLibraryAddTagsSuggestions"></div>
+                </div>
+                <div class="tag-chip-row" id="myLibraryAddTagsChipRow"></div>
+                <input type="hidden" id="myLibraryAddTags">
+              </div>
             </div>
             <div class="form-group">
               <label for="myLibraryAddLocationType">Location Type:</label>
@@ -589,8 +674,20 @@
               <input type="text" id="myLibraryEditTitle" required>
             </div>
             <div class="form-group">
-              <label for="myLibraryEditAuthor">Author:</label>
-              <input type="text" id="myLibraryEditAuthor" required>
+              <label for="myLibraryEditAuthorGiven">Given Name(s):</label>
+              <input type="text" id="myLibraryEditAuthorGiven">
+            </div>
+            <div class="form-group">
+              <label for="myLibraryEditAuthorSurname">Surname:</label>
+              <input type="text" id="myLibraryEditAuthorSurname">
+            </div>
+            <div class="form-group">
+              <label for="myLibraryEditAuthor2Given">Second Author — Given Name(s):</label>
+              <input type="text" id="myLibraryEditAuthor2Given">
+            </div>
+            <div class="form-group">
+              <label for="myLibraryEditAuthor2Surname">Second Author — Surname:</label>
+              <input type="text" id="myLibraryEditAuthor2Surname">
             </div>
             <div class="form-group">
               <label for="myLibraryEditCategory">Category:</label>
@@ -607,8 +704,15 @@
               <input type="number" id="myLibraryEditPages" min="1">
             </div>
             <div class="form-group">
-              <label for="myLibraryEditTags">Tags:</label>
-              <input type="text" id="myLibraryEditTags" placeholder="astronomy, photography (comma-separated)">
+              <label for="myLibraryEditTagsInput">Tags:</label>
+              <div class="tag-chip-container">
+                <div class="tag-chip-field">
+                  <input type="text" id="myLibraryEditTagsInput" placeholder="Type a tag and press Enter" autocomplete="off">
+                  <div class="tag-chip-suggestions" id="myLibraryEditTagsSuggestions"></div>
+                </div>
+                <div class="tag-chip-row" id="myLibraryEditTagsChipRow"></div>
+                <input type="hidden" id="myLibraryEditTags">
+              </div>
             </div>
             <div class="form-group">
               <label for="myLibraryEditLocationType">Location Type:</label>

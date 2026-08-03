@@ -683,6 +683,15 @@ body::before {
     box-shadow: var(--shadow-modal);
 }
 
+#readingListEditModal .modal-content {
+    max-width: 650px;
+}
+
+#myLibraryAddModal .modal-content,
+#myLibraryEditModal .modal-content {
+    max-width: 650px;
+}
+
 /* ── Date range ─────────────────────────────────────────────────────────────── */
 
 .date-range {
@@ -1335,6 +1344,75 @@ canvas {
     display: flex;
     gap: 5px;
     margin-left: 15px;
+}
+
+/* ── Tag chip entry ─────────────────────────────────────────────────────────── */
+
+.tag-chip-container {
+    flex: 1;
+}
+
+.tag-chip-field {
+    position: relative;
+}
+
+.tag-chip-suggestions {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.tag-chip-suggestion {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.tag-chip-suggestion:hover {
+    background: var(--color-table-row-hover);
+}
+
+.tag-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--color-btn-secondary-bg);
+    color: var(--color-btn-secondary-text);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 4px 6px 4px 12px;
+    font-size: 0.85em;
+}
+
+.tag-chip-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    font-size: 1em;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 50%;
+}
+
+.tag-chip-remove:hover {
+    background: var(--color-danger);
+    color: var(--color-btn-primary-text);
 }
 
 /* ── Calendar picker ────────────────────────────────────────────────────────── */

@@ -32,14 +32,24 @@ function addToReadingList(event) {
     }
 
     // Replace the author assignment with:
-    const authorGiven = formData.get('authorGiven') || '';
-    const authorSurname = formData.get('authorSurname') || '';
+    const authorGiven = (formData.get('authorGiven') || '').trim();
+    const authorSurname = (formData.get('authorSurname') || '').trim();
+    if (!authorGiven && !authorSurname) {
+        showMessage('Author requires at least a given name or a surname', CONSTANTS.MESSAGE_TYPES.ERROR);
+        return;
+    }
     const fullAuthor = formatAuthorName(authorSurname, authorGiven);
+
+    // Second author is fully optional — zero, one, or two name parts
+    const author2Given = (formData.get('author2Given') || '').trim();
+    const author2Surname = (formData.get('author2Surname') || '').trim();
+    const fullAuthor2 = formatAuthorName(author2Surname, author2Given);
 
     const newBook = {
         [CONSTANTS.BOOK_FIELDS.ID]: generateReadingListId(),
         [CONSTANTS.BOOK_FIELDS.TITLE]: formData.get('title'),
         [CONSTANTS.BOOK_FIELDS.AUTHOR]: fullAuthor,
+        Author2: fullAuthor2,
         Source: formData.get('source')?.trim() || 'Other',
         Rank: rank,
         MyLibraryId: null  // No My Library ID for manual entries
@@ -118,6 +128,10 @@ function createReadingListItem(book, index) {
     const finishedButton = book.Rank ?
         `<button class="btn btn-small btn-primary" data-action="finish">Finished</button>` : '';
 
+    const authorDisplay = book.Author2
+        ? `${book[CONSTANTS.BOOK_FIELDS.AUTHOR]} & ${book.Author2}`
+        : book[CONSTANTS.BOOK_FIELDS.AUTHOR];
+
     return `
         <div class="reading-list-item" data-id="${escapeHtml(id)}" draggable="true">
             <div class="book-info">
@@ -125,7 +139,7 @@ function createReadingListItem(book, index) {
                 <div class="book-rank">${escapeHtml(rankDisplay)}</div>
                 <div class="book-details">
                     <div class="book-title">${escapeHtml(book[CONSTANTS.BOOK_FIELDS.TITLE])}</div>
-                    <div class="book-author">by ${escapeHtml(book[CONSTANTS.BOOK_FIELDS.AUTHOR])}</div>
+                    <div class="book-author">by ${escapeHtml(authorDisplay)}</div>
                     <div class="book-source">Source: ${escapeHtml(book.Source)}</div>
                 </div>
             </div>
@@ -198,7 +212,12 @@ function editReadingListItem(id) {
     // Populate the modal form
     document.getElementById('editReadingListId').value = id;
     document.getElementById('editReadingListTitle').value = book[CONSTANTS.BOOK_FIELDS.TITLE];
-    document.getElementById('editReadingListAuthor').value = book[CONSTANTS.BOOK_FIELDS.AUTHOR];
+    const authorInfo = parseAuthorName(book[CONSTANTS.BOOK_FIELDS.AUTHOR] || '');
+    document.getElementById('editReadingListAuthorGiven').value = authorInfo.first || '';
+    document.getElementById('editReadingListAuthorSurname').value = authorInfo.last || '';
+    const author2Info = parseAuthorName(book.Author2 || '');
+    document.getElementById('editReadingListAuthor2Given').value = author2Info.first || '';
+    document.getElementById('editReadingListAuthor2Surname').value = author2Info.last || '';
     document.getElementById('editReadingListSource').value = book.Source || '';
     document.getElementById('editReadingListRank').value = book.Rank || '';
 
@@ -225,7 +244,16 @@ function saveReadingListEdit(event) {
     if (!book) return;
 
     const newTitle = document.getElementById('editReadingListTitle').value;
-    const newAuthor = document.getElementById('editReadingListAuthor').value;
+    const authorGiven = document.getElementById('editReadingListAuthorGiven').value.trim();
+    const authorSurname = document.getElementById('editReadingListAuthorSurname').value.trim();
+    if (!authorGiven && !authorSurname) {
+        showMessage('Author requires at least a given name or a surname', CONSTANTS.MESSAGE_TYPES.ERROR);
+        return;
+    }
+    const newAuthor = formatAuthorName(authorSurname, authorGiven);
+    const author2Given = document.getElementById('editReadingListAuthor2Given').value.trim();
+    const author2Surname = document.getElementById('editReadingListAuthor2Surname').value.trim();
+    const newAuthor2 = formatAuthorName(author2Surname, author2Given);
     const newSource = document.getElementById('editReadingListSource').value.trim() || 'Other';
     const newRankStr = document.getElementById('editReadingListRank').value;
     const newRank = newRankStr ? parseInt(newRankStr) : null;
@@ -256,6 +284,7 @@ function saveReadingListEdit(event) {
     // Update book properties
     book[CONSTANTS.BOOK_FIELDS.TITLE] = newTitle;
     book[CONSTANTS.BOOK_FIELDS.AUTHOR] = newAuthor;
+    book.Author2 = newAuthor2;
     book.Source = newSource;
 
     // Close modal and update display
@@ -483,6 +512,7 @@ async function startFinishingBook(readingListId) {
     let bookData = {
         title: readingListBook[CONSTANTS.BOOK_FIELDS.TITLE],
         author: readingListBook[CONSTANTS.BOOK_FIELDS.AUTHOR],
+        author2: readingListBook.Author2 || '',
         pages: '',
         category: '',
         isbn: '',
@@ -542,6 +572,9 @@ function populateFinishedBookForm(bookData) {
     const authorInfo = parseAuthorName(bookData.author);
     document.getElementById('authorGiven').value = authorInfo.first;
     document.getElementById('authorSurname').value = authorInfo.last;
+    const author2Info = parseAuthorName(bookData.author2 || '');
+    document.getElementById('author2Given').value = author2Info.first || '';
+    document.getElementById('author2Surname').value = author2Info.last || '';
     document.getElementById('pages').value = bookData.pages;
     document.getElementById('isbn').value = bookData.isbn;
     document.getElementById('recommend').value = bookData.recommend;

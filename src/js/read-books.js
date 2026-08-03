@@ -45,6 +45,13 @@ async function enterReadBook(event) {
         DateAdded: new Date().toISOString()
     };
 
+    const authorGiven = (formData.get('authorGiven') || '').trim();
+    const authorSurname = (formData.get('authorSurname') || '').trim();
+    if (!authorGiven && !authorSurname) {
+        showMessage('Author requires at least a given name or a surname', CONSTANTS.MESSAGE_TYPES.ERROR);
+        return;
+    }
+
     // Map form data to storage format with capitalized field names
     for (let [key, value] of formData.entries()) {
         if (key === 'finished') {
@@ -53,8 +60,8 @@ async function enterReadBook(event) {
             book['ISBN'] = value || '';
         } else if (key === 'recommend') {
             book['Recommend'] = value === '1' ? 1 : value === '0' ? 0 : null;
-        } else if (key === 'authorGiven' || key === 'authorSurname') {
-            // Skip individual author fields - we'll handle them separately
+        } else if (key === 'authorGiven' || key === 'authorSurname' || key === 'author2Given' || key === 'author2Surname' || key === 'tags') {
+            // Skip individual author fields and tags - handled separately
             continue;
         } else {
             const capitalizedKey = key.charAt(0).toUpperCase() + key.slice(1);
@@ -63,9 +70,14 @@ async function enterReadBook(event) {
     }
 
     // Handle author name concatenation
-    const authorGiven = formData.get('authorGiven') || '';
-    const authorSurname = formData.get('authorSurname') || '';
     book['Author'] = formatAuthorName(authorSurname, authorGiven);
+
+    // Second author is fully optional — zero, one, or two name parts
+    const author2Given = (formData.get('author2Given') || '').trim();
+    const author2Surname = (formData.get('author2Surname') || '').trim();
+    book['Author2'] = formatAuthorName(author2Surname, author2Given);
+
+    book['Tags'] = parseTagsFromString(formData.get('tags') || '');
 
     books.push(book);
 
@@ -177,11 +189,12 @@ function createReadBookRow(book, index) {
 
     const displayDate = book.Finished ? dateFromStorage(book.Finished) : '';
     const hasISBN = book.ISBN || book.ISBN13 ? '📚' : '❓';
+    const authorDisplay = book.Author2 ? `${book.Author || ''} & ${book.Author2}` : (book.Author || '');
 
     row.innerHTML = `
         <td>${escapeHtml(displayDate)}</td>
         <td>${escapeHtml(book.Title || '')} ${hasISBN}</td>
-        <td>${escapeHtml(book.Author || '')}</td>
+        <td>${escapeHtml(authorDisplay)}</td>
         <td>${escapeHtml(book.Pages || '')}</td>
         <td>${escapeHtml(book.Category || '')}</td>
         <td>${book.Recommend === 1 ? 'Y' : book.Recommend === 0 ? 'N' : ''}</td>
@@ -222,10 +235,16 @@ async function editReadBookById(id) {
     document.getElementById('editIndex').value = id;
     document.getElementById('editFinished').value = dateFromStorage(book[CONSTANTS.BOOK_FIELDS.FINISHED] || '');
     document.getElementById('editTitle').value = book[CONSTANTS.BOOK_FIELDS.TITLE] || '';
-    document.getElementById('editAuthor').value = book[CONSTANTS.BOOK_FIELDS.AUTHOR] || '';
+    const authorInfo = parseAuthorName(book[CONSTANTS.BOOK_FIELDS.AUTHOR] || '');
+    document.getElementById('editAuthorGiven').value = authorInfo.first || '';
+    document.getElementById('editAuthorSurname').value = authorInfo.last || '';
+    const author2Info = parseAuthorName(book['Author2'] || '');
+    document.getElementById('editAuthor2Given').value = author2Info.first || '';
+    document.getElementById('editAuthor2Surname').value = author2Info.last || '';
     document.getElementById('editPages').value = book[CONSTANTS.BOOK_FIELDS.PAGES] || '';
     document.getElementById('editRecommend').value = book[CONSTANTS.BOOK_FIELDS.RECOMMEND] ?? '';
     document.getElementById('editISBN').value = book[CONSTANTS.BOOK_FIELDS.ISBN] || '';
+    if (editTagsChipController) editTagsChipController.setTags(book.Tags || []);
     document.getElementById('editComments').value = book[CONSTANTS.BOOK_FIELDS.COMMENTS] || '';
 
     showView(CONSTANTS.VIEWS.EDIT);
@@ -249,6 +268,13 @@ async function saveEditReadBook(event) {
         return;
     }
 
+    const authorGiven = (formData.get('authorGiven') || '').trim();
+    const authorSurname = (formData.get('authorSurname') || '').trim();
+    if (!authorGiven && !authorSurname) {
+        showMessage('Author requires at least a given name or a surname', CONSTANTS.MESSAGE_TYPES.ERROR);
+        return;
+    }
+
     const book = { ...books[bookIndex] }; // Preserve fields not present in the edit form (e.g. DateAdded, Rating)
 
     // Map form data to storage format with capitalized field names
@@ -260,12 +286,24 @@ async function saveEditReadBook(event) {
                 book['ISBN'] = value || '';
             } else if (key === 'recommend') {
                 book['Recommend'] = value === '1' ? 1 : value === '0' ? 0 : null;
+            } else if (key === 'authorGiven' || key === 'authorSurname' || key === 'author2Given' || key === 'author2Surname' || key === 'tags') {
+                // Skip individual author fields and tags - handled separately
+                continue;
             } else {
                 const capitalizedKey = key.charAt(0).toUpperCase() + key.slice(1);
                 book[capitalizedKey] = value || '';
             }
         }
     }
+
+    book['Author'] = formatAuthorName(authorSurname, authorGiven);
+
+    // Second author is fully optional — zero, one, or two name parts
+    const author2Given = (formData.get('author2Given') || '').trim();
+    const author2Surname = (formData.get('author2Surname') || '').trim();
+    book['Author2'] = formatAuthorName(author2Surname, author2Given);
+
+    book['Tags'] = parseTagsFromString(formData.get('tags') || '');
 
     books[bookIndex] = book;
 
@@ -787,7 +825,7 @@ function applyCurrentFilters(books) {
             if (filter.field === 'all') {
                 const searchTerm = filter.values[0];
                 const searchableFields =
-                      [book.Title, book.Author, book.Category, book.Comments].join(' ').toLowerCase();
+                      [book.Title, book.Author, book.Author2, book.Category, book.Comments].join(' ').toLowerCase();
                 return searchableFields.includes(searchTerm);
             }
 
@@ -798,6 +836,10 @@ function applyCurrentFilters(books) {
             case 'isEmpty':
                 return rawValue === '' || rawValue === null || rawValue === undefined;
             case 'contains':
+                if (filter.field === 'Author') {
+                    const combinedAuthors = `${book.Author || ''} ${book.Author2 || ''}`.toLowerCase();
+                    return combinedAuthors.includes((filter.values[0] || '').toLowerCase());
+                }
                 return fieldValue.toLowerCase().includes((filter.values[0] || '').toLowerCase());
             case 'between':
                 if (!filter.values[0] || !filter.values[1]) return true;
@@ -1163,6 +1205,7 @@ async function searchOpenLibrary(title, author) {
         } catch (error) {
             console.error(`Search failed for query: ${query}`, error);
         }
+        await new Promise(resolve => setTimeout(resolve, CONSTANTS.API_DELAYS.API_RESPECT));
     }
     return null;
 }
@@ -1264,6 +1307,7 @@ async function searchGoogleBooks(title, author) {
         } catch (error) {
             console.error('Google Books search error:', error);
         }
+        await new Promise(resolve => setTimeout(resolve, CONSTANTS.API_DELAYS.API_RESPECT));
     }
     return null;
 }

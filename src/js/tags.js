@@ -1,4 +1,13 @@
 // Tag management functions
+
+// Registry of collections that support tags. Add an entry here (rather
+// than duplicating rename/delete logic per collection) whenever a new
+// collection gains Tags support.
+const TAGGABLE_COLLECTIONS = [
+    { getItems: () => myLibrary, save: () => saveMyLibraryData() },
+    { getItems: () => books, save: () => saveData() }
+];
+
 function parseTagsFromString(tagString) {
     if (!tagString || typeof tagString !== 'string') return [];
     
@@ -15,16 +24,125 @@ function tagsToString(tagsArray) {
 
 function getAllLibraryTags() {
     const tagCounts = {};
-    
-    myLibrary.forEach(book => {
-        if (book.Tags && Array.isArray(book.Tags)) {
-            book.Tags.forEach(tag => {
-                tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-            });
+
+    TAGGABLE_COLLECTIONS.forEach(collection => {
+        collection.getItems().forEach(book => {
+            if (book.Tags && Array.isArray(book.Tags)) {
+                book.Tags.forEach(tag => {
+                    tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+                });
+            }
+        });
+    });
+
+    return tagCounts;
+}
+
+// One reusable chip-based multi-tag entry control, instantiated once per
+// Tags field. `ids` identifies the DOM pieces for a single instance: the
+// visible text input, the suggestion dropdown, the chip row, and the
+// hidden field that existing save-path code already reads tags from
+// (same id/name as the old single text field, so no save-function
+// changes are needed — only the population side calls setTags()).
+function initTagChipInput(ids) {
+    const input = document.getElementById(ids.input);
+    const suggestions = document.getElementById(ids.suggestions);
+    const chipRow = document.getElementById(ids.chipRow);
+    const hidden = document.getElementById(ids.hidden);
+    if (!input || !suggestions || !chipRow || !hidden) return null;
+
+    let tags = [];
+
+    function syncHidden() {
+        hidden.value = tags.join(', ');
+    }
+
+    function renderChips() {
+        chipRow.innerHTML = tags.map((tag, i) => `
+            <span class="tag-chip">
+                ${escapeHtml(tag)}
+                <button type="button" class="tag-chip-remove" data-i="${i}" aria-label="Remove ${escapeHtml(tag)}">&times;</button>
+            </span>
+        `).join('');
+        syncHidden();
+    }
+
+    function hideSuggestions() {
+        suggestions.style.display = 'none';
+        suggestions.innerHTML = '';
+    }
+
+    function showSuggestions() {
+        const val = input.value.trim().toLowerCase();
+        if (!val) { hideSuggestions(); return; }
+        const allTags = Object.keys(getAllLibraryTags()).sort();
+        const matches = allTags.filter(t => t.includes(val) && !tags.includes(t)).slice(0, 8);
+        if (matches.length === 0) { hideSuggestions(); return; }
+        suggestions.innerHTML = matches.map(t =>
+            `<div class="tag-chip-suggestion" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</div>`
+        ).join('');
+        suggestions.style.display = 'block';
+    }
+
+    function addTag(rawTag) {
+        // Duplicate check is scoped to tags already added to this chip
+        // row, not the global vocabulary — a tag existing elsewhere in
+        // the library is exactly what we want to add, not reject.
+        const currentAsMap = {};
+        tags.forEach(t => currentAsMap[t] = true);
+        const validation = validateTagName(rawTag, currentAsMap);
+
+        if (!validation.valid) {
+            if (!validation.isDuplicate && rawTag && rawTag.trim()) {
+                showMessage(validation.message, CONSTANTS.MESSAGE_TYPES.ERROR);
+            }
+            input.value = '';
+            hideSuggestions();
+            return;
+        }
+
+        tags.push(validation.cleanTag);
+        renderChips();
+        input.value = '';
+        hideSuggestions();
+    }
+
+    function removeTag(index) {
+        tags.splice(index, 1);
+        renderChips();
+    }
+
+    input.addEventListener('input', showSuggestions);
+    input.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ',') {
+            event.preventDefault();
+            addTag(input.value);
         }
     });
-    
-    return tagCounts;
+    input.addEventListener('blur', () => {
+        // Delay so a suggestion click still registers before the dropdown closes
+        setTimeout(hideSuggestions, 150);
+    });
+
+    suggestions.addEventListener('click', event => {
+        const item = event.target.closest('[data-tag]');
+        if (item) addTag(item.dataset.tag);
+    });
+
+    chipRow.addEventListener('click', event => {
+        const btn = event.target.closest('.tag-chip-remove');
+        if (btn) removeTag(parseInt(btn.dataset.i));
+    });
+
+    return {
+        setTags(newTags) {
+            tags = Array.isArray(newTags) ? [...newTags] : [];
+            renderChips();
+        },
+        getTags() {
+            return [...tags];
+        }
+    };
 }
 
 function validateTagName(tagName, existingTags, originalTag = null) {
@@ -61,37 +179,41 @@ async function renameTagInLibrary(oldTag, newTag) {
     
     const targetTag = validation.cleanTag || newTag.toLowerCase();
     let updatedCount = 0;
-    
-    myLibrary.forEach(book => {
-        if (book.Tags && Array.isArray(book.Tags)) {
-            const tagIndex = book.Tags.indexOf(oldTag);
-            if (tagIndex !== -1) {
-                book.Tags[tagIndex] = targetTag;
-                // Remove duplicates that might result from merge
-                book.Tags = book.Tags.filter((tag, index, arr) => arr.indexOf(tag) === index);
-                updatedCount++;
+
+    TAGGABLE_COLLECTIONS.forEach(collection => {
+        collection.getItems().forEach(book => {
+            if (book.Tags && Array.isArray(book.Tags)) {
+                const tagIndex = book.Tags.indexOf(oldTag);
+                if (tagIndex !== -1) {
+                    book.Tags[tagIndex] = targetTag;
+                    // Remove duplicates that might result from merge
+                    book.Tags = book.Tags.filter((tag, index, arr) => arr.indexOf(tag) === index);
+                    updatedCount++;
+                }
             }
-        }
+        });
+        collection.save();
     });
-    
-    saveMyLibraryData();
+
     return updatedCount;
 }
 
 function deleteTagFromLibrary(tagToDelete) {
     let updatedCount = 0;
-    
-    myLibrary.forEach(book => {
-        if (book.Tags && Array.isArray(book.Tags)) {
-            const originalLength = book.Tags.length;
-            book.Tags = book.Tags.filter(tag => tag !== tagToDelete);
-            if (book.Tags.length < originalLength) {
-                updatedCount++;
+
+    TAGGABLE_COLLECTIONS.forEach(collection => {
+        collection.getItems().forEach(book => {
+            if (book.Tags && Array.isArray(book.Tags)) {
+                const originalLength = book.Tags.length;
+                book.Tags = book.Tags.filter(tag => tag !== tagToDelete);
+                if (book.Tags.length < originalLength) {
+                    updatedCount++;
+                }
             }
-        }
+        });
+        collection.save();
     });
-    
-    saveMyLibraryData();
+
     return updatedCount;
 }
 
@@ -159,6 +281,7 @@ async function renameTag(oldTag) {
         showMessage(`Tag renamed and updated in ${updatedCount} books`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
         renderTagsList();
         renderMyLibrary(); // Refresh library view if open
+        renderReadBooks(); // Refresh books read view if open
     }
 }
 
@@ -173,6 +296,7 @@ async function deleteTag(tag) {
     showMessage(`Tag deleted and removed from ${updatedCount} books`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
     renderTagsList();
     renderMyLibrary(); // Refresh library view if open
+    renderReadBooks(); // Refresh books read view if open
 }
 
 

@@ -64,6 +64,7 @@ function showAddMyLibraryModal() {
     populateMyLibraryCategorySelects();
     populateMyLibraryBookshelfSelects();
     updateMyLibraryLocationFields('Add');
+    if (myLibraryAddTagsChipController) myLibraryAddTagsChipController.setTags([]);
     document.getElementById('myLibraryAddModal').style.display = 'block';
 }
 
@@ -89,9 +90,19 @@ function addToMyLibrary(event) {
     }
 
     // Replace the author assignment with:
-    const authorGiven = document.getElementById('myLibraryAddAuthorGiven').value;
-    const authorSurname = document.getElementById('myLibraryAddAuthorSurname').value;
+    const authorGiven = document.getElementById('myLibraryAddAuthorGiven').value.trim();
+    const authorSurname = document.getElementById('myLibraryAddAuthorSurname').value.trim();
+    if (!authorGiven && !authorSurname) {
+        showMessage('Author requires at least a given name or a surname', CONSTANTS.MESSAGE_TYPES.ERROR);
+        return;
+    }
     const fullAuthor = formatAuthorName(authorSurname, authorGiven);
+
+    // Second author is fully optional — zero, one, or two name parts
+    const author2Given = document.getElementById('myLibraryAddAuthor2Given').value.trim();
+    const author2Surname = document.getElementById('myLibraryAddAuthor2Surname').value.trim();
+    const fullAuthor2 = formatAuthorName(author2Surname, author2Given);
+
     const tagsInput = document.getElementById('myLibraryAddTags').value;
     const tags = parseTagsFromString(tagsInput);
 
@@ -99,6 +110,7 @@ function addToMyLibrary(event) {
         id: generateMyLibraryId(),
         Title: document.getElementById('myLibraryAddTitle').value,
         Author: fullAuthor,
+        Author2: fullAuthor2,
         Category: document.getElementById('myLibraryAddCategory').value,
         ISBN: document.getElementById('myLibraryAddISBN').value,
         Pages: document.getElementById('myLibraryAddPages').value,
@@ -126,13 +138,18 @@ function editMyLibraryBook(id) {
 
     document.getElementById('myLibraryEditId').value = id;
     document.getElementById('myLibraryEditTitle').value = book.Title;
-    document.getElementById('myLibraryEditAuthor').value = book.Author;
+    const authorInfo = parseAuthorName(book.Author || '');
+    document.getElementById('myLibraryEditAuthorGiven').value = authorInfo.first || '';
+    document.getElementById('myLibraryEditAuthorSurname').value = authorInfo.last || '';
+    const author2Info = parseAuthorName(book.Author2 || '');
+    document.getElementById('myLibraryEditAuthor2Given').value = author2Info.first || '';
+    document.getElementById('myLibraryEditAuthor2Surname').value = author2Info.last || '';
     document.getElementById('myLibraryEditCategory').value = book.Category || '';
     document.getElementById('myLibraryEditISBN').value = book.ISBN || '';
     document.getElementById('myLibraryEditPages').value = book.Pages || '';
     document.getElementById('myLibraryEditPatron').value = book.Patron || '';
     document.getElementById('myLibraryEditCheckedOutDate').value = dateFromStorage(book.CheckedOutDate || '');
-    document.getElementById('myLibraryEditTags').value = tagsToString(book.Tags || []);
+    if (myLibraryEditTagsChipController) myLibraryEditTagsChipController.setTags(book.Tags || []);
 
     // Handle location
     const isBookshelf = MY_LIBRARY_BOOKSHELVES.includes(book.Location);
@@ -168,8 +185,18 @@ function saveMyLibraryEdit(event) {
     const tagsInput = document.getElementById('myLibraryEditTags').value;
     const tags = parseTagsFromString(tagsInput);
 
+    const authorGiven = document.getElementById('myLibraryEditAuthorGiven').value.trim();
+    const authorSurname = document.getElementById('myLibraryEditAuthorSurname').value.trim();
+    if (!authorGiven && !authorSurname) {
+        showMessage('Author requires at least a given name or a surname', CONSTANTS.MESSAGE_TYPES.ERROR);
+        return;
+    }
+    const author2Given = document.getElementById('myLibraryEditAuthor2Given').value.trim();
+    const author2Surname = document.getElementById('myLibraryEditAuthor2Surname').value.trim();
+
     book.Title = document.getElementById('myLibraryEditTitle').value;
-    book.Author = document.getElementById('myLibraryEditAuthor').value;
+    book.Author = formatAuthorName(authorSurname, authorGiven);
+    book.Author2 = formatAuthorName(author2Surname, author2Given);
     book.Category = document.getElementById('myLibraryEditCategory').value;
     book.ISBN = document.getElementById('myLibraryEditISBN').value;
     book.Pages = document.getElementById('myLibraryEditPages').value;
@@ -271,6 +298,7 @@ function addMyLibraryToReadingList(id) {
         [CONSTANTS.BOOK_FIELDS.ID]: generateReadingListId(),
         [CONSTANTS.BOOK_FIELDS.TITLE]: book.Title,
         [CONSTANTS.BOOK_FIELDS.AUTHOR]: book.Author,
+        Author2: book.Author2 || '',
         Source: 'My Library',
         Rank: highestRank + 1,
         MyLibraryId: book.id
@@ -322,13 +350,14 @@ function createMyLibraryRow(book) {
 
     const checkedOutStatus = book.Patron ? `C/O ${book.Patron}` : 'Available';
     const hasISBN = book.ISBN ? '📚' : '❓';
+    const authorDisplay = book.Author2 ? `${book.Author} & ${book.Author2}` : book.Author;
 
     // Check if this book is already on the reading list
     const isOnReadingList = readingList.some(item => item.MyLibraryId === book.id);
 
     row.innerHTML = `
         <td>${escapeHtml(book.Title)} ${hasISBN}</td>
-        <td>${escapeHtml(book.Author)}</td>
+        <td>${escapeHtml(authorDisplay)}</td>
         <td>${escapeHtml(book.Category || '')}</td>
         <td>${escapeHtml(checkedOutStatus)}</td>
         <td>
@@ -753,7 +782,7 @@ function applyCurrentMyLibraryFilters(books) {
                 let textMatch = true;
 
                 if (searchTerm && searchTerm.trim()) {
-                    const searchableFields = [book.Title, book.Author, book.Category, book.Location, book.Patron].join(' ').toLowerCase();
+                    const searchableFields = [book.Title, book.Author, book.Author2, book.Category, book.Location, book.Patron].join(' ').toLowerCase();
                     textMatch = searchableFields.includes(searchTerm);
                 }
 
@@ -779,6 +808,10 @@ function applyCurrentMyLibraryFilters(books) {
             case 'isEmpty':
                 return fieldValue === '' || fieldValue === null || fieldValue === undefined;
             case 'contains':
+                if (filter.field === 'Author') {
+                    const combinedAuthors = `${book.Author || ''} ${book.Author2 || ''}`.toLowerCase();
+                    return combinedAuthors.includes((filter.values[0] || '').toLowerCase());
+                }
                 return fieldValue.toLowerCase().includes((filter.values[0] || '').toLowerCase());
             case 'equals':
                 return fieldValue === filter.values[0];

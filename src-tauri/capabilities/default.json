@@ -14,15 +14,6 @@
     "fs:default",
     "fs:allow-write-text-file",
     "fs:allow-write-file",
-    "fs:write-all",
-    "shell:default",
-    {
-      "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "$HOME/**" }]
-    },
-    {
-      "identifier": "fs:allow-write-file",
-      "allow": [{ "path": "$HOME/**" }]
-    }
+    "shell:default"
   ]
 }

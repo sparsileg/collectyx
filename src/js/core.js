@@ -1,5 +1,10 @@
 // ── App initialisation ────────────────────────────────────────────────────────
 
+let tagsChipController = null;
+let editTagsChipController = null;
+let myLibraryAddTagsChipController = null;
+let myLibraryEditTagsChipController = null;
+
 window.onload = async function () {
     // Initialise the database backend first so loadTheme can read from IndexedDB
     await DBManager.init();
@@ -23,6 +28,19 @@ window.onload = async function () {
     renderReadBooks();
     renderDashboard();
 
+    tagsChipController = initTagChipInput({
+        input: 'tagsInput', suggestions: 'tagsSuggestions', chipRow: 'tagsChipRow', hidden: 'tags'
+    });
+    editTagsChipController = initTagChipInput({
+        input: 'editTagsInput', suggestions: 'editTagsSuggestions', chipRow: 'editTagsChipRow', hidden: 'editTags'
+    });
+    myLibraryAddTagsChipController = initTagChipInput({
+        input: 'myLibraryAddTagsInput', suggestions: 'myLibraryAddTagsSuggestions', chipRow: 'myLibraryAddTagsChipRow', hidden: 'myLibraryAddTags'
+    });
+    myLibraryEditTagsChipController = initTagChipInput({
+        input: 'myLibraryEditTagsInput', suggestions: 'myLibraryEditTagsSuggestions', chipRow: 'myLibraryEditTagsChipRow', hidden: 'myLibraryEditTags'
+    });
+
     const versionDisplay = document.getElementById('appVersionDisplay');
     if (versionDisplay) {
         versionDisplay.textContent = CONSTANTS.APP_VERSION;
@@ -44,6 +62,8 @@ function showView(viewName, buttonElement) {
 
     if (viewName === CONSTANTS.VIEWS.DASHBOARD) {
         renderDashboard();
+    } else if (viewName === CONSTANTS.VIEWS.ENTER_FINISHED) {
+        if (tagsChipController) tagsChipController.setTags([]);
     } else if (viewName === CONSTANTS.VIEWS.REVIEW) {
         renderReadBooks();
     } else if (viewName === CONSTANTS.VIEWS.STATISTICS) {
@@ -281,13 +301,24 @@ async function loadSettings() {
     setTimeout(async () => {
         const pagesInput = document.getElementById('dailyReadingPages');
         const folderInput = document.getElementById('backupFolder');
+        const browseBtn = document.getElementById('backupFolderBrowseBtn');
+        const clearBtn = document.getElementById('backupFolderClearBtn');
+        const isTauri = typeof window.__TAURI__ !== 'undefined';
         if (pagesInput) {
             const settings = await loadSettingsFromDB() || {};
             pagesInput.value = settings.dailyReadingPages || '';
             if (folderInput) {
-                folderInput.value = settings.backupFolder || '';
+                if (isTauri) {
+                    folderInput.value = settings.backupFolder || '';
+                } else {
+                    folderInput.value = '';
+                    folderInput.placeholder = 'User downloads folder';
+                    folderInput.disabled = true;
+                }
             }
         }
+        if (browseBtn) browseBtn.style.display = isTauri ? '' : 'none';
+        if (clearBtn) clearBtn.style.display = isTauri ? '' : 'none';
     }, 50);
 }
 
