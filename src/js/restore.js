@@ -169,8 +169,13 @@ async function executeRestore() {
     try {
         const result = await importUnifiedDatabase(_restoreParsedData);
         if (result.success) {
+            await loadData();
+            await loadReadingListData();
+            await loadMyLibraryData();
             closeRestore();
             renderReadBooks();
+            renderReadingList();
+            renderMyLibrary();
             renderDashboard();
             showMessage(
                 `Restore complete — ${result.counts.booksRead} books read, ` +
