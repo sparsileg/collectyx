@@ -263,7 +263,11 @@ async function deleteMyLibraryBook() {
     if (confirmed) {
         const index = myLibrary.findIndex(b => b.id === id);
         myLibrary.splice(index, 1);
-        saveMyLibraryData();
+        if (myLibrary.length === 0) {
+            clearMyLibraryData();
+        } else {
+            saveMyLibraryData();
+        }
         renderMyLibrary();
         cancelMyLibraryEdit();
         showMessage(`"${book.Title}" deleted from library`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
@@ -1017,7 +1021,7 @@ async function clearAllMyLibraryBooks() {
     if (confirmed) {
         const deletedCount = myLibrary.length;
         myLibrary = [];
-        saveMyLibraryData();
+        clearMyLibraryData();
         renderMyLibrary();
         showMessage(`All ${deletedCount} books cleared from library`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
     }

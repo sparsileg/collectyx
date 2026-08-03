@@ -279,7 +279,11 @@ async function removeReadingListItem(id) {
         });
     }
 
-    saveReadingListData();
+    if (readingList.length === 0) {
+        clearReadingListData();
+    } else {
+        saveReadingListData();
+    }
     renderReadingList();
     showMessage(`"${book[CONSTANTS.BOOK_FIELDS.TITLE]}" removed from reading list`,
                 CONSTANTS.MESSAGE_TYPES.SUCCESS);
@@ -548,7 +552,11 @@ function removeReadingListItemById(id) {
         }
     }
 
-    saveReadingListData();
+    if (readingList.length === 0) {
+        clearReadingListData();
+    } else {
+        saveReadingListData();
+    }
     renderReadingList();
 
     // Re-render My Library if this was a My Library book to show "To Read" button again

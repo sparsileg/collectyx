@@ -125,6 +125,12 @@ async function loadReadingListData() {
 }
 
 async function saveReadingListData() {
+    // Safety check: never overwrite with fewer than 90% of what's currently in SQLite
+    const currentCount = await DBManager.getAll(CONSTANTS.STORES.READING_LIST).then(r => r.length).catch(() => 0);
+    if (currentCount > 10 && readingList.length < currentCount * 0.9) {
+        console.warn(`saveReadingListData() blocked — in-memory readingList (${readingList.length}) is less than 90% of SQLite count (${currentCount}). Possible data loss prevented.`);
+        return false;
+    }
     if (readingList.length === 0) {
         console.warn('saveReadingListData() called with empty readingList array — skipping to prevent data loss');
         return false;
@@ -135,6 +141,20 @@ async function saveReadingListData() {
     } catch (e) {
         console.error('saveReadingListData() failed:', e);
         showMessage('Failed to save reading list: ' + (e.message || e), CONSTANTS.MESSAGE_TYPES.ERROR);
+        return false;
+    }
+}
+
+// Bypasses the empty-array guard for intentional empty writes (deleting
+// the last record). The guard in saveReadingListData() remains unchanged
+// for all other call sites.
+async function clearReadingListData() {
+    try {
+        await DBManager.clear(CONSTANTS.STORES.READING_LIST);
+        return true;
+    } catch (e) {
+        console.error('clearReadingListData() failed:', e);
+        showMessage('Failed to clear reading list: ' + (e.message || e), CONSTANTS.MESSAGE_TYPES.ERROR);
         return false;
     }
 }
@@ -158,6 +178,12 @@ async function loadMyLibraryData() {
 }
 
 async function saveMyLibraryData() {
+    // Safety check: never overwrite with fewer than 90% of what's currently in SQLite
+    const currentCount = await DBManager.getAll(CONSTANTS.STORES.MY_LIBRARY).then(r => r.length).catch(() => 0);
+    if (currentCount > 10 && myLibrary.length < currentCount * 0.9) {
+        console.warn(`saveMyLibraryData() blocked — in-memory myLibrary (${myLibrary.length}) is less than 90% of SQLite count (${currentCount}). Possible data loss prevented.`);
+        return false;
+    }
     if (myLibrary.length === 0) {
         console.warn('saveMyLibraryData() called with empty myLibrary array — skipping to prevent data loss');
         return false;
@@ -168,6 +194,20 @@ async function saveMyLibraryData() {
     } catch (e) {
         console.error('saveMyLibraryData() failed:', e);
         showMessage('Failed to save library: ' + (e.message || e), CONSTANTS.MESSAGE_TYPES.ERROR);
+        return false;
+    }
+}
+
+// Bypasses the empty-array guard for intentional empty writes (Clear All,
+// deleting the last record). The guard in saveMyLibraryData() remains
+// unchanged for all other call sites.
+async function clearMyLibraryData() {
+    try {
+        await DBManager.clear(CONSTANTS.STORES.MY_LIBRARY);
+        return true;
+    } catch (e) {
+        console.error('clearMyLibraryData() failed:', e);
+        showMessage('Failed to clear library: ' + (e.message || e), CONSTANTS.MESSAGE_TYPES.ERROR);
         return false;
     }
 }
