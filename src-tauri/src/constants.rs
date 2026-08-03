@@ -9,4 +9,5 @@ pub const DB_FILE_NAME: &str = "scriptum.db";
 pub const CURRENT_SCHEMA_VERSION: u32 = 1;
 
 /// Date format used throughout storage (YYYY-MM-DD).
+#[allow(dead_code)]
 pub const DATE_FORMAT: &str = "%Y-%m-%d";

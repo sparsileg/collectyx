@@ -168,9 +168,9 @@ function createReadBookRow(book, index) {
     row.onclick = () => editReadBookById(book.id); // Use ID instead of index
 
     // Add context menu for ISBN lookup
-    row.oncontextmenu = (e) => {
+    row.oncontextmenu = async (e) => {
         e.preventDefault();
-        if (confirm(`Look up ISBN information for "${book.Title}"?`)) {
+        if (await confirmDialog(`Look up ISBN information for "${book.Title}"?`)) {
             lookupBookISBNById(book.id); // Use ID instead of index
         }
     };
@@ -292,7 +292,7 @@ async function deleteReadBookById(id) {
         return;
     }
 
-    const confirmed = confirm(`⚠️ REMOVE BOOK?\n\nTitle: "${book.Title}"\nAuthor: ${book.Author}\n\nThis cannot be undone.`);
+    const confirmed = await confirmDialog(`⚠️ REMOVE BOOK?\n\nTitle: "${book.Title}"\nAuthor: ${book.Author}\n\nThis cannot be undone.`);
 
     if (!confirmed) return;
 

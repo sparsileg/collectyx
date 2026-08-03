@@ -162,7 +162,7 @@ async function deleteCategory(category) {
         return;
     }
 
-    const confirmed = confirm(`Delete category "${category}"? This cannot be undone.`);
+    const confirmed = await confirmDialog(`Delete category "${category}"? This cannot be undone.`);
     if (!confirmed) return;
 
     const categories = await loadCategoriesFromDB();

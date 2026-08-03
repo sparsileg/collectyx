@@ -45,12 +45,12 @@ function validateTagName(tagName, existingTags, originalTag = null) {
     return { valid: true, cleanTag };
 }
 
-function renameTagInLibrary(oldTag, newTag) {
+async function renameTagInLibrary(oldTag, newTag) {
     const validation = validateTagName(newTag, getAllLibraryTags(), oldTag);
     
     if (!validation.valid) {
         if (validation.isDuplicate) {
-            const confirmed = confirm(`Tag "${newTag}" already exists. Merge "${oldTag}" into "${newTag}"? This will combine their usage.`);
+            const confirmed = await confirmDialog(`Tag "${newTag}" already exists. Merge "${oldTag}" into "${newTag}"? This will combine their usage.`);
             if (!confirmed) return false;
             // Proceed with merge by treating as rename to existing tag
         } else {
@@ -129,13 +129,13 @@ function renderTagsList() {
     container.innerHTML = html;
 }
 
-function renameTag(oldTag) {
+async function renameTag(oldTag) {
     const newTag = prompt(`Rename tag "${oldTag}" to:`, oldTag);
     if (!newTag || newTag.trim() === '' || newTag.toLowerCase() === oldTag) {
         return;
     }
     
-    const updatedCount = renameTagInLibrary(oldTag, newTag.trim());
+    const updatedCount = await renameTagInLibrary(oldTag, newTag.trim());
     if (updatedCount > 0) {
         showMessage(`Tag renamed and updated in ${updatedCount} books`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
         renderTagsList();
@@ -143,11 +143,11 @@ function renameTag(oldTag) {
     }
 }
 
-function deleteTag(tag) {
+async function deleteTag(tag) {
     const tagCounts = getAllLibraryTags();
     const count = tagCounts[tag];
     
-    const confirmed = confirm(`Delete tag "${tag}"? This will remove it from ${count} book(s). This cannot be undone.`);
+    const confirmed = await confirmDialog(`Delete tag "${tag}"? This will remove it from ${count} book(s). This cannot be undone.`);
     if (!confirmed) return;
     
     const updatedCount = deleteTagFromLibrary(tag);

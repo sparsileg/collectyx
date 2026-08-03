@@ -257,11 +257,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 // Remove reading list item
-function removeReadingListItem(id) {
+async function removeReadingListItem(id) {
     const book = readingList.find(b => b[CONSTANTS.BOOK_FIELDS.ID] === id);
     if (!book) return;
 
-    const confirmed = confirm(`Remove "${book.Title}" from reading list?`);
+    const confirmed = await confirmDialog(`Remove "${book.Title}" from reading list?`);
     if (!confirmed) return;
 
     const bookRank = book.Rank;

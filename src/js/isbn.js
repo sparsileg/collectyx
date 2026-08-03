@@ -45,7 +45,7 @@ async function lookupBookISBNGeneric(bookId, collection, saveCallback, renderCal
                       `Confidence: ${isbnData.confidence}%\n\n` +
                       `Update this book with this information?`;
 
-                if (confirm(confirmText)) {
+                if (await confirmDialog(confirmText)) {
                     book.ISBN = selectedISBN;
                     
                     saveCallback();
@@ -81,7 +81,7 @@ async function bulkISBNLookupGeneric(collection, saveCallback, renderCallback, c
         return;
     }
     
-    const confirmed = confirm(`This will attempt to find ISBN information for ${booksWithoutISBN.length} books in ${collectionName}. This may take several minutes. Continue?`);
+    const confirmed = await confirmDialog(`This will attempt to find ISBN information for ${booksWithoutISBN.length} books in ${collectionName}. This may take several minutes. Continue?`);
     if (!confirmed) return;
     
     showMessage(`Starting ISBN lookup for ${booksWithoutISBN.length} books in ${collectionName}...`, CONSTANTS.MESSAGE_TYPES.INFO);

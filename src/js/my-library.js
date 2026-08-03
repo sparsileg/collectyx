@@ -252,13 +252,13 @@ function cancelMyLibraryEdit() {
 
 
 // Delete book
-function deleteMyLibraryBook() {
+async function deleteMyLibraryBook() {
     const id = document.getElementById('myLibraryEditId').value;
     const book = myLibrary.find(b => b.id === id);
 
     if (!book) return;
 
-    const confirmed = confirm(`⚠️ DELETE BOOK?\n\nTitle: "${book.Title}"\nAuthor: ${book.Author}\n\nThis cannot be undone.`);
+    const confirmed = await confirmDialog(`⚠️ DELETE BOOK?\n\nTitle: "${book.Title}"\nAuthor: ${book.Author}\n\nThis cannot be undone.`);
 
     if (confirmed) {
         const index = myLibrary.findIndex(b => b.id === id);
@@ -343,9 +343,9 @@ function createMyLibraryRow(book) {
     row.onclick = () => editMyLibraryBook(book.id);
 
     // Add context menu for ISBN lookup
-    row.oncontextmenu = (e) => {
+    row.oncontextmenu = async (e) => {
         e.preventDefault();
-        if (confirm(`Look up ISBN information for "${book.Title}"?`)) {
+        if (await confirmDialog(`Look up ISBN information for "${book.Title}"?`)) {
             lookupMyLibraryBookISBN(book.id);
         }
     };
@@ -1006,13 +1006,13 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 
-function clearAllMyLibraryBooks() {
+async function clearAllMyLibraryBooks() {
     if (myLibrary.length === 0) {
         showMessage('Library is already empty', CONSTANTS.MESSAGE_TYPES.INFO);
         return;
     }
 
-    const confirmed = confirm(`⚠️ CLEAR ALL LIBRARY BOOKS?\n\nThis will delete all ${myLibrary.length} books from your library.\n\nThis action cannot be undone.\n\nAre you sure?`);
+    const confirmed = await confirmDialog(`⚠️ CLEAR ALL LIBRARY BOOKS?\n\nThis will delete all ${myLibrary.length} books from your library.\n\nThis action cannot be undone.\n\nAre you sure?`);
 
     if (confirmed) {
         const deletedCount = myLibrary.length;
@@ -1144,12 +1144,12 @@ async function bulkMyLibraryISBNLookup() {
 }
 
 
-function checkInMyLibraryBook(id) {
+async function checkInMyLibraryBook(id) {
     const book = myLibrary.find(b => b.id === id);
     if (!book || !book.Patron) return;
 
     const patron = book.Patron;
-    const confirmed = confirm(`Check in "${book.Title}" from ${patron}?`);
+    const confirmed = await confirmDialog(`Check in "${book.Title}" from ${patron}?`);
 
     if (confirmed) {
         // Clear checkout information

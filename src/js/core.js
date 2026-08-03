@@ -177,6 +177,19 @@ function dateToStorage(userDate) {
     return '';
 }
 
+// ── Confirmation dialog ──────────────────────────────────────────────────────
+
+// Tauri's global confirm() wrapper calls a command that no longer exists in
+// this plugin version (see Issue 44); message() with OkCancel buttons is
+// the working equivalent. Falls back to native confirm() in the web build.
+async function confirmDialog(msg) {
+    if (typeof window.__TAURI__ !== 'undefined') {
+        const result = await window.__TAURI__.dialog.message(msg, { title: 'Scriptum', buttons: 'OkCancel' });
+        return result === 'Ok';
+    }
+    return confirm(msg);
+}
+
 // ── ID generation ─────────────────────────────────────────────────────────────
 
 function generateBookId() {
