@@ -42,7 +42,7 @@ const _KNOWN_FIELDS = {
         'ISBN', 'Comments', 'Tags', 'Rank', 'MyLibraryId', 'DateAdded',
         'Modified', 'Source', 'IsCheckedOut'],
     myLibrary: ['id', 'Title', 'Author', 'Author2', 'Pages', 'Category',
-        'ISBN', 'Comments', 'Tags', 'Location', 'Patron', 'CheckedOut',
+        'ISBN', 'Comments', 'Tags', 'Location', 'Patron', 'CheckedOutDate',
         'DateAdded', 'Modified'],
 };
 
