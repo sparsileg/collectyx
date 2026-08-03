@@ -55,23 +55,42 @@ async function renderCategoriesList() {
     const counts = getCategoryUsageCounts();
     const container = document.getElementById('categoriesList');
 
+    if (!container.dataset.delegated) {
+        container.addEventListener('click', handleCategoriesListClick);
+        container.dataset.delegated = 'true';
+    }
+
     if (categories.length === 0) {
         container.innerHTML = '<p class="placeholder-content">No categories found</p>';
         return;
     }
 
     const html = categories.map(cat => `
-        <div class="tag-item">
-            <span class="tag-name">${cat}</span>
+        <div class="tag-item" data-category="${escapeHtml(cat)}">
+            <span class="tag-name">${escapeHtml(cat)}</span>
             <span class="tag-count">(${counts[cat] || 0})</span>
             <div class="tag-actions">
-                <button class="btn btn-small btn-secondary" onclick="renameCategory('${cat.replace(/'/g, "\\'")}')">Rename</button>
-                <button class="btn btn-small btn-danger" onclick="deleteCategory('${cat.replace(/'/g, "\\'")}')">Delete</button>
+                <button class="btn btn-small btn-secondary" data-action="rename">Rename</button>
+                <button class="btn btn-small btn-danger" data-action="delete">Delete</button>
             </div>
         </div>
     `).join('');
 
     container.innerHTML = html;
+}
+
+// Delegated click handler for category list action buttons
+function handleCategoriesListClick(event) {
+    const actionBtn = event.target.closest('[data-action]');
+    if (!actionBtn) return;
+    const itemEl = event.target.closest('[data-category]');
+    if (!itemEl) return;
+
+    const category = itemEl.dataset.category;
+    const action = actionBtn.dataset.action;
+
+    if (action === 'rename') renameCategory(category);
+    else if (action === 'delete') deleteCategory(category);
 }
 
 // ── Add ───────────────────────────────────────────────────────────────────────
@@ -142,17 +161,21 @@ async function deleteCategory(category) {
         const listContainer = document.getElementById('categoryDeleteBooksList');
         const sourceLabel = { booksRead: 'Books Read', readingList: 'Reading List', myLibrary: 'My Library' };
 
+        if (!listContainer.dataset.delegated) {
+            listContainer.addEventListener('click', handleCategoryDeleteBooksListClick);
+            listContainer.dataset.delegated = 'true';
+        }
+
         listContainer.innerHTML = `
-            <p style="margin: 10px 0 5px;">The following books use "<strong>${category}</strong>".
+            <p style="margin: 10px 0 5px;">The following books use "<strong>${escapeHtml(category)}</strong>".
             Change their category before deleting:</p>
             <div class="tags-list">
                 ${booksUsing.map(b => `
-                    <div class="tag-item">
-                        <span class="tag-name">${b.Title}</span>
-                        <span class="tag-count">${sourceLabel[b._source]}</span>
+                    <div class="tag-item" data-id="${escapeHtml(b.id)}" data-source="${escapeHtml(b._source)}">
+                        <span class="tag-name">${escapeHtml(b.Title)}</span>
+                        <span class="tag-count">${escapeHtml(sourceLabel[b._source])}</span>
                         <div class="tag-actions">
-                            <button class="btn btn-small btn-secondary"
-                                onclick="editBookFromCategoryManager('${b.id}', '${b._source}')">Edit</button>
+                            <button class="btn btn-small btn-secondary" data-action="edit">Edit</button>
                         </div>
                     </div>
                 `).join('')}
@@ -183,4 +206,17 @@ function editBookFromCategoryManager(id, source) {
     } else if (source === 'myLibrary') {
         editMyLibraryBook(id);
     }
+}
+
+// Delegated click handler for the delete-category books-using list
+function handleCategoryDeleteBooksListClick(event) {
+    const actionBtn = event.target.closest('[data-action]');
+    if (!actionBtn) return;
+    const itemEl = event.target.closest('[data-id]');
+    if (!itemEl) return;
+
+    const id = itemEl.dataset.id;
+    const source = itemEl.dataset.source;
+
+    if (actionBtn.dataset.action === 'edit') editBookFromCategoryManager(id, source);
 }

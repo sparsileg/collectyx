@@ -19,7 +19,7 @@ const BOOK_CATEGORIES = [
 
 async function generateCategoryOptions() {
     const categories = await loadCategoriesFromDB();
-    const options = categories.map(cat => `<option value="${cat}">${cat}</option>`);
+    const options = categories.map(cat => `<option value="${escapeHtml(cat)}">${escapeHtml(cat)}</option>`);
     return '<option value="">Select Category</option>' + options.join('');
 }
 
@@ -179,11 +179,11 @@ function createReadBookRow(book, index) {
     const hasISBN = book.ISBN || book.ISBN13 ? '📚' : '❓';
 
     row.innerHTML = `
-        <td>${displayDate}</td>
-        <td>${book.Title || ''} ${hasISBN}</td>
-        <td>${book.Author || ''}</td>
-        <td>${book.Pages || ''}</td>
-        <td>${book.Category || ''}</td>
+        <td>${escapeHtml(displayDate)}</td>
+        <td>${escapeHtml(book.Title || '')} ${hasISBN}</td>
+        <td>${escapeHtml(book.Author || '')}</td>
+        <td>${escapeHtml(book.Pages || '')}</td>
+        <td>${escapeHtml(book.Category || '')}</td>
         <td>${book.Recommend === 1 ? 'Y' : book.Recommend === 0 ? 'N' : ''}</td>
     `;
 
@@ -315,7 +315,7 @@ async function deleteReadBookById(id) {
 function renderGroupedBooks(groupedBooks, tbody) {
     for (const [groupValue, groupBooks] of Object.entries(groupedBooks)) {
         const headerRow = document.createElement('tr');
-        headerRow.innerHTML = `<td colspan="6" class="group-header">${currentSort.field}: ${groupValue || 'Empty'} (${groupBooks.length} books)</td>`;
+        headerRow.innerHTML = `<td colspan="6" class="group-header">${escapeHtml(currentSort.field)}: ${escapeHtml(groupValue || 'Empty')} (${groupBooks.length} books)</td>`;
         tbody.appendChild(headerRow);
 
         groupBooks.forEach(book => {
@@ -853,7 +853,7 @@ function renderMultipleReadsBooks(filteredBooks) {
 
         // Add group header
         const headerRow = document.createElement('tr');
-        headerRow.innerHTML = `<td colspan="6" class="group-header">${sortedGroup[0].Title} by ${sortedGroup[0].Author} (${sortedGroup.length} reads)</td>`;
+        headerRow.innerHTML = `<td colspan="6" class="group-header">${escapeHtml(sortedGroup[0].Title)} by ${escapeHtml(sortedGroup[0].Author)} (${sortedGroup.length} reads)</td>`;
         tbody.appendChild(headerRow);
 
         // Add each read

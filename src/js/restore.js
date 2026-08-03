@@ -85,8 +85,8 @@ async function showRestoreScreen2(data, errorMsg) {
         // Show error state
         metaDiv.innerHTML = `
             <div style="display: grid; grid-template-columns: 120px 1fr; gap: 6px;">
-                <span style="opacity: 0.6;">File:</span><span>${_restoreFileName || 'Unknown'}</span>
-                <span style="opacity: 0.6;">Size:</span><span>${_restoreFileSize || 'Unknown'}</span>
+                <span style="opacity: 0.6;">File:</span><span>${escapeHtml(_restoreFileName || 'Unknown')}</span>
+                <span style="opacity: 0.6;">Size:</span><span>${escapeHtml(_restoreFileSize || 'Unknown')}</span>
             </div>`;
         countsDiv.innerHTML = '';
         errorDiv.textContent = `Error reading backup file: ${errorMsg || 'Unknown error'}`;
@@ -102,10 +102,10 @@ async function showRestoreScreen2(data, errorMsg) {
     const header = data.Header || {};
     metaDiv.innerHTML = `
         <div style="display: grid; grid-template-columns: 120px 1fr; gap: 6px;">
-            <span style="opacity: 0.6;">File:</span><span>${_restoreFileName}</span>
-            <span style="opacity: 0.6;">Size:</span><span>${_restoreFileSize}</span>
-            <span style="opacity: 0.6;">Created:</span><span>${header.timestamp ? new Date(header.timestamp).toLocaleString() : 'Unknown'}</span>
-            <span style="opacity: 0.6;">App Version:</span><span>${header.appVersion || 'Unknown'}</span>
+            <span style="opacity: 0.6;">File:</span><span>${escapeHtml(_restoreFileName)}</span>
+            <span style="opacity: 0.6;">Size:</span><span>${escapeHtml(_restoreFileSize)}</span>
+            <span style="opacity: 0.6;">Created:</span><span>${escapeHtml(header.timestamp ? new Date(header.timestamp).toLocaleString() : 'Unknown')}</span>
+            <span style="opacity: 0.6;">App Version:</span><span>${escapeHtml(header.appVersion || 'Unknown')}</span>
         </div>`;
 
     // Current counts

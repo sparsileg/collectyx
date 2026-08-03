@@ -85,6 +85,11 @@ function insertBookAtRank(newBook) {
 function renderReadingList() {
     const container = document.getElementById('readingListContainer');
 
+    if (!container.dataset.delegated) {
+        container.addEventListener('click', handleReadingListContainerClick);
+        container.dataset.delegated = 'true';
+    }
+
     if (readingList.length === 0) {
         container.innerHTML = '<p class="placeholder-content">No books in reading list yet.</p>';
         return;
@@ -107,30 +112,45 @@ function renderReadingList() {
 // Create individual reading list item HTML
 function createReadingListItem(book, index) {
     const rankDisplay = book.Rank || 'Unranked';
-    const checkedOutClass = book.IsCheckedOut ? ' checked-out-item' : '';
+    const id = book[CONSTANTS.BOOK_FIELDS.ID];
 
     // Only show Finished button for ranked books
     const finishedButton = book.Rank ?
-        `<button class="btn btn-small btn-primary" onclick="startFinishingBook('${book[CONSTANTS.BOOK_FIELDS.ID]}')">Finished</button>` : '';
+        `<button class="btn btn-small btn-primary" data-action="finish">Finished</button>` : '';
 
     return `
-        <div class="reading-list-item${checkedOutClass}" data-id="${book[CONSTANTS.BOOK_FIELDS.ID]}" draggable="true">
+        <div class="reading-list-item" data-id="${escapeHtml(id)}" draggable="true">
             <div class="book-info">
                 <div class="drag-handle">⋮⋮</div>
-                <div class="book-rank">${rankDisplay}</div>
+                <div class="book-rank">${escapeHtml(rankDisplay)}</div>
                 <div class="book-details">
-                    <div class="book-title">${book[CONSTANTS.BOOK_FIELDS.TITLE]}</div>
-                    <div class="book-author">by ${book[CONSTANTS.BOOK_FIELDS.AUTHOR]}</div>
-                    <div class="book-source">Source: ${book.Source}</div>
+                    <div class="book-title">${escapeHtml(book[CONSTANTS.BOOK_FIELDS.TITLE])}</div>
+                    <div class="book-author">by ${escapeHtml(book[CONSTANTS.BOOK_FIELDS.AUTHOR])}</div>
+                    <div class="book-source">Source: ${escapeHtml(book.Source)}</div>
                 </div>
             </div>
             <div class="book-controls">
                 ${finishedButton}
-                <button class="btn btn-small btn-secondary" onclick="editReadingListItem('${book[CONSTANTS.BOOK_FIELDS.ID]}')">Edit</button>
-                <button class="btn btn-small btn-danger" onclick="removeReadingListItem('${book[CONSTANTS.BOOK_FIELDS.ID]}')">Remove</button>
+                <button class="btn btn-small btn-secondary" data-action="edit">Edit</button>
+                <button class="btn btn-small btn-danger" data-action="remove">Remove</button>
             </div>
         </div>
     `;
+}
+
+// Delegated click handler for reading list item action buttons
+function handleReadingListContainerClick(event) {
+    const actionBtn = event.target.closest('[data-action]');
+    if (!actionBtn) return;
+    const itemEl = event.target.closest('[data-id]');
+    if (!itemEl) return;
+
+    const id = itemEl.dataset.id;
+    const action = actionBtn.dataset.action;
+
+    if (action === 'finish') startFinishingBook(id);
+    else if (action === 'edit') editReadingListItem(id);
+    else if (action === 'remove') removeReadingListItem(id);
 }
 
 
@@ -540,16 +560,6 @@ function removeReadingListItemById(id) {
                 b.Rank--;
             }
         });
-    }
-
-    // Auto check-in if this was a My Library book that was checked out
-    if (book.MyLibraryId) {
-        const libraryBook = myLibrary.find(lib => lib.id === book.MyLibraryId);
-        if (libraryBook && libraryBook.Patron) {
-            libraryBook.Patron = null;
-            libraryBook.CheckedOutDate = null;
-            saveMyLibraryData(); // Save the library changes
-        }
     }
 
     if (readingList.length === 0) {

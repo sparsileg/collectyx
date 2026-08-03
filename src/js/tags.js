@@ -109,24 +109,43 @@ function renderTagsList() {
     const tagCounts = getAllLibraryTags();
     const sortedTags = Object.keys(tagCounts).sort();
     const container = document.getElementById('tagsList');
-    
+
+    if (!container.dataset.delegated) {
+        container.addEventListener('click', handleTagsListClick);
+        container.dataset.delegated = 'true';
+    }
+
     if (sortedTags.length === 0) {
         container.innerHTML = '<p class="placeholder-content">No tags found in library</p>';
         return;
     }
     
     const html = sortedTags.map(tag => `
-        <div class="tag-item">
-            <span class="tag-name">${tag}</span>
+        <div class="tag-item" data-tag="${escapeHtml(tag)}">
+            <span class="tag-name">${escapeHtml(tag)}</span>
             <span class="tag-count">(${tagCounts[tag]})</span>
             <div class="tag-actions">
-                <button class="btn btn-small btn-secondary" onclick="renameTag('${tag}')">Rename</button>
-                <button class="btn btn-small btn-danger" onclick="deleteTag('${tag}')">Delete</button>
+                <button class="btn btn-small btn-secondary" data-action="rename">Rename</button>
+                <button class="btn btn-small btn-danger" data-action="delete">Delete</button>
             </div>
         </div>
     `).join('');
     
     container.innerHTML = html;
+}
+
+// Delegated click handler for tag list action buttons
+function handleTagsListClick(event) {
+    const actionBtn = event.target.closest('[data-action]');
+    if (!actionBtn) return;
+    const itemEl = event.target.closest('[data-tag]');
+    if (!itemEl) return;
+
+    const tag = itemEl.dataset.tag;
+    const action = actionBtn.dataset.action;
+
+    if (action === 'rename') renameTag(tag);
+    else if (action === 'delete') deleteTag(tag);
 }
 
 async function renameTag(oldTag) {

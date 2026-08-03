@@ -198,50 +198,10 @@ function processMyLibraryCheckout(event) {
     book.Patron = patron;
     book.CheckedOutDate = new Date().toISOString().split('T')[0];
 
-    // Check if this book is already on the reading list and remove it
-    const existingReadingListIndex = readingList.findIndex(item => item.MyLibraryId === book.id);
-    if (existingReadingListIndex !== -1) {
-        const existingBook = readingList[existingReadingListIndex];
-        const existingRank = existingBook.Rank;
-
-        // Remove the existing item
-        readingList.splice(existingReadingListIndex, 1);
-
-        // Shift ranks up if the removed item had a rank
-        if (existingRank) {
-            readingList.forEach(item => {
-                if (item.Rank && item.Rank > existingRank) {
-                    item.Rank--;
-                }
-            });
-        }
-    }
-
-    // Add to reading list at top with checkout annotation
-    const newReadingListItem = {
-        [CONSTANTS.BOOK_FIELDS.ID]: generateReadingListId(),
-        [CONSTANTS.BOOK_FIELDS.TITLE]: book.Title,
-        [CONSTANTS.BOOK_FIELDS.AUTHOR]: book.Author,
-        Source: `My Library (C/O ${patron})`,
-        Rank: 1,
-        IsCheckedOut: true,
-        MyLibraryId: book.id
-    };
-
-    // Shift all existing ranked items down by 1
-    readingList.forEach(item => {
-        if (item.Rank) {
-            item.Rank++;
-        }
-    });
-
-    readingList.unshift(newReadingListItem);
-
     saveMyLibraryData();
-    saveReadingListData();
     document.getElementById('myLibraryCheckoutModal').style.display = 'none';
     renderMyLibrary();
-    showMessage(`"${book.Title}" checked out to ${patron} and added to reading list`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
+    showMessage(`"${book.Title}" checked out to ${patron}`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
 }
 
 
@@ -282,9 +242,9 @@ function showMyLibraryCheckout(id) {
 
     document.getElementById('myLibraryCheckoutId').value = id;
     document.getElementById('myLibraryCheckoutBookInfo').innerHTML = `
-        <p><strong>Title:</strong> ${book.Title}</p>
-        <p><strong>Author:</strong> ${book.Author}</p>
-        <p><strong>Location:</strong> ${book.Location}</p>
+        <p><strong>Title:</strong> ${escapeHtml(book.Title)}</p>
+        <p><strong>Author:</strong> ${escapeHtml(book.Author)}</p>
+        <p><strong>Location:</strong> ${escapeHtml(book.Location)}</p>
     `;
     document.getElementById('myLibraryCheckoutPatron').value = '';
     document.getElementById('myLibraryCheckoutModal').style.display = 'block';
@@ -328,6 +288,11 @@ function renderMyLibrary() {
     let filteredBooks = applyCurrentMyLibraryFilters([...myLibrary]);
     let sortedBooks = applyMyLibrarySortAndGroup(filteredBooks);
 
+    if (!tbody.dataset.delegated) {
+        tbody.addEventListener('click', handleMyLibraryTableClick);
+        tbody.dataset.delegated = 'true';
+    }
+
     tbody.innerHTML = '';
 
     if (currentMyLibrarySort.group) {
@@ -344,7 +309,7 @@ function renderMyLibrary() {
 
 function createMyLibraryRow(book) {
     const row = document.createElement('tr');
-    row.onclick = () => editMyLibraryBook(book.id);
+    row.dataset.id = book.id;
 
     // Add context menu for ISBN lookup
     row.oncontextmenu = async (e) => {
@@ -361,18 +326,38 @@ function createMyLibraryRow(book) {
     const isOnReadingList = readingList.some(item => item.MyLibraryId === book.id);
 
     row.innerHTML = `
-        <td>${book.Title} ${hasISBN}</td>
-        <td>${book.Author}</td>
-        <td>${book.Category || ''}</td>
-        <td>${checkedOutStatus}</td>
-        <td onclick="event.stopPropagation()">
-            ${(!book.Patron && !isOnReadingList) ? `<button class="btn btn-small btn-secondary" onclick="addMyLibraryToReadingList('${book.id}')">To Read</button>` : ''}
-            ${!book.Patron ? `<button class="btn btn-small btn-primary" onclick="showMyLibraryCheckout('${book.id}')">C/O</button>` : ''}
-            ${book.Patron ? `<button class="btn btn-small btn-primary" onclick="checkInMyLibraryBook('${book.id}')">C/I</button>` : ''}
+        <td>${escapeHtml(book.Title)} ${hasISBN}</td>
+        <td>${escapeHtml(book.Author)}</td>
+        <td>${escapeHtml(book.Category || '')}</td>
+        <td>${escapeHtml(checkedOutStatus)}</td>
+        <td>
+            ${(!book.Patron && !isOnReadingList) ? `<button class="btn btn-small btn-secondary" data-action="toread">To Read</button>` : ''}
+            ${!book.Patron ? `<button class="btn btn-small btn-primary" data-action="checkout">C/O</button>` : ''}
+            ${book.Patron ? `<button class="btn btn-small btn-primary" data-action="checkin">C/I</button>` : ''}
         </td>
     `;
 
     return row;
+}
+
+// Delegated click handler for the My Library table — routes action-button
+// clicks, otherwise treats a row click as "edit this book".
+function handleMyLibraryTableClick(event) {
+    const row = event.target.closest('tr[data-id]');
+    if (!row) return;
+
+    const actionBtn = event.target.closest('[data-action]');
+    const id = row.dataset.id;
+
+    if (actionBtn) {
+        const action = actionBtn.dataset.action;
+        if (action === 'toread') addMyLibraryToReadingList(id);
+        else if (action === 'checkout') showMyLibraryCheckout(id);
+        else if (action === 'checkin') checkInMyLibraryBook(id);
+        return;
+    }
+
+    editMyLibraryBook(id);
 }
 
 
@@ -416,7 +401,7 @@ function applyMyLibrarySortAndGroup(books) {
 function renderGroupedMyLibraryBooks(groupedBooks, tbody) {
     for (const [groupValue, groupBooks] of Object.entries(groupedBooks)) {
         const headerRow = document.createElement('tr');
-        headerRow.innerHTML = `<td colspan="5" class="group-header">${currentMyLibrarySort.field}: ${groupValue || 'Empty'} (${groupBooks.length} books)</td>`;
+        headerRow.innerHTML = `<td colspan="5" class="group-header">${escapeHtml(currentMyLibrarySort.field)}: ${escapeHtml(groupValue || 'Empty')} (${groupBooks.length} books)</td>`;
         tbody.appendChild(headerRow);
 
         groupBooks.forEach(book => {
@@ -1159,30 +1144,6 @@ async function checkInMyLibraryBook(id) {
         // Clear checkout information
         book.Patron = null;
         book.CheckedOutDate = null;
-
-        // Remove from reading list if it's there as a checked-out item
-        const readingListIndex = readingList.findIndex(item =>
-            item.MyLibraryId === book.id && item.IsCheckedOut
-        );
-
-        if (readingListIndex !== -1) {
-            const readingListBook = readingList[readingListIndex];
-            const bookRank = readingListBook.Rank;
-
-            // Remove from reading list
-            readingList.splice(readingListIndex, 1);
-
-            // Shift ranks up if necessary
-            if (bookRank) {
-                readingList.forEach(item => {
-                    if (item.Rank && item.Rank > bookRank) {
-                        item.Rank--;
-                    }
-                });
-            }
-
-            saveReadingListData();
-        }
 
         saveMyLibraryData();
         renderMyLibrary();

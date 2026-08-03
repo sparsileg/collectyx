@@ -190,6 +190,20 @@ async function confirmDialog(msg) {
     return confirm(msg);
 }
 
+// ── HTML escaping ─────────────────────────────────────────────────────────────
+
+// Escapes user/imported data before interpolation into innerHTML. Does not
+// affect trusted, developer-authored template markup around it.
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // ── ID generation ─────────────────────────────────────────────────────────────
 
 function generateBookId() {
