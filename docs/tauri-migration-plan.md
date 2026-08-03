@@ -609,25 +609,42 @@ Three collections, each becoming an IndexedDB object store and later a SQLite ta
 
 **Goal:** Add optional cloud sync across devices using Cloudflare Workers + D1, gated behind a simple token-based login.
 
+### Scope decision (established)
+
+**Multi-tenant, not single-user.** Originally scoped as single-user multi-device sync only. Revisited: the design as specced (random token → SHA-256 hash → partition key) is inherently capable of hosting multiple independent users on one shared backend with no architectural change — only additional discipline in the schema and API layer (see below). Decision: build it multi-tenant from the start rather than retrofitting later, since retrofitting means an owner-scoping migration against live data instead of a clean initial schema.
+
+"Multi-tenant" here means multiple people, each with their own isolated library, sharing one deployed Workers + D1 backend — not multiple people collaboratively editing one shared library. Collaborative/shared-library editing is out of scope and not addressed by this design.
+
 ### Design Decisions (established)
 
-- **Auth:** Single random 256-bit token (base64-encoded), generated once and stored in OS keychain via `tauri-plugin-stronghold`. User pastes it into a one-field login screen to link a device to their cloud instance.
+- **Auth:** Single random 256-bit token, **generated client-side via `crypto.getRandomValues()`** (or the Rust equivalent when generated from the Tauri side), never a user-chosen string or passphrase. This is a hard requirement, not a preference: the token is hashed with SHA-256 before use as a partition key, and SHA-256 is fast and unrateLimitable by design — safe only when the input has full 256-bit entropy. A human-chosen string collapses that entropy to guessable levels and would let anyone precompute hashes of common passphrases and query D1 directly for a match, with no login attempt to detect or throttle. Token is stored in OS keychain via `tauri-plugin-stronghold` on desktop. User pastes it into a one-field login screen to link a device to their cloud instance.
+- **Self-serve token generation:** a client-side JS tool (likely hosted alongside the app download page) generates the random token in-browser and displays it once for the user to save (password manager, printed, etc.). No server round-trip needed to provision a new user — the token isn't "registered" anywhere until its hash first appears in a D1 query, at which point that partition is implicitly created.
 - **Backend:** Cloudflare Workers API layer + D1 (SQLite-on-the-edge). Schema is identical to local SQLite — no translation layer needed.
-- **Token handling:** Raw token is never stored server-side. A SHA-256 hash of the token is used as the D1 partition key.
-- **Sync model:** Last-write-wins per record, keyed by UUID. Suitable for single-user multi-device use.
+- **Token handling:** Raw token is never stored server-side. A SHA-256 hash of the token is used as the D1 partition key (`owner_key`, see schema note below).
+- **Owner scoping is a server-side-only concern.** The Workers API must derive `owner_key` itself from the incoming token on every request — never accept an `owner_key` supplied by the client. This is the actual isolation boundary between users; a single endpoint that trusts a client-supplied owner key defeats the entire multi-tenancy model.
+- **Sync model:** Last-write-wins per record, keyed by UUID. Suitable for multi-device use per user; not a solution for concurrent multi-person editing of the same record.
 - **Web version:** Uses the same sync API, token stored in IndexedDB settings.
+- **Why one shared D1 database instead of one database per user:** Cloudflare's Workers Free plan caps accounts at 10 D1 databases (500 MB each, 5 GB total account storage, 100K rows written/day, 5M rows read/day — all shared account-wide, resets daily; checked against current Cloudflare pricing docs). A database-per-user design hits that 10-database ceiling almost immediately. A single shared database partitioned by `owner_key` is bounded only by the pooled storage/row limits instead, which — given this app's small, mostly-text records — comfortably supports a large number of users before the free tier becomes a constraint. Revisit if usage ever approaches those limits; Workers Paid removes them.
+
+### Schema addition (established)
+
+- Every table (`books_read`, `reading_list`, `my_library`, `settings`) gains an `owner_key TEXT NOT NULL` column in the D1 schema (local SQLite schema is unaffected — `owner_key` is a D1-only, sync-layer concept, not part of the local per-device database). Every D1 query — read, write, delete, without exception — must be scoped `WHERE owner_key = ?`, with the value derived server-side from the authenticated token, never trusted from the request body/params.
+- This is in addition to, not instead of, the previously-noted `modified TEXT` column needed for last-write-wins conflict resolution.
 
 ### Tasks (deferred — placeholder)
 
 1. Set up Cloudflare Worker project with D1 binding
-2. Implement sync endpoints: `GET /library`, `POST /library/sync`
-3. Add sync UI to Scriptum settings — token entry field, sync status, last-synced timestamp
-4. Implement sync logic in a new `sync-manager.js`
-5. Add conflict resolution (last-write-wins by `modified` timestamp — add `modified` column to all tables in a new migration)
+2. Design and implement the D1 schema with `owner_key` scoping on every table (see Schema addition above) — this is a D1-specific schema, distinct from the local SQLite schema
+3. Implement token verification middleware in the Workers API: hash the incoming token, derive `owner_key`, reject/no-op if missing — applied to every endpoint, not opt-in per route
+4. Implement sync endpoints: `GET /library`, `POST /library/sync`
+5. Build the self-serve token generation tool (client-side JS, random token via `crypto.getRandomValues()`, display-once UX)
+6. Add sync UI to Scriptum settings — token entry field, sync status, last-synced timestamp
+7. Implement sync logic in a new `sync-manager.js`
+8. Add conflict resolution (last-write-wins by `modified` timestamp — add `modified` column to all tables in a new migration)
 
 ### Notes
 
-- Adding a `modified TEXT` column to all tables in a migration (Phase 9, schema v2) is the only schema change needed
+- Adding a `modified TEXT` column to all tables in a migration (Phase 9, schema v2) is needed for conflict resolution; adding `owner_key TEXT NOT NULL` to the D1-side tables only is needed for multi-tenancy (see Schema addition above) — two separate additions, both required.
 - This phase is explicitly deferred until after Android build is stable
 
 ---
