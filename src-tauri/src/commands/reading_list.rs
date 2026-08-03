@@ -47,6 +47,12 @@ pub struct ReadingListItem {
 
     #[serde(rename = "Modified", skip_serializing_if = "Option::is_none", default)]
     pub modified: Option<String>,
+
+    #[serde(rename = "Source", skip_serializing_if = "Option::is_none", default)]
+    pub source: Option<String>,
+
+    #[serde(rename = "IsCheckedOut", skip_serializing_if = "Option::is_none", default)]
+    pub is_checked_out: Option<bool>,
 }
 
 fn row_to_item(row: &rusqlite::Row) -> Result<ReadingListItem> {
@@ -64,6 +70,8 @@ fn row_to_item(row: &rusqlite::Row) -> Result<ReadingListItem> {
         my_library_id: row.get(10)?,
         date_added:    row.get(11)?,
         modified:      row.get(12)?,
+        source:        row.get(13)?,
+        is_checked_out: row.get(14)?,
     })
 }
 
@@ -72,7 +80,8 @@ pub fn get_all_reading_list(state: State<ScriptumState>) -> Result<Vec<ReadingLi
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db.prepare(
         "SELECT id, title, author, author2, pages, category, isbn,
-                comments, tags, rank, my_library_id, date_added, modified
+                comments, tags, rank, my_library_id, date_added, modified,
+                source, is_checked_out
          FROM reading_list
          ORDER BY rank ASC NULLS LAST"
     ).map_err(|e| e.to_string())?;
@@ -91,13 +100,15 @@ pub fn save_reading_list_item(state: State<ScriptumState>, item: ReadingListItem
     db.execute(
         "INSERT OR REPLACE INTO reading_list
          (id, title, author, author2, pages, category, isbn,
-          comments, tags, rank, my_library_id, date_added, modified)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
+          comments, tags, rank, my_library_id, date_added, modified,
+          source, is_checked_out)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)",
         params![
             item.id, item.title, item.author, item.author2,
             item.pages, item.category, item.isbn,
             item.comments, item.tags, item.rank,
-            item.my_library_id, item.date_added, item.modified
+            item.my_library_id, item.date_added, item.modified,
+            item.source, item.is_checked_out
         ],
     ).map_err(|e| e.to_string())?;
     Ok(())
@@ -119,8 +130,9 @@ pub fn save_reading_list_bulk(state: State<ScriptumState>, items: Vec<ReadingLis
         let mut stmt = tx.prepare(
             "INSERT OR REPLACE INTO reading_list
              (id, title, author, author2, pages, category, isbn,
-              comments, tags, rank, my_library_id, date_added, modified)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)"
+              comments, tags, rank, my_library_id, date_added, modified,
+              source, is_checked_out)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)"
         ).map_err(|e| e.to_string())?;
 
         for item in &items {
@@ -128,7 +140,8 @@ pub fn save_reading_list_bulk(state: State<ScriptumState>, items: Vec<ReadingLis
                 item.id, item.title, item.author, item.author2,
                 item.pages, item.category, item.isbn,
                 item.comments, item.tags, item.rank,
-                item.my_library_id, item.date_added, item.modified
+                item.my_library_id, item.date_added, item.modified,
+                item.source, item.is_checked_out
             ]).map_err(|e| e.to_string())?;
         }
     }
@@ -157,8 +170,9 @@ pub fn replace_all_reading_list(state: State<ScriptumState>, items: Vec<ReadingL
         let mut stmt = tx.prepare(
             "INSERT OR REPLACE INTO reading_list
              (id, title, author, author2, pages, category, isbn,
-              comments, tags, rank, my_library_id, date_added, modified)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)"
+              comments, tags, rank, my_library_id, date_added, modified,
+              source, is_checked_out)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)"
         ).map_err(|e| e.to_string())?;
 
         for item in &items {
@@ -166,7 +180,8 @@ pub fn replace_all_reading_list(state: State<ScriptumState>, items: Vec<ReadingL
                 item.id, item.title, item.author, item.author2,
                 item.pages, item.category, item.isbn,
                 item.comments, item.tags, item.rank,
-                item.my_library_id, item.date_added, item.modified
+                item.my_library_id, item.date_added, item.modified,
+                item.source, item.is_checked_out
             ]).map_err(|e| e.to_string())?;
         }
     }

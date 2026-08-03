@@ -26,7 +26,40 @@ function _toTagsString(value) {
     return JSON.stringify([]);
 }
 
+function _toBoolOrUndefined(value) {
+    if (value === null || value === undefined) return undefined;
+    return Boolean(value);
+}
+
+// Known JS field names per collection, matching what the Rust structs
+// accept. Anything outside this set gets silently dropped by serde on
+// save  see Issue 25. This warns instead of dropping silently.
+const _KNOWN_FIELDS = {
+    booksRead: ['id', 'Title', 'Author', 'Author2', 'Pages', 'Category',
+        'Recommend', 'ISBN', 'Comments', 'Tags', 'Finished', 'Rating',
+        'CoverUrl', 'DateAdded', 'Modified'],
+    readingList: ['id', 'Title', 'Author', 'Author2', 'Pages', 'Category',
+        'ISBN', 'Comments', 'Tags', 'Rank', 'MyLibraryId', 'DateAdded',
+        'Modified', 'Source', 'IsCheckedOut'],
+    myLibrary: ['id', 'Title', 'Author', 'Author2', 'Pages', 'Category',
+        'ISBN', 'Comments', 'Tags', 'Location', 'Patron', 'CheckedOut',
+        'DateAdded', 'Modified'],
+};
+
+function _warnUnmappedFields(collectionName, obj) {
+    const known = _KNOWN_FIELDS[collectionName];
+    if (!known) return;
+    const unmapped = Object.keys(obj).filter(k => !known.includes(k));
+    if (unmapped.length > 0) {
+        console.warn(
+            `DBManagerTauri: ${collectionName} record has field(s) not recognized ` +
+            `by the Rust struct and will be silently dropped on save: ${unmapped.join(', ')}`
+        );
+    }
+}
+
 function _normalizeBookRead(book) {
+    _warnUnmappedFields('booksRead', book);
     return {
         ...book,
         Pages: _toIntOrNull(book.Pages),
@@ -36,14 +69,17 @@ function _normalizeBookRead(book) {
 }
 
 function _normalizeReadingListItem(item) {
+    _warnUnmappedFields('readingList', item);
     return {
         ...item,
         Pages: item.Pages !== undefined ? _toIntOrNull(item.Pages) : undefined,
         Tags: item.Tags !== undefined ? _toTagsString(item.Tags) : undefined,
+        IsCheckedOut: item.IsCheckedOut !== undefined ? _toBoolOrUndefined(item.IsCheckedOut) : undefined,
     };
 }
 
 function _normalizeLibraryBook(book) {
+    _warnUnmappedFields('myLibrary', book);
     return {
         ...book,
         Pages: _toIntOrNull(book.Pages),

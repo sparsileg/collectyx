@@ -12,8 +12,9 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         migrate_v1(conn)?;
     }
 
-    // Add future migrations here:
-    // if version < 2 { migrate_v2(conn)?; }
+    if version < 2 {
+        migrate_v2(conn)?;
+    }
 
     Ok(())
 }
@@ -37,6 +38,23 @@ fn migrate_v1(conn: &Connection) -> Result<()> {
     ))?;
 
     log::info!("Migration v1 complete");
+    Ok(())
+}
+
+/// Migration v2 — adds source and is_checked_out to reading_list.
+/// Additive only; existing rows get NULL for both new columns.
+fn migrate_v2(conn: &Connection) -> Result<()> {
+    log::info!("Running migration v2 — adding reading_list.source, reading_list.is_checked_out");
+
+    conn.execute_batch(
+        "BEGIN;
+        ALTER TABLE reading_list ADD COLUMN source TEXT;
+        ALTER TABLE reading_list ADD COLUMN is_checked_out INTEGER;
+        PRAGMA user_version = 2;
+        COMMIT;"
+    )?;
+
+    log::info!("Migration v2 complete");
     Ok(())
 }
 
