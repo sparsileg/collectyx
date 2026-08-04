@@ -54,7 +54,9 @@ async function enterReadBook(event) {
 
     // Map form data to storage format with capitalized field names
     for (let [key, value] of formData.entries()) {
-        if (key === 'finished') {
+        if (key === 'pages') {
+            book['Pages'] = value ? parseInt(value, 10) || null : null;
+        } else if (key === 'finished') {
             book['Finished'] = dateToStorage(value);
         } else if (key === 'isbn') {
             book['ISBN'] = value || '';
@@ -280,7 +282,9 @@ async function saveEditReadBook(event) {
     // Map form data to storage format with capitalized field names
     for (let [key, value] of formData.entries()) {
         if (key !== 'editIndex') {
-            if (key === 'finished') {
+            if (key === 'pages') {
+                book['Pages'] = value ? parseInt(value, 10) || null : null;
+            } else if (key === 'finished') {
                 book['Finished'] = dateToStorage(value);
             } else if (key === 'isbn') {
                 book['ISBN'] = value || '';
@@ -973,29 +977,19 @@ function escapeCSV(value) {
 }
 
 
-// Helper function to escape TSV values
-function escapeTSV(value) {
-    if (value === null || value === undefined) return '';
-
-    const stringValue = String(value);
-
-    // Replace tabs with spaces and escape special characters
-    return stringValue
-        .replace(/\t/g, ' ')
-        .replace(/\r\n/g, ' ')
-        .replace(/\n/g, ' ')
-        .replace(/\r/g, ' ');
-}
-
-
 function toggleExportDropdown() {
     document.getElementById("exportDropdownContent").parentElement.classList.toggle("show");
+}
+
+function closeExportDropdown(el) {
+    const dropdown = el.closest('.export-dropdown');
+    if (dropdown) dropdown.classList.remove('show');
 }
 
 
 // Close dropdown when clicking outside
 window.addEventListener('click', function(event) {
-    if (!event.target.matches('.export-btn')) {
+    if (!event.target.closest('.export-dropdown')) {
         const dropdowns = document.getElementsByClassName("export-dropdown-content");
         for (let openDropdown of dropdowns) {
             if (openDropdown.parentElement.classList.contains('show')) {
@@ -1033,50 +1027,21 @@ function generateExportMetadata() {
 }
 
 
-function generateTimestampedFilename(baseFilename, extension) {
-    const filteredBooks = applyCurrentFilters([...books]);
-    const hasQuickSearch = document.getElementById('quickSearch').value.trim();
-    const hasFilters = Object.keys(currentFilters).length > 0 && !currentFilters.quickSearch;
-
-    // If no filters or search, use simple filename
-    if (!hasQuickSearch && !hasFilters && filteredBooks.length === books.length) {
-        return `books-read.${extension}`;
-    }
-
-    // Otherwise use timestamped filename
+function generateTimestampedFilename(baseFilename, extension, isFiltered = false) {
     const now = new Date();
     const timestamp = now.getFullYear() +
         String(now.getMonth() + 1).padStart(2, '0') +
-        String(now.getDate()).padStart(2, '0') + '.' +
+        String(now.getDate()).padStart(2, '0') + '_' +
         String(now.getHours()).padStart(2, '0') +
         String(now.getMinutes()).padStart(2, '0') +
         String(now.getSeconds()).padStart(2, '0');
 
-    return `${baseFilename}_${timestamp}.${extension}`;
+    const filteredSuffix = isFiltered ? '_filtered' : '';
+    return `${baseFilename}${filteredSuffix}_${timestamp}.${extension}`;
 }
 
 
-function generateCSVTSVHeader(metadata) {
-    const lines = [
-        `# Export Date: ${new Date(metadata.timestamp).toLocaleString()}`,
-        `# Total Books in Database: ${metadata.totalBooksInDatabase}`,
-        `# Filtered Results: ${metadata.filteredBooks} books`
-    ];
 
-    if (metadata.appliedFilters.length > 0) {
-        metadata.appliedFilters.forEach(filter => {
-            const valueStr = filter.values.join(', ');
-            lines.push(`# Applied Filter: ${filter.field} ${filter.operator} ${valueStr}`);
-        });
-    }
-
-    if (metadata.quickSearch) {
-        lines.push(`# Quick Search: ${metadata.quickSearch}`);
-    }
-
-    lines.push(''); // Empty line before headers
-    return lines.join('\n') + '\n';
-}
 
 // ----------------------------------------------------------------------
 // ISBN lookup functionality

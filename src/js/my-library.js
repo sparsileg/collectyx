@@ -106,6 +106,8 @@ function addToMyLibrary(event) {
     const tagsInput = document.getElementById('myLibraryAddTags').value;
     const tags = parseTagsFromString(tagsInput);
 
+    const pagesInput = document.getElementById('myLibraryAddPages').value;
+
     const newBook = {
         id: generateMyLibraryId(),
         Title: document.getElementById('myLibraryAddTitle').value,
@@ -113,7 +115,7 @@ function addToMyLibrary(event) {
         Author2: fullAuthor2,
         Category: document.getElementById('myLibraryAddCategory').value,
         ISBN: document.getElementById('myLibraryAddISBN').value,
-        Pages: document.getElementById('myLibraryAddPages').value,
+        Pages: pagesInput ? parseInt(pagesInput, 10) || null : null,
         Location: location,
         CheckedOutDate: null,
         Patron: null,
@@ -199,7 +201,8 @@ function saveMyLibraryEdit(event) {
     book.Author2 = formatAuthorName(author2Surname, author2Given);
     book.Category = document.getElementById('myLibraryEditCategory').value;
     book.ISBN = document.getElementById('myLibraryEditISBN').value;
-    book.Pages = document.getElementById('myLibraryEditPages').value;
+    const editPagesInput = document.getElementById('myLibraryEditPages').value;
+    book.Pages = editPagesInput ? parseInt(editPagesInput, 10) || null : null;
     book.Location = location;
     book.Patron = document.getElementById('myLibraryEditPatron').value || null;
     const checkedOutDateInput = document.getElementById('myLibraryEditCheckedOutDate').value;
@@ -923,13 +926,35 @@ function toggleMyLibraryExportDropdown() {
     document.getElementById("myLibraryExportDropdownContent").parentElement.classList.toggle("show");
 }
 
+function generateMyLibraryExportMetadata() {
+    const now = new Date();
+    const filteredBooks = applyCurrentMyLibraryFilters([...myLibrary]);
+
+    const metadata = {
+        timestamp: now.toISOString(),
+        totalBooksInLibrary: myLibrary.length,
+        filteredBooks: filteredBooks.length,
+        appliedFilters: [],
+        quickSearch: document.getElementById('myLibraryQuickSearch').value || null
+    };
+
+    Object.values(currentMyLibraryFilters).forEach(filter => {
+        if (filter.field !== 'all') {
+            metadata.appliedFilters.push({
+                field: filter.field,
+                operator: filter.operator,
+                values: filter.values
+            });
+        }
+    });
+
+    return metadata;
+}
+
 function exportMyLibraryData() {
     const filteredBooks = applyCurrentMyLibraryFilters([...myLibrary]);
-    const metadata = {
-        timestamp: new Date().toISOString(),
-        totalBooksInLibrary: myLibrary.length,
-        filteredBooks: filteredBooks.length
-    };
+    const isFiltered = Object.keys(currentMyLibraryFilters).length > 0;
+    const metadata = generateMyLibraryExportMetadata();
 
     const dataToExport = {
         exportInfo: metadata,
@@ -938,7 +963,7 @@ function exportMyLibraryData() {
 
     const dataStr = JSON.stringify(dataToExport, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
-    const filename = generateTimestampedFilename('my_library', 'json');
+    const filename = generateTimestampedFilename('library', 'json', isFiltered);
 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -954,7 +979,8 @@ function exportMyLibraryData() {
 
 function exportMyLibraryCSV() {
     const filteredBooks = applyCurrentMyLibraryFilters([...myLibrary]);
-    const headers = ['Title', 'Author', 'Category', 'ISBN', 'Pages', 'Location', 'Patron', 'CheckedOutDate'];
+    const isFiltered = Object.keys(currentMyLibraryFilters).length > 0;
+    const headers = ['Title', 'Author', 'Author2', 'Category', 'ISBN', 'Pages', 'Location', 'Patron', 'CheckedOutDate', 'Tags'];
 
     let csvContent = headers.join(',') + '\n';
 
@@ -962,18 +988,20 @@ function exportMyLibraryCSV() {
         const row = [
             escapeCSV(book.Title),
             escapeCSV(book.Author),
+            escapeCSV(book.Author2),
             escapeCSV(book.Category),
             escapeCSV(book.ISBN),
             escapeCSV(book.Pages),
             escapeCSV(book.Location),
             escapeCSV(book.Patron),
-            escapeCSV(book.CheckedOutDate)
+            escapeCSV(book.CheckedOutDate),
+            escapeCSV(Array.isArray(book.Tags) ? book.Tags.join(', ') : '')
         ];
         csvContent += row.join(',') + '\n';
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const filename = generateTimestampedFilename('my_library', 'csv');
+    const filename = generateTimestampedFilename('library', 'csv', isFiltered);
 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1120,16 +1148,21 @@ function importMyLibraryCSV() {
                 const values = parsedData[i];
                 if (values.length === 0) continue;
 
+                const pagesValue = headers.includes('Pages') ? values[headers.indexOf('Pages')] : '';
+                const author2Value = headers.includes('Author2') ? values[headers.indexOf('Author2')] : '';
+                const tagsValue = headers.includes('Tags') ? values[headers.indexOf('Tags')] : '';
                 const book = {
                     id: generateMyLibraryId(),
                     Title: values[headers.indexOf('Title')] || '',
                     Author: values[headers.indexOf('Author')] || '',
+                    Author2: author2Value || '',
                     Category: selectedImportCategory, // Use the selected category
                     ISBN: values[headers.indexOf('ISBN')] || '',
-                    Pages: headers.includes('Pages') ? (values[headers.indexOf('Pages')] || '') : '',
+                    Pages: pagesValue ? parseInt(pagesValue, 10) || null : null,
                     Location: values[headers.indexOf('Location')] || '',
                     CheckedOutDate: null,
-                    Patron: null
+                    Patron: null,
+                    Tags: parseTagsFromString(tagsValue)
                 };
 
                 if (book.Title && book.Author) {

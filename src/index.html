@@ -206,9 +206,8 @@
             <div class="export-dropdown">
               <button class="export-btn" onclick="toggleExportDropdown()">Export ▼</button>
               <div id="exportDropdownContent" class="export-dropdown-content">
-                <a href="#" onclick="exportFilteredData()">Save Data (JSON)</a>
-                <a href="#" onclick="exportFilteredCSV()">Export CSV</a>
-                <a href="#" onclick="exportFilteredTSV()">Export TSV</a>
+                <button type="button" onclick="exportFilteredData(); closeExportDropdown(this)">Save Data (JSON)</button>
+                <button type="button" onclick="exportFilteredCSV(); closeExportDropdown(this)">Export CSV</button>
               </div>
             </div>
             <button class="btn btn-secondary btn-header" style="margin-left: 10px;" onclick="bulkISBNLookup()">Lookup ISBNs</button>
@@ -519,8 +518,8 @@
             <div class="export-dropdown">
               <button class="export-btn" onclick="toggleMyLibraryExportDropdown()">Export ▼</button>
               <div id="myLibraryExportDropdownContent" class="export-dropdown-content">
-                <a href="#" onclick="exportMyLibraryData()">Save Data (JSON)</a>
-                <a href="#" onclick="exportMyLibraryCSV()">Export CSV</a>
+                <button type="button" onclick="exportMyLibraryData(); closeExportDropdown(this)">Save Data (JSON)</button>
+                <button type="button" onclick="exportMyLibraryCSV(); closeExportDropdown(this)">Export CSV</button>
               </div>
             </div>
             <button class="btn btn-primary btn-header" onclick="showAddMyLibraryModal()">Add Book</button>

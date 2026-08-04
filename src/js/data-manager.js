@@ -344,6 +344,7 @@ async function importUnifiedDatabase(data) {
             const prepared = data.BooksRead.map(book => ({
                 ...book,
                 id: book.id || generateBookId(),
+                Tags: JSON.stringify(Array.isArray(book.Tags) ? book.Tags : []),
                 Pages: book.Pages ? parseInt(book.Pages) || null : null,
                 Finished: book.Finished ? dateToStorage(dateFromStorage(book.Finished)) : book.Finished,
                 Recommend: book.Recommend === 'Y' || book.Recommend === true  || book.Recommend === 1 ? 1
@@ -360,6 +361,7 @@ async function importUnifiedDatabase(data) {
             const prepared = data.ReadingList.map(item => ({
                 ...item,
                 id: item.id || generateBookId(),
+                Pages: item.Pages ? parseInt(item.Pages) || null : null,
             }));
             await DBManager.clear(CONSTANTS.STORES.READING_LIST);
             await DBManager.putBulk(CONSTANTS.STORES.READING_LIST, prepared);
