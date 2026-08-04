@@ -1,18 +1,18 @@
-// settings.rs
+// settings.rs — one JSON blob row per owner.
 
 use rusqlite::params;
 use tauri::State;
+
+use crate::constants::DEFAULT_OWNER;
 use crate::AppState;
 
-const SETTINGS_KEY: &str = "app-settings";
-
-/// Returns the settings JSON string, or null if not yet set.
+/// Returns the settings JSON string for an owner, or null if not yet set.
 #[tauri::command]
 pub fn get_settings(state: State<AppState>) -> Result<Option<String>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let result = db.query_row(
-        "SELECT data FROM settings WHERE id = ?1",
-        params![SETTINGS_KEY],
+        "SELECT data FROM settings WHERE owner = ?1",
+        params![DEFAULT_OWNER],
         |row| row.get(0),
     );
 
@@ -23,13 +23,16 @@ pub fn get_settings(state: State<AppState>) -> Result<Option<String>, String> {
     }
 }
 
-/// Upserts the settings JSON string.
+/// Upserts the settings JSON string. Keyed on owner, matching the schema's
+/// primary key rather than Scriptum's fixed 'app-settings' row id.
 #[tauri::command]
 pub fn save_settings(state: State<AppState>, data: String) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute(
-        "INSERT OR REPLACE INTO settings (id, data) VALUES (?1, ?2)",
-        params![SETTINGS_KEY, data],
-    ).map_err(|e| e.to_string())?;
+        "INSERT INTO settings (owner, data) VALUES (?1, ?2)
+         ON CONFLICT(owner) DO UPDATE SET data = excluded.data",
+        params![DEFAULT_OWNER, data],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }

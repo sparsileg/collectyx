@@ -1,0 +1,11 @@
+{
+  "name": "collectyx-tests",
+  "private": true,
+  "description": "Data-layer verification for Collectyx Phases 1-2",
+  "scripts": {
+    "test": "node run-all.js"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.0.0"
+  }
+}

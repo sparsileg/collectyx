@@ -706,6 +706,55 @@ const DBManagerWeb = {
     },
 
     /**
+     * Creates or updates a bare item with no collection membership. The
+     * collection save paths upsert their own item, so this is mainly for
+     * the importer and for tests.
+     */
+    async saveItem(item) {
+        const S = CONSTANTS.STORES;
+        const today = this._today();
+        const existing = item.id ? await this._rawGet(S.ITEMS, item.id) : null;
+        const row = {};
+        if (existing) Object.keys(existing).forEach(k => { row[k] = existing[k]; });
+
+        row.id = item.id || this._newId();
+        row.owner = item.Owner || (existing && existing.owner) || CONSTANTS.DEFAULT_OWNER;
+        row.media_type_id = item.MediaTypeId || (existing && existing.media_type_id) ||
+                            CONSTANTS.MEDIA_TYPE_BOOKS;
+        row.date_added = item.DateAdded ||
+                         (existing && existing.date_added) || today;
+        row.modified = today;
+        Object.keys(ITEM_FIELD_MAP).forEach(js => {
+            const col = ITEM_FIELD_MAP[js];
+            if (Object.prototype.hasOwnProperty.call(item, js)) {
+                row[col] = item[js] != null ? item[js] : null;
+            } else if (!existing) {
+                row[col] = null;
+            }
+        });
+
+        await this._rawWrite([S.ITEMS], [{ store: S.ITEMS, action: 'put', value: row }]);
+        this._invalidate(S.ITEMS);
+        return row.id;
+    },
+
+    async attachTag(itemId, tagId) {
+        const S = CONSTANTS.STORES;
+        await this._rawWrite([S.ITEM_TAGS], [{
+            store: S.ITEM_TAGS, action: 'put', value: { item_id: itemId, tag_id: tagId },
+        }]);
+        this._invalidate(S.ITEM_TAGS);
+    },
+
+    async detachTag(itemId, tagId) {
+        const S = CONSTANTS.STORES;
+        await this._rawWrite([S.ITEM_TAGS], [{
+            store: S.ITEM_TAGS, action: 'delete', key: [itemId, tagId],
+        }]);
+        this._invalidate(S.ITEM_TAGS);
+    },
+
+    /**
      * Deletes an item and everything hanging off it. SQLite does this via
      * ON DELETE CASCADE; IndexedDB has no such thing, so the cascade is
      * spelled out here to keep the two backends behaving identically.
@@ -806,6 +855,38 @@ const DBManagerWeb = {
         return affected.length;
     },
 
+    /** Bulk tag replace, scoped to one owner. */
+    async replaceAllTags(tagList) {
+        const S = CONSTANTS.STORES;
+        const today = this._today();
+        const owner = CONSTANTS.DEFAULT_OWNER;
+        const existing = await this._load(S.TAGS);
+
+        const ops = [];
+        existing.filter(t => t.owner === owner)
+                .forEach(t => ops.push({ store: S.TAGS, action: 'delete', key: t.id }));
+
+        const seen = new Set();
+        (tagList || []).forEach(tag => {
+            const name = String(tag.Name || '').trim().toLowerCase();
+            if (!name || seen.has(name)) return;
+            seen.add(name);
+            ops.push({
+                store: S.TAGS, action: 'put',
+                value: {
+                    id: tag.id || this._newId(),
+                    owner: tag.Owner || owner,
+                    name: name,
+                    date_added: tag.DateAdded || today,
+                    modified: today,
+                },
+            });
+        });
+
+        await this._rawWrite([S.TAGS], ops);
+        this._invalidate(S.TAGS);
+    },
+
     // ── Merge (design doc §3.3) ───────────────────────────────────────────────
 
     /**
@@ -869,9 +950,12 @@ const DBManagerWeb = {
 
     // ── Settings ──────────────────────────────────────────────────────────────
 
-    async getSettings(owner) {
-        owner = owner || CONSTANTS.DEFAULT_OWNER;
-        const row = await this._rawGet(CONSTANTS.STORES.SETTINGS, owner);
+    // Owner is not a parameter: v1 is single-owner and the Rust side reads
+    // DEFAULT_OWNER internally. Keeping the signatures identical means the
+    // two backends stay drop-in interchangeable; when multi-user arrives,
+    // both change together.
+    async getSettings() {
+        const row = await this._rawGet(CONSTANTS.STORES.SETTINGS, CONSTANTS.DEFAULT_OWNER);
         if (!row) return null;
         // Stored as a JSON string so both backends persist the identical
         // shape; SQLite's settings.data is TEXT.
@@ -883,12 +967,14 @@ const DBManagerWeb = {
         }
     },
 
-    async saveSettings(settingsObj, owner) {
-        owner = owner || CONSTANTS.DEFAULT_OWNER;
+    async saveSettings(settingsObj) {
         await this._rawWrite([CONSTANTS.STORES.SETTINGS], [{
             store: CONSTANTS.STORES.SETTINGS,
             action: 'put',
-            value: { owner: owner, data: JSON.stringify(settingsObj || {}) },
+            value: {
+                owner: CONSTANTS.DEFAULT_OWNER,
+                data: JSON.stringify(settingsObj || {}),
+            },
         }]);
         this._invalidate(CONSTANTS.STORES.SETTINGS);
     },
