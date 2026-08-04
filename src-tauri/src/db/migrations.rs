@@ -1,5 +1,5 @@
 use rusqlite::{Connection, Result};
-use crate::constants::CURRENT_SCHEMA_VERSION;
+use crate::constants::{CURRENT_SCHEMA_VERSION, APP_NAME};
 use crate::db::schema;
 
 /// Runs all pending migrations against the open connection.
@@ -21,7 +21,7 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
 
 /// Migration v1 — initial schema: all four tables.
 fn migrate_v1(conn: &Connection) -> Result<()> {
-    log::info!("Running migration v1 — creating Scriptum tables");
+    log::info!("Running migration v1 — creating {} tables", APP_NAME);
 
     conn.execute_batch(&format!(
         "BEGIN;

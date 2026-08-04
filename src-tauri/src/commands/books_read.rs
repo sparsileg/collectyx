@@ -3,7 +3,7 @@
 use rusqlite::{params, Result};
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use crate::ScriptumState;
+use crate::AppState;
 
 /// Mirrors the JS books_read object.
 /// serde rename maps capitalised JS field names to lowercase SQL columns.
@@ -79,7 +79,7 @@ fn row_to_book(row: &rusqlite::Row) -> Result<BookRead> {
 }
 
 #[tauri::command]
-pub fn get_all_books_read(state: State<ScriptumState>) -> Result<Vec<BookRead>, String> {
+pub fn get_all_books_read(state: State<AppState>) -> Result<Vec<BookRead>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db.prepare(
         "SELECT id, title, author, author2, pages, category, recommend,
@@ -98,7 +98,7 @@ pub fn get_all_books_read(state: State<ScriptumState>) -> Result<Vec<BookRead>, 
 }
 
 #[tauri::command]
-pub fn save_book_read(state: State<ScriptumState>, book: BookRead) -> Result<(), String> {
+pub fn save_book_read(state: State<AppState>, book: BookRead) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute(
         "INSERT OR REPLACE INTO books_read
@@ -117,7 +117,7 @@ pub fn save_book_read(state: State<ScriptumState>, book: BookRead) -> Result<(),
 }
 
 #[tauri::command]
-pub fn delete_book_read(state: State<ScriptumState>, id: String) -> Result<(), String> {
+pub fn delete_book_read(state: State<AppState>, id: String) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute("DELETE FROM books_read WHERE id = ?1", params![id])
         .map_err(|e| e.to_string())?;
@@ -125,7 +125,7 @@ pub fn delete_book_read(state: State<ScriptumState>, id: String) -> Result<(), S
 }
 
 #[tauri::command]
-pub fn save_books_read_bulk(state: State<ScriptumState>, books: Vec<BookRead>) -> Result<(), String> {
+pub fn save_books_read_bulk(state: State<AppState>, books: Vec<BookRead>) -> Result<(), String> {
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
     let tx = db.transaction().map_err(|e| e.to_string())?;
     {
@@ -151,7 +151,7 @@ pub fn save_books_read_bulk(state: State<ScriptumState>, books: Vec<BookRead>) -
 }
 
 #[tauri::command]
-pub fn clear_books_read(state: State<ScriptumState>) -> Result<(), String> {
+pub fn clear_books_read(state: State<AppState>) -> Result<(), String> {
     log::warn!("clear_books_read called — deleting all rows from books_read");
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute("DELETE FROM books_read", [])
@@ -166,7 +166,7 @@ pub fn clear_books_read(state: State<ScriptumState>) -> Result<(), String> {
 /// unlike the old clear() + putBulk() two-invoke sequence, which could
 /// leave the table empty if putBulk failed after clear() had already committed.
 #[tauri::command]
-pub fn replace_all_books_read(state: State<ScriptumState>, books: Vec<BookRead>) -> Result<(), String> {
+pub fn replace_all_books_read(state: State<AppState>, books: Vec<BookRead>) -> Result<(), String> {
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
     let tx = db.transaction().map_err(|e| e.to_string())?;
     {

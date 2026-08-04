@@ -218,7 +218,7 @@ function dateToStorage(userDate) {
 // the working equivalent. Falls back to native confirm() in the web build.
 async function confirmDialog(msg) {
     if (typeof window.__TAURI__ !== 'undefined') {
-        const result = await window.__TAURI__.dialog.message(msg, { title: 'Scriptum', buttons: 'OkCancel' });
+        const result = await window.__TAURI__.dialog.message(msg, { title: CONSTANTS.APP_NAME, buttons: 'OkCancel' });
         return result === 'Ok';
     }
     return confirm(msg);

@@ -8,8 +8,10 @@ mod constants;
 mod db;
 mod commands;
 
+use constants::APP_NAME;
+
 /// Application state — a single SQLite connection shared across all commands.
-pub struct ScriptumState {
+pub struct AppState {
     pub db: Mutex<Connection>,
 }
 
@@ -28,12 +30,12 @@ pub fn run() {
 
             // Open (or create) the SQLite database and run migrations
             let conn = db::open_db(app.handle())
-                .expect("Failed to open Scriptum database");
+                .unwrap_or_else(|e| panic!("Failed to open {} database: {:?}", APP_NAME, e));
 
             db::migrations::run_migrations(&conn)
                 .expect("Failed to run database migrations");
 
-            app.manage(ScriptumState {
+            app.manage(AppState {
                 db: Mutex::new(conn),
             });
 
@@ -70,5 +72,5 @@ pub fn run() {
             commands::settings::save_settings,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Scriptum");
+        .unwrap_or_else(|e| panic!("error while running {}: {:?}", APP_NAME, e));
 }

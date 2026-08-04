@@ -3,7 +3,7 @@
 use rusqlite::{params, Result};
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use crate::ScriptumState;
+use crate::AppState;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LibraryBook {
@@ -72,7 +72,7 @@ fn row_to_book(row: &rusqlite::Row) -> Result<LibraryBook> {
 }
 
 #[tauri::command]
-pub fn get_all_my_library(state: State<ScriptumState>) -> Result<Vec<LibraryBook>, String> {
+pub fn get_all_my_library(state: State<AppState>) -> Result<Vec<LibraryBook>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db.prepare(
         "SELECT id, title, author, author2, pages, category, isbn,
@@ -91,7 +91,7 @@ pub fn get_all_my_library(state: State<ScriptumState>) -> Result<Vec<LibraryBook
 }
 
 #[tauri::command]
-pub fn save_library_book(state: State<ScriptumState>, book: LibraryBook) -> Result<(), String> {
+pub fn save_library_book(state: State<AppState>, book: LibraryBook) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute(
         "INSERT OR REPLACE INTO my_library
@@ -110,7 +110,7 @@ pub fn save_library_book(state: State<ScriptumState>, book: LibraryBook) -> Resu
 }
 
 #[tauri::command]
-pub fn delete_library_book(state: State<ScriptumState>, id: String) -> Result<(), String> {
+pub fn delete_library_book(state: State<AppState>, id: String) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute("DELETE FROM my_library WHERE id = ?1", params![id])
         .map_err(|e| e.to_string())?;
@@ -118,7 +118,7 @@ pub fn delete_library_book(state: State<ScriptumState>, id: String) -> Result<()
 }
 
 #[tauri::command]
-pub fn save_library_bulk(state: State<ScriptumState>, books: Vec<LibraryBook>) -> Result<(), String> {
+pub fn save_library_bulk(state: State<AppState>, books: Vec<LibraryBook>) -> Result<(), String> {
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
     let tx = db.transaction().map_err(|e| e.to_string())?;
     {
@@ -144,7 +144,7 @@ pub fn save_library_bulk(state: State<ScriptumState>, books: Vec<LibraryBook>) -
 }
 
 #[tauri::command]
-pub fn clear_my_library(state: State<ScriptumState>) -> Result<(), String> {
+pub fn clear_my_library(state: State<AppState>) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute("DELETE FROM my_library", [])
         .map_err(|e| e.to_string())?;
@@ -154,7 +154,7 @@ pub fn clear_my_library(state: State<ScriptumState>) -> Result<(), String> {
 /// Atomically replaces all rows in my_library: DELETE + INSERT in a single
 /// transaction. See replace_all_books_read for rationale.
 #[tauri::command]
-pub fn replace_all_my_library(state: State<ScriptumState>, books: Vec<LibraryBook>) -> Result<(), String> {
+pub fn replace_all_my_library(state: State<AppState>, books: Vec<LibraryBook>) -> Result<(), String> {
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
     let tx = db.transaction().map_err(|e| e.to_string())?;
     {

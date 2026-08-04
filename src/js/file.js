@@ -91,7 +91,7 @@ async function saveDatabaseFile() {
     showMessage(`Data downloaded as ${filename}`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
 }
 
-// Backup Database - saves as scriptum-YYYYMMDD.json.gz (compressed if available)
+// Backup Database - saves as <appname>-YYYYMMDD.json.gz (compressed if available)
 async function backupDatabaseFile() {
     const now = new Date();
     const dateStr = now.getFullYear() +
@@ -143,7 +143,7 @@ async function backupDatabaseFile() {
             const data = encoder.encode(dataStr);
             const compressed = pako.gzip(data);
             blob = new Blob([compressed], { type: 'application/gzip' });
-            filename = `scriptum_${dateStr}.json.gz`;
+            filename = `${CONSTANTS.APP_NAME.toLowerCase()}_${dateStr}.json.gz`;
         } catch (e) {
             console.warn('Compression failed, using uncompressed data:', e);
             blob = new Blob([dataStr], { type: 'application/json' });

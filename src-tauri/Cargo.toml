@@ -1,8 +1,8 @@
 [package]
-name = "scriptum"
+name = "collectyx"
 # Keep in sync with src/js/constants.js's CONSTANTS.APP_VERSION.
-version = "0.7.0"
-description = "Scriptum — Book Tracker"
+version = "0.1.0"
+description = "Collectyx — Media Tracker"
 authors = ["Sparsile"]
 license = ""
 repository = ""
@@ -10,7 +10,7 @@ edition = "2021"
 rust-version = "1.77.2"
 
 [lib]
-name = "scriptum_lib"
+name = "collectyx_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

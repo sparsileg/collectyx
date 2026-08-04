@@ -1,4 +1,4 @@
-/// Creates all Scriptum tables.
+/// Creates all Collectyx tables.
 /// Called from migrations.rs — do not call directly.
 pub const CREATE_BOOKS_READ: &str = "
 CREATE TABLE IF NOT EXISTS books_read (

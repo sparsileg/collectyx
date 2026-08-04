@@ -2,13 +2,13 @@
 
 use rusqlite::params;
 use tauri::State;
-use crate::ScriptumState;
+use crate::AppState;
 
 const SETTINGS_KEY: &str = "app-settings";
 
 /// Returns the settings JSON string, or null if not yet set.
 #[tauri::command]
-pub fn get_settings(state: State<ScriptumState>) -> Result<Option<String>, String> {
+pub fn get_settings(state: State<AppState>) -> Result<Option<String>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let result = db.query_row(
         "SELECT data FROM settings WHERE id = ?1",
@@ -25,7 +25,7 @@ pub fn get_settings(state: State<ScriptumState>) -> Result<Option<String>, Strin
 
 /// Upserts the settings JSON string.
 #[tauri::command]
-pub fn save_settings(state: State<ScriptumState>, data: String) -> Result<(), String> {
+pub fn save_settings(state: State<AppState>, data: String) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute(
         "INSERT OR REPLACE INTO settings (id, data) VALUES (?1, ?2)",

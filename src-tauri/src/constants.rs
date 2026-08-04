@@ -1,9 +1,9 @@
 
 /// Application name — used for the OS app data directory.
-pub const APP_NAME: &str = "Scriptum";
+pub const APP_NAME: &str = "Collectyx";
 
 /// SQLite database filename.
-pub const DB_FILE_NAME: &str = "scriptum.db";
+pub const DB_FILE_NAME: &str = "collectyx.db";
 
 /// Current schema version. Increment when adding a new migration.
 pub const CURRENT_SCHEMA_VERSION: u32 = 1;

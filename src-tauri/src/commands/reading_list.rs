@@ -3,7 +3,7 @@
 use rusqlite::{params, Result};
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use crate::ScriptumState;
+use crate::AppState;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ReadingListItem {
@@ -76,7 +76,7 @@ fn row_to_item(row: &rusqlite::Row) -> Result<ReadingListItem> {
 }
 
 #[tauri::command]
-pub fn get_all_reading_list(state: State<ScriptumState>) -> Result<Vec<ReadingListItem>, String> {
+pub fn get_all_reading_list(state: State<AppState>) -> Result<Vec<ReadingListItem>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db.prepare(
         "SELECT id, title, author, author2, pages, category, isbn,
@@ -95,7 +95,7 @@ pub fn get_all_reading_list(state: State<ScriptumState>) -> Result<Vec<ReadingLi
 }
 
 #[tauri::command]
-pub fn save_reading_list_item(state: State<ScriptumState>, item: ReadingListItem) -> Result<(), String> {
+pub fn save_reading_list_item(state: State<AppState>, item: ReadingListItem) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute(
         "INSERT OR REPLACE INTO reading_list
@@ -115,7 +115,7 @@ pub fn save_reading_list_item(state: State<ScriptumState>, item: ReadingListItem
 }
 
 #[tauri::command]
-pub fn delete_reading_list_item(state: State<ScriptumState>, id: String) -> Result<(), String> {
+pub fn delete_reading_list_item(state: State<AppState>, id: String) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute("DELETE FROM reading_list WHERE id = ?1", params![id])
         .map_err(|e| e.to_string())?;
@@ -123,7 +123,7 @@ pub fn delete_reading_list_item(state: State<ScriptumState>, id: String) -> Resu
 }
 
 #[tauri::command]
-pub fn save_reading_list_bulk(state: State<ScriptumState>, items: Vec<ReadingListItem>) -> Result<(), String> {
+pub fn save_reading_list_bulk(state: State<AppState>, items: Vec<ReadingListItem>) -> Result<(), String> {
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
     let tx = db.transaction().map_err(|e| e.to_string())?;
     {
@@ -150,7 +150,7 @@ pub fn save_reading_list_bulk(state: State<ScriptumState>, items: Vec<ReadingLis
 }
 
 #[tauri::command]
-pub fn clear_reading_list(state: State<ScriptumState>) -> Result<(), String> {
+pub fn clear_reading_list(state: State<AppState>) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute("DELETE FROM reading_list", [])
         .map_err(|e| e.to_string())?;
@@ -160,7 +160,7 @@ pub fn clear_reading_list(state: State<ScriptumState>) -> Result<(), String> {
 /// Atomically replaces all rows in reading_list: DELETE + INSERT in a single
 /// transaction. See replace_all_books_read for rationale.
 #[tauri::command]
-pub fn replace_all_reading_list(state: State<ScriptumState>, items: Vec<ReadingListItem>) -> Result<(), String> {
+pub fn replace_all_reading_list(state: State<AppState>, items: Vec<ReadingListItem>) -> Result<(), String> {
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
     let tx = db.transaction().map_err(|e| e.to_string())?;
     {

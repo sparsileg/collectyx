@@ -1,12 +1,12 @@
 // Global constants
 // Constants for magic strings
 const CONSTANTS = {
-    APP_NAME: 'scriptum',
+    APP_NAME: 'Collectyx',
     // Keep in sync with src-tauri/Cargo.toml's [package] version.
-    APP_VERSION: '0.7.0',
+    APP_VERSION: '0.1.0',
 
     DB: {
-        NAME:    'scriptum-db',
+        NAME:    'collectyx-db',
         VERSION: 1
     },
 

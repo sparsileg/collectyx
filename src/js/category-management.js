@@ -1,6 +1,6 @@
 /**
  * category-management.js
- * Category management functions for Scriptum.
+ * Category management functions
  * Categories are stored as a JSON array in the settings table.
  */
 
