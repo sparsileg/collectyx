@@ -10,12 +10,33 @@ const CONSTANTS = {
         VERSION: 1
     },
 
+    // Owner value for every row in v1. The schema carries `owner` so a
+    // future multi-user sync doesn't need a migration, but v1 has no auth.
+    DEFAULT_OWNER: 'local',
+
+    // Object stores (web) / tables (Tauri). Names match the SQL tables
+    // exactly so both backends refer to the same thing.
     STORES: {
-        BOOKS_READ:   'booksRead',
-        READING_LIST: 'readingList',
-        MY_LIBRARY:   'myLibrary',
-        SETTINGS:     'settings'
+        MEDIA_TYPES: 'media_types',
+        ITEMS:       'items',
+        CONSUMED:    'consumed',
+        QUEUED:      'queued',
+        OWNED:       'owned',
+        TAGS:        'tags',
+        ITEM_TAGS:   'item_tags',
+        SETTINGS:    'settings'
     },
+
+    // The three collection roles, used to look up per-collection field
+    // maps and Rust command names.
+    COLLECTIONS: {
+        CONSUMED: 'consumed',
+        QUEUED:   'queued',
+        OWNED:    'owned'
+    },
+
+    // v1 ships exactly one media type.
+    MEDIA_TYPE_BOOKS: 1,
 
     VIEWS: {
         DASHBOARD: 'dashboard',

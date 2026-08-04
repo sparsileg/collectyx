@@ -1,211 +1,76 @@
 /**
  * db-manager-tauri.js
- * Tauri SQLite backend — wired up in Phase 5.
- * Exposes the same interface as DBManagerWeb so all app code
- * works unchanged regardless of which backend is active.
+ * Tauri SQLite backend.
  *
- * Serialization shim: JS objects don't always match the shape the Rust
- * structs expect (Pages as a string from form inputs, Tags as an array
- * in memory, Finished possibly missing on legacy import records). The
- * normalize helpers below convert JS objects into the shape Rust expects
- * before they cross the invoke boundary, so app code above this file
- * never has to know about it.
+ * PHASE 1: stubs only. Every method below mirrors DBManagerWeb's interface
+ * so the two backends stay interchangeable, but the Rust commands they call
+ * don't exist until Phase 2. Calling one now fails loudly rather than
+ * silently returning empty data that could be mistaken for "no records".
  */
 
-//── Normalization helpers ──────────────────────────────────────────────────────
-
-function _toIntOrNull(value) {
-    if (value === null || value === undefined || value === '') return null;
-    const parsed = parseInt(value, 10);
-    return Number.isNaN(parsed) ? null : parsed;
+function invoke(command, args) {
+    return window.__TAURI__.core.invoke(command, args || {});
 }
 
-function _toTagsString(value) {
-    if (typeof value === 'string') return value;
-    if (Array.isArray(value)) return JSON.stringify(value);
-    return JSON.stringify([]);
-}
-
-function _toBoolOrUndefined(value) {
-    if (value === null || value === undefined) return undefined;
-    return Boolean(value);
-}
-
-// Known JS field names per collection, matching what the Rust structs
-// accept. Anything outside this set gets silently dropped by serde on
-// save  see Issue 25. This warns instead of dropping silently.
-const _KNOWN_FIELDS = {
-    booksRead: ['id', 'Title', 'Author', 'Author2', 'Pages', 'Category',
-        'Recommend', 'ISBN', 'Comments', 'Tags', 'Finished', 'Rating',
-        'CoverUrl', 'DateAdded', 'Modified'],
-    readingList: ['id', 'Title', 'Author', 'Author2', 'Pages', 'Category',
-        'ISBN', 'Comments', 'Tags', 'Rank', 'MyLibraryId', 'DateAdded',
-        'Modified', 'Source', 'IsCheckedOut'],
-    myLibrary: ['id', 'Title', 'Author', 'Author2', 'Pages', 'Category',
-        'ISBN', 'Comments', 'Tags', 'Location', 'Patron', 'CheckedOutDate',
-        'DateAdded', 'Modified'],
-};
-
-function _warnUnmappedFields(collectionName, obj) {
-    const known = _KNOWN_FIELDS[collectionName];
-    if (!known) return;
-    const unmapped = Object.keys(obj).filter(k => !known.includes(k));
-    if (unmapped.length > 0) {
-        console.warn(
-            `DBManagerTauri: ${collectionName} record has field(s) not recognized ` +
-            `by the Rust struct and will be silently dropped on save: ${unmapped.join(', ')}`
+function _notWired(method) {
+    return function () {
+        throw new Error(
+            'DBManagerTauri.' + method + '() is not wired up yet — the Rust ' +
+            'commands arrive in Phase 2. Use the web build until then.'
         );
-    }
-}
-
-function _normalizeBookRead(book) {
-    _warnUnmappedFields('booksRead', book);
-    return {
-        ...book,
-        Pages: _toIntOrNull(book.Pages),
-        Tags: book.Tags !== undefined ? _toTagsString(book.Tags) : undefined,
-        Finished: book.Finished || '',
-    };
-}
-
-function _normalizeReadingListItem(item) {
-    _warnUnmappedFields('readingList', item);
-    return {
-        ...item,
-        Pages: item.Pages !== undefined ? _toIntOrNull(item.Pages) : undefined,
-        Tags: item.Tags !== undefined ? _toTagsString(item.Tags) : undefined,
-        IsCheckedOut: item.IsCheckedOut !== undefined ? _toBoolOrUndefined(item.IsCheckedOut) : undefined,
-    };
-}
-
-function _normalizeLibraryBook(book) {
-    _warnUnmappedFields('myLibrary', book);
-    return {
-        ...book,
-        Pages: _toIntOrNull(book.Pages),
-        Tags: _toTagsString(book.Tags),
     };
 }
 
 const DBManagerTauri = {
 
-    //── Lifecycle ────────────────────────────────────────────────────────────
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     async init() {
-        // SQLite is opened in Rust at startup — nothing to do here.
-        console.log('DBManagerTauri: SQLite backend ready');
+        // SQLite is opened and migrated in Rust at startup — nothing to do here.
+        console.log('DBManagerTauri: SQLite backend ready (Phase 1 — commands not yet wired)');
         return true;
     },
 
     close() {
-        // Connection managed by Rust — no-op.
+        // Connection is managed by Rust.
     },
 
     deleteDatabase() {
-        console.warn('DBManagerTauri: deleteDatabase() not supported in Tauri mode');
+        console.warn('DBManagerTauri: deleteDatabase() is not supported in Tauri mode');
     },
 
-    //── Generic CRUD ─────────────────────────────────────────────────────────
-    // Routes each storeName to the appropriate Rust command set.
+    // ── Media types ───────────────────────────────────────────────────────────
 
-    async get(storeName, key) {
-        const handler = this._getHandler(storeName);
-        const all = await handler.getAll();
-        return all.find(item => item.id === key) || null;
+    getAllMediaTypes: _notWired('getAllMediaTypes'),
+    seedMediaTypes: async function () {
+        // Seeded by SQLite migration v1; nothing for the JS layer to do.
     },
 
-    async getAll(storeName) {
-        return this._getHandler(storeName).getAll();
-    },
+    // ── Collections ───────────────────────────────────────────────────────────
 
-    async put(storeName, data) {
-        return this._getHandler(storeName).put(data);
-    },
+    getCollection: _notWired('getCollection'),
+    getCollectionRecord: _notWired('getCollectionRecord'),
+    saveCollectionRecord: _notWired('saveCollectionRecord'),
+    deleteCollectionRecord: _notWired('deleteCollectionRecord'),
+    replaceCollection: _notWired('replaceCollection'),
 
-    async delete(storeName, key) {
-        return this._getHandler(storeName).delete(key);
-    },
+    // ── Items ─────────────────────────────────────────────────────────────────
 
-    async clear(storeName) {
-        return this._getHandler(storeName).clear();
-    },
+    getAllItems: _notWired('getAllItems'),
+    deleteItem: _notWired('deleteItem'),
 
-    async putBulk(storeName, items) {
-        if (!items || items.length === 0) return;
-        return this._getHandler(storeName).putBulk(items);
-    },
+    // ── Tags ──────────────────────────────────────────────────────────────────
 
-    /**
-     * Atomically replaces all rows for a store (DELETE + INSERT in one
-     * Rust transaction). Unlike clear() + putBulk(), a failed insert here
-     * cannot leave the table empty — the whole operation rolls back.
-     * Passing an empty array is valid and clears the table intentionally.
-     */
-    async replaceAll(storeName, items) {
-        return this._getHandler(storeName).replaceAll(items || []);
-    },
+    getAllTags: _notWired('getAllTags'),
+    saveTag: _notWired('saveTag'),
+    deleteTag: _notWired('deleteTag'),
 
-    //── Store handlers ────────────────────────────────────────────────────────
+    // ── Merge ─────────────────────────────────────────────────────────────────
 
-    _getHandler(storeName) {
-        switch (storeName) {
-            case CONSTANTS.STORES.BOOKS_READ:   return DBManagerTauri._booksRead;
-            case CONSTANTS.STORES.READING_LIST: return DBManagerTauri._readingList;
-            case CONSTANTS.STORES.MY_LIBRARY:   return DBManagerTauri._myLibrary;
-            case CONSTANTS.STORES.SETTINGS:     return DBManagerTauri._settings;
-            default:
-                throw new Error(`DBManagerTauri: unknown store "${storeName}"`);
-        }
-    },
+    mergeItems: _notWired('mergeItems'),
 
-    _booksRead: {
-        getAll:     ()        => invoke('get_all_books_read'),
-        put:        (book)    => invoke('save_book_read',        { book: _normalizeBookRead(book) }),
-        delete:     (id)      => invoke('delete_book_read',       { id }),
-        putBulk:    (books)   => invoke('save_books_read_bulk',   { books: books.map(_normalizeBookRead) }),
-        clear:      ()        => invoke('clear_books_read'),
-        replaceAll: (books)   => invoke('replace_all_books_read', { books: books.map(_normalizeBookRead) }),
-    },
+    // ── Settings ──────────────────────────────────────────────────────────────
 
-    _readingList: {
-        getAll:     ()        => invoke('get_all_reading_list'),
-        put:        (item)    => invoke('save_reading_list_item',  { item: _normalizeReadingListItem(item) }),
-        delete:     (id)      => invoke('delete_reading_list_item', { id }),
-        putBulk:    (items)   => invoke('save_reading_list_bulk',   { items: items.map(_normalizeReadingListItem) }),
-        clear:      ()        => invoke('clear_reading_list'),
-        replaceAll: (items)   => invoke('replace_all_reading_list', { items: items.map(_normalizeReadingListItem) }),
-    },
-
-    _myLibrary: {
-        getAll:     ()        => invoke('get_all_my_library'),
-        put:        (book)    => invoke('save_library_book',     { book: _normalizeLibraryBook(book) }),
-        delete:     (id)      => invoke('delete_library_book',   { id }),
-        putBulk:    (books)   => invoke('save_library_bulk',     { books: books.map(_normalizeLibraryBook) }),
-        clear:      ()        => invoke('clear_my_library'),
-        replaceAll: (books)   => invoke('replace_all_my_library', { books: books.map(_normalizeLibraryBook) }),
-    },
-
-    _settings: {
-        getAll:  async ()     => {
-            const data = await invoke('get_settings');
-            // Return in the same shape as IndexedDB — array with one row
-            return data ? [{ id: 'app-settings', data: JSON.parse(data) }] : [];
-        },
-        put:     async (row)  => invoke('save_settings', {
-            data: typeof row.data === 'string' ? row.data : JSON.stringify(row.data)
-        }),
-        delete:  (_id)        => Promise.resolve(), // settings row is never deleted
-        putBulk: async (rows) => {
-            for (const row of rows) {
-                await DBManagerTauri._settings.put(row);
-            }
-        },
-        clear:   ()           => Promise.resolve(), // settings row is never cleared
-    },
+    getSettings: _notWired('getSettings'),
+    saveSettings: _notWired('saveSettings'),
 };
-
-//── invoke helper ─────────────────────────────────────────────────────────────
-
-function invoke(command, args = {}) {
-    return window.__TAURI__.core.invoke(command, args);
-}

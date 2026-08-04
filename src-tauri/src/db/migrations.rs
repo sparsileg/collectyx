@@ -12,14 +12,15 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         migrate_v1(conn)?;
     }
 
-    if version < 2 {
-        migrate_v2(conn)?;
-    }
-
     Ok(())
 }
 
-/// Migration v1 — initial schema: all four tables.
+/// Migration v1 — the normalized Collectyx schema: all eight tables plus
+/// the single seeded media_types row.
+///
+/// Scriptum's flat books_read/reading_list/my_library tables are not
+/// created and not migrated from; Collectyx starts clean and takes
+/// Scriptum data through the one-time importer instead.
 fn migrate_v1(conn: &Connection) -> Result<()> {
     log::info!("Running migration v1 — creating {} tables", APP_NAME);
 
@@ -29,32 +30,27 @@ fn migrate_v1(conn: &Connection) -> Result<()> {
         {}
         {}
         {}
+        {}
+        {}
+        {}
+        {}
+        {}
+        {}
         PRAGMA user_version = 1;
         COMMIT;",
-        schema::CREATE_BOOKS_READ,
-        schema::CREATE_READING_LIST,
-        schema::CREATE_MY_LIBRARY,
+        schema::CREATE_MEDIA_TYPES,
+        schema::CREATE_ITEMS,
+        schema::CREATE_CONSUMED,
+        schema::CREATE_QUEUED,
+        schema::CREATE_OWNED,
+        schema::CREATE_TAGS,
+        schema::CREATE_ITEM_TAGS,
         schema::CREATE_SETTINGS,
+        schema::CREATE_INDEXES,
+        schema::SEED_MEDIA_TYPES,
     ))?;
 
     log::info!("Migration v1 complete");
-    Ok(())
-}
-
-/// Migration v2 — adds source and is_checked_out to reading_list.
-/// Additive only; existing rows get NULL for both new columns.
-fn migrate_v2(conn: &Connection) -> Result<()> {
-    log::info!("Running migration v2 — adding reading_list.source, reading_list.is_checked_out");
-
-    conn.execute_batch(
-        "BEGIN;
-        ALTER TABLE reading_list ADD COLUMN source TEXT;
-        ALTER TABLE reading_list ADD COLUMN is_checked_out INTEGER;
-        PRAGMA user_version = 2;
-        COMMIT;"
-    )?;
-
-    log::info!("Migration v2 complete");
     Ok(())
 }
 
