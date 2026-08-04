@@ -72,7 +72,6 @@ const CONSTANTS = {
         TITLE: 'Title',
         AUTHOR: 'Author',
         PAGES: 'Pages',
-        CATEGORY: 'Category',
         RECOMMEND: 'Recommend',
         ISBN: 'ISBN',
         COMMENTS: 'Comments',
@@ -105,25 +104,15 @@ const CONSTANTS = {
 
     API_DELAYS: {
         QUICK_SEARCH: 300,
-        API_RESPECT: 1000,
         DROPDOWN_CLOSE: 10,
         PAUSE_AFTER_SAVE: 3000
-    },
-
-    // ISBN match confidence
-    CONFIDENCE_LEVELS: {
-        MIN_ISBN_LOOKUP: 55,
-        GOOD_MATCH: 60
     },
 
     // # rows in dashboard cards
     ROW_LIMITS: {
         RECENT_FINISHED: 5,
         WHATS_NEXT: 4
-    },
-
-    // how many books to process before outputting status message
-    ISBN_MSG_INTERVAL: 10
+    }
 };
 
 const DASHBOARD_CONSTANTS = {
