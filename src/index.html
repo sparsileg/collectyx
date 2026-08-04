@@ -6,463 +6,99 @@
     <title>Collectyx</title>
 
     <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/themes/nordic-dark.css" id="themeLink">
+    <link rel="stylesheet" href="css/custom.css">
+    <link rel="stylesheet" href="css/sidebar.css">
+    <link rel="stylesheet" href="css/hamburger-menu.css">
+    <link rel="stylesheet" href="css/themes/dark.css" id="themeLink">
 
   </head>
   <body>
-    <div class="container">
-      <div class="header">
-        <h1>📚 Collectyx</h1>
-        <p>Track your reading journey</p>
-      </div>
+    <div class="app-shell">
+      <nav class="sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-header-top">
+            <div class="logo-placeholder">
+              <span id="app-name">Collectyx</span>
+            </div>
+            <div class="hamburger-container">
+              <button id="hamburger-btn" class="hamburger-btn" aria-label="Menu" onclick="toggleHamburgerMenu()">
+                <span></span><span></span><span></span>
+              </button>
+              <div id="hamburgerMenu" class="hamburger-menu">
+                <div class="hamburger-menu-section">
+                  <div class="hamburger-menu-item" onclick="hamburgerAction('settings')">Settings</div>
+                  <div class="hamburger-menu-item" onclick="hamburgerAction('backup')">Backup Database</div>
+                  <div class="hamburger-menu-item" onclick="hamburgerAction('export')">Export All Data</div>
+                  <div class="hamburger-menu-item" onclick="hamburgerAction('restore')">Restore from Backup</div>
+                  <div class="hamburger-menu-item" onclick="hamburgerAction('duplicates')">Find Duplicates</div>
+                </div>
+                <div class="hamburger-menu-section" id="hamburgerContextualSection"></div>
+              </div>
+            </div>
+          </div>
 
-      <div class="nav-bar">
-        <button class="nav-btn active" onclick="showView(CONSTANTS.VIEWS.DASHBOARD,this)">Dashboard</button>
-        <button class="nav-btn" onclick="showView(CONSTANTS.VIEWS.ENTER_FINISHED,this)">Finished Book</button>
-        <button class="nav-btn" onclick="showView(CONSTANTS.VIEWS.REVIEW,this)">Books Read</button>
-        <button class="nav-btn" onclick="showView('toread',this)">To Read</button>
-        <button class="nav-btn" onclick="showView('myLibrary',this)">My Library</button>
-        <button class="nav-btn" onclick="showView(CONSTANTS.VIEWS.STATISTICS,this)">Statistics</button>
-      </div>
+          <div class="theme-dropdown" id="theme-dropdown">
+            <div class="theme-dropdown-trigger" id="theme-dropdown-trigger" onclick="toggleThemeDropdown()">
+              <span id="theme-dropdown-label">Dark</span>
+              <span class="theme-dropdown-arrow">▾</span>
+            </div>
+            <div class="theme-dropdown-menu" id="theme-dropdown-menu">
+              <div class="theme-dropdown-item" data-theme="css/themes/dark.css">Dark</div>
+              <div class="theme-dropdown-item" data-theme="css/themes/light.css">Light</div>
+              <div class="theme-dropdown-item" data-theme="css/themes/matrix.css">Matrix</div>
+              <div class="theme-dropdown-item" data-theme="css/themes/flat.css">Flat</div>
+            </div>
+          </div>
 
+          <div class="font-size-stepper">
+            <button type="button" class="font-size-btn" onclick="adjustFontSize(-1)" aria-label="Decrease font size">−</button>
+            <span id="font-size-value">100%</span>
+            <button type="button" class="font-size-btn" onclick="adjustFontSize(1)" aria-label="Increase font size">+</button>
+          </div>
+        </div>
+
+        <div class="sidebar-separator"></div>
+
+        <div class="sidebar-content">
+          <ul class="nav-list" id="sidebarNavList">
+            <!-- Nav items populated in Phase 3 Patch B -->
+          </ul>
+        </div>
+      </nav>
+      <!-- end of Sidebar Navigation -->
+
+      <div class="main-content">
       <div id="messageArea" class="message-area"></div>
 
       <!-- Dashboard View -->
       <div id="dashboardView" class="view active">
         <h2>Reading Dashboard</h2>
-        <div class="dashboard-grid">
-
-          <!-- Quick Stats -->
-          <div class="dashboard-card" id="quick-stats">
-            <h3>Quick Stats</h3>
-            <div class="stat-row">
-              <span class="stat-label">Total Books:</span>
-              <span class="stat-value" id="dashTotalBooks">0</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">Pages:</span>
-              <span class="stat-value" id="dashTotalPages">0</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">This Year Books:</span>
-              <span class="stat-value" id="dashThisYear">0</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">Pages:</span>
-              <span class="stat-value" id="dashThisYearPages">0</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">Avg Pages/Day:</span>
-              <span class="stat-value" id="dashAvgPagesDay">0</span>
-            </div>
-          </div>
-
-          <!-- Quick Actions -->
-          <div class="dashboard-card" id="quick-actions">
-            <h3>Quick Actions</h3>
-            <div class="quick-actions">
-              <button class="btn btn-secondary" onclick="showView('settings', this)">Settings</button>
-              <button class="btn btn-secondary" onclick="saveDatabaseFile()">Export All Data (JSON)</button>
-              <button class="btn btn-secondary" onclick="backupDatabaseFile()">Backup Database</button>
-              <button class="btn btn-secondary" onclick="showRestoreScreen1()">Restore from Backup</button>
-            </div>
-          </div>
-
-          <!-- Recent Books -->
-          <div class="dashboard-card" id="recent-books">
-            <h3>Recently Finished</h3>
-            <div id="recentBooks" class="recent-books-list">
-              <!-- Recent books will be populated here -->
-            </div>
-          </div>
-
-          <!-- Reading Goals -->
-          <div class="dashboard-card" id="reading-goals">
-            <h3>Reading Goals</h3>
-            <div id="readingGoalsContent">
-              <div id="goalDisplay"></div>
-              <div class="reading-progress-chart">
-                <canvas id="readingGoalChart" width="400" height="200"></canvas>
-              </div>
-            </div>
-          </div>
-
-          <!-- What's Next? -->
-          <div class="dashboard-card" id="whats-next">
-            <h3>What's Next?</h3>
-            <div id="whatsNextContent" class="whats-next-list">
-              <!-- Reading list preview will be populated here -->
-            </div>
-          </div>
-
-          <!-- My Library Stats -->
-          <div class="dashboard-card" id="library-stats">
-            <h3>My Library Stats</h3>
-            <div class="stat-row">
-              <span class="stat-label">Total Books:</span>
-              <span class="stat-value" id="dashLibraryTotal">0</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">No Category:</span>
-              <span class="stat-value" id="dashLibraryNoCategory">0</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">No ISBN:</span>
-              <span class="stat-value" id="dashLibraryNoISBN">0</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">Checked Out:</span>
-              <span class="stat-value" id="dashLibraryCheckedOut">0</span>
-            </div>
-          </div>
-
-        </div> <!-- Close dashboard-grid -->
+        <p class="view-placeholder-note">Dashboard cards arrive in Phase 8.</p>
       </div> <!-- end of Dashboard view -->
 
-      <!-- Enter View -->
-      <div id="enterFinishedView" class="view">
-        <h2>Finished Reading a Book</h2>
-        <form id="bookForm" onsubmit="enterReadBook(event)">
-          <div class="form-group">
-            <label for="finished">Finished:</label>
-            <input type="text" id="finished" name="finished" placeholder="MM/DD/YYYY" maxlength="10" onblur="validateDateInput(this)" oninput="clearMessage()">
-          </div>
-          <div class="form-group">
-            <label for="title">Title:</label>
-            <input type="text" id="title" name="title" required>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="authorGiven">Given Name(s):</label>
-              <input type="text" id="authorGiven" name="authorGiven">
-            </div>
-            <div class="form-group">
-              <label for="authorSurname">Surname:</label>
-              <input type="text" id="authorSurname" name="authorSurname">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="author2Given">Second Author — Given Name(s):</label>
-              <input type="text" id="author2Given" name="author2Given">
-            </div>
-            <div class="form-group">
-              <label for="author2Surname">Second Author — Surname:</label>
-              <input type="text" id="author2Surname" name="author2Surname">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="pages">Pages:</label>
-              <input type="number" id="pages" name="pages" min="1">
-            </div>
-            <div class="form-group">
-              <label for="isbn">ISBN:</label>
-              <input type="text" id="isbn" name="isbn" placeholder="10 or 13 digit ISBN">
-            </div>
-            <div class="form-group">
-              <label for="category">Category:</label>
-              <select id="category" name="category">
-                <!-- Options will be populated by script -->
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="recommend">Recommend:</label>
-              <select id="recommend" name="recommend">
-                <option value="">Select</option>
-                <option value="1">Yes</option>
-                <option value="0">No</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="tagsInput">Tags:</label>
-            <div class="tag-chip-container">
-              <div class="tag-chip-field">
-                <input type="text" id="tagsInput" placeholder="Type a tag and press Enter" autocomplete="off">
-                <div class="tag-chip-suggestions" id="tagsSuggestions"></div>
-              </div>
-              <div class="tag-chip-row" id="tagsChipRow"></div>
-              <input type="hidden" id="tags" name="tags">
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="comments">Comments:</label>
-            <textarea id="comments" name="comments" placeholder="Your thoughts about this book..."></textarea>
-          </div>
-          <div class="form-buttons" style="padding-bottom: 10px;">
-            <button type="submit" class="btn btn-primary">Add Book</button>
-            <button type="button" class="btn btn-secondary" onclick="cancelAddBook()">Cancel</button>
-          </div>
-        </form>
-      </div> <!-- end of Enter View -->
-
-      <!-- Review View -->
-      <div id="reviewView" class="view">
-        <!-- Fixed Header Section -->
-        <div class="books-read-fixed-header">
-          <h2>Book Review
-            <span class="search-icon" onclick="showFilter()">🔍</span>
-            <div class="export-dropdown">
-              <button class="export-btn" onclick="toggleExportDropdown()">Export ▼</button>
-              <div id="exportDropdownContent" class="export-dropdown-content">
-                <button type="button" onclick="exportFilteredData(); closeExportDropdown(this)">Save Data (JSON)</button>
-                <button type="button" onclick="exportFilteredCSV(); closeExportDropdown(this)">Export CSV</button>
-              </div>
-            </div>
-            <button class="btn btn-secondary btn-header" style="margin-left: 10px;" onclick="bulkISBNLookup()">Lookup ISBNs</button>
-          </h2>
-
-          <div id="filterPanel" class="filter-panel" style="display: none;">
-            <h3>Search</h3>
-            <div class="quick-search">
-              <input type="text" id="quickSearch" placeholder="Quick search across all fields..."
-                     onkeyup="handleQuickSearch(this.value)">
-            </div>
-            <div id="filterControls"></div>
-            <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
-            <button class="btn btn-secondary" onclick="clearFilters()">Clear Filters</button>
-            <button class="btn btn-secondary" onclick="hideFilter()">Close</button>
-          </div>
-
-          <!-- Fixed Table Header -->
-          <div class="books-read-table-header">
-            <table class="data-table" id="booksHeaderTable">
-              <thead>
-                <tr>
-                  <th onclick="showSortDropdown(event, 'Finished')">Finished</th>
-                  <th onclick="showSortDropdown(event, 'Title')">Title</th>
-                  <th onclick="showSortDropdown(event, 'Author')">Author</th>
-                  <th onclick="showSortDropdown(event, 'Pages')">Pages</th>
-                  <th onclick="showSortDropdown(event, 'Category')">Category</th>
-                  <th onclick="showSortDropdown(event, 'Recommend')">Like</th>
-                </tr>
-              </thead>
-            </table>
-          </div>
-        </div>
-
-        <!-- Scrollable Content Area -->
-        <div class="books-read-scrollable-content">
-          <table class="data-table" id="booksTable">
-            <tbody id="booksTableBody">
-            </tbody>
-          </table>
-        </div>
-      </div> <!-- end of Review view -->
-
-      <!-- Edit View -->
-      <div id="editView" class="view">
-        <h2>Edit Book</h2>
-        <form id="editForm" onsubmit="saveEditReadBook(event)">
-          <input type="hidden" id="editIndex" name="editIndex">
-          <div class="form-group">
-            <label for="editFinished">Finished:</label>
-            <input type="text" id="editFinished" name="finished" placeholder="MM/DD/YYYY" maxlength="10" onblur="validateDateInput(this)" oninput="clearMessage()">
-          </div>
-          <div class="form-group">
-            <label for="editTitle">Title:</label>
-            <input type="text" id="editTitle" name="title" required>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="editAuthorGiven">Given Name(s):</label>
-              <input type="text" id="editAuthorGiven" name="authorGiven">
-            </div>
-            <div class="form-group">
-              <label for="editAuthorSurname">Surname:</label>
-              <input type="text" id="editAuthorSurname" name="authorSurname">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="editAuthor2Given">Second Author — Given Name(s):</label>
-              <input type="text" id="editAuthor2Given" name="author2Given">
-            </div>
-            <div class="form-group">
-              <label for="editAuthor2Surname">Second Author — Surname:</label>
-              <input type="text" id="editAuthor2Surname" name="author2Surname">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="editPages">Pages:</label>
-              <input type="number" id="editPages" name="pages" min="1">
-            </div>
-            <div class="form-group">
-              <label for="editISBN">ISBN:</label>
-              <input type="text" id="editISBN" name="isbn" placeholder="10 or 13 digit ISBN">
-            </div>
-            <div class="form-group">
-              <label for="editCategory">Category:</label>
-              <select id="editCategory" name="category">
-                <!-- Options will be populated by script -->
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="editRecommend">Recommend:</label>
-              <select id="editRecommend" name="recommend">
-                <option value="">Select</option>
-                <option value="1">Yes</option>
-                <option value="0">No</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="editTagsInput">Tags:</label>
-            <div class="tag-chip-container">
-              <div class="tag-chip-field">
-                <input type="text" id="editTagsInput" placeholder="Type a tag and press Enter" autocomplete="off">
-                <div class="tag-chip-suggestions" id="editTagsSuggestions"></div>
-              </div>
-              <div class="tag-chip-row" id="editTagsChipRow"></div>
-              <input type="hidden" id="editTags" name="tags">
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="editComments">Comments:</label>
-            <textarea id="editComments" name="comments"></textarea>
-          </div>
-          <button type="submit" class="btn btn-primary">Save Changes</button>
-          <button type="button" class="btn btn-secondary" onclick="cancelEdit()">Cancel</button>
-          <button type="button" class="btn btn-danger"
-                  onclick="deleteReadBookById(document.getElementById('editIndex').value)">Remove from Books Read</button>
-        </form>
-      </div> <!-- end of EditView -->
+      <!-- Books Read View (consumed) -->
+      <div id="consumedView" class="view">
+        <h2>Books Read</h2>
+        <p class="view-placeholder-note">List and Add/Edit modal arrive in Phase 5.</p>
+      </div> <!-- end of consumedView -->
 
       <!-- Statistics View -->
       <div id="statisticsView" class="view">
         <h2>Statistics</h2>
-
-        <div class="stats-section">
-          <h3>Totals</h3>
-          <div class="stats-grid">
-            <div class="stat-item">
-              <span class="stat-value" id="totalBooks">0</span>
-              <span class="stat-label">Books Read</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-value" id="totalPages">0</span>
-              <span class="stat-label">Pages Read</span>
-            </div>
-          </div>
-
-          <div class="category-stats">
-            <h4>Books by Category</h4>
-            <canvas id="categoryChart" width="400" height="200"></canvas>
-          </div>
-        </div>
-
-        <div class="stats-section">
-          <h3>Yearly Statistics</h3>
-          <canvas id="yearlyChart" width="400" height="300"></canvas>
-        </div>
+        <p class="view-placeholder-note">Charts arrive in Phase 8 (top-tags chart replaces the old category chart).</p>
       </div> <!-- end of Statistics View -->
 
-      <!-- Settings View -->
-      <div id="settingsView" class="view">
-        <h2>Settings</h2>
+      <!-- To Be Read View (queued) -->
+      <div id="queuedView" class="view">
+        <h2>To Be Read</h2>
+        <p class="view-placeholder-note">List and Add/Edit modal arrive in Phase 5.</p>
+      </div> <!-- end of queuedView -->
 
-        <form id="settingsForm" onsubmit="saveSettings(event)">
-          <div class="form-group">
-            <label for="displayTheme">Display Theme:</label>
-            <div class="theme-buttons">
-              <button type="button" class="btn btn-theme"
-                      onclick="changeTheme('css/themes/nordic-dark.css')">Dark</button> <button type="button" class="btn btn-theme"
-                      onclick="changeTheme('css/themes/nordic-light.css')">Light</button>
-              <button type="button" class="btn btn-theme"
-                      onclick="changeTheme('css/themes/matrix.css')">Matrix</button>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="dailyReadingPages">Daily Reading Pages:</label>
-            <input type="number" id="dailyReadingPages" name="dailyReadingPages" min="1" max="1000"
-                   placeholder="0" style="width: 8ch; max-width: 8ch;">
-          </div>
-          <div class="form-group">
-            <label for="backupFolder">Backup Folder:</label>
-            <div style="display: flex; gap: 8px; align-items: center;">
-              <input type="text" id="backupFolder" name="backupFolder" placeholder="No folder selected"
-                     style="flex: 1; min-width: 40ch;" readonly>
-              <button type="button" id="backupFolderBrowseBtn" class="btn btn-secondary" onclick="selectBackupFolder()">Browse...</button>
-              <button type="button" id="backupFolderClearBtn" class="btn btn-secondary" onclick="clearBackupFolder()">Clear</button>
-            </div>
-          </div>
-          <div class="form-group">
-            <button type="button" class="btn btn-secondary" onclick="showTagManagement()">Manage Tags</button>
-            <button type="button" class="btn btn-secondary" onclick="showCategoryManagement()" style="margin-left: 10px;">Manage Categories</button>
-          </div>
-
-          <div style="padding-bottom: 20px;">
-            <button type="submit" class="btn btn-primary">Save Settings</button>
-            <button type="button" class="btn btn-secondary" onclick="resetSettings()">Reset to Defaults</button>
-          </div>
-        </form>
-
-        <p class="version-info">Collectyx v<span id="appVersionDisplay"></span></p>
-      </div> <!-- end of Settings View -->
-
-      <!-- To Read View -->
-      <div id="toreadView" class="view">
-        <h2>Reading List</h2>
-
-        <div class="reading-list-container">
-          <!-- Add Book Form -->
-          <div class="add-book-section">
-            <h3>Add Book to Reading List</h3>
-            <form id="readingListForm" onsubmit="addToReadingList(event)">
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="readingTitle">Title:</label>
-                  <input type="text" id="readingTitle" name="title" required>
-                </div>
-                <div class="form-group">
-                  <label for="readingRank">Rank:</label>
-                  <input type="number" id="readingRank" name="rank" min="1"
-                         placeholder="Optional" oninput="validateReadingListRank(this)">
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="readingAuthorGiven">Given Name(s):</label>
-                  <input type="text" id="readingAuthorGiven" name="authorGiven">
-                </div>
-                <div class="form-group">
-                  <label for="readingAuthorSurname">Surname:</label>
-                  <input type="text" id="readingAuthorSurname" name="authorSurname">
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="readingAuthor2Given">Second Author — Given Name(s):</label>
-                  <input type="text" id="readingAuthor2Given" name="author2Given">
-                </div>
-                <div class="form-group">
-                  <label for="readingAuthor2Surname">Second Author — Surname:</label>
-                  <input type="text" id="readingAuthor2Surname" name="author2Surname">
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="readingSource">Source:</label>
-                  <input type="text" id="readingSource" name="source"
-                         placeholder="e.g. a friend, a website, a podcast">
-                </div>
-              </div>
-              <button type="submit" class="btn btn-primary">Add to Reading List</button>
-            </form>
-          </div>
-
-          <!-- Reading List Display -->
-          <div class="reading-list-display">
-            <h3>Books to Read</h3>
-            <div id="readingListContainer" class="reading-list-items">
-              <!-- Reading list items will be populated here -->
-            </div>
-          </div>
-        </div>
-      </div> <!-- end of To Read View -->
+      <!-- Tags View -->
+      <div id="tagsView" class="view">
+        <h2>Tags</h2>
+        <p class="view-placeholder-note">Full CRUD view arrives in Phase 7.</p>
+      </div> <!-- end of tagsView -->
 
       <!-- Reading List Edit Modal -->
       <div id="readingListEditModal" class="modal">
@@ -509,82 +145,11 @@
       </div>
       <!-- end of Reading List Edit Modal -->
 
-      <!--  My Library view -->
-      <div id="myLibraryView" class="view">
-        <!-- Fixed Header Section -->
-        <div class="my-library-fixed-header">
-          <h2>My Library
-            <span class="search-icon" onclick="showMyLibraryFilter()">🔍</span>
-            <div class="export-dropdown">
-              <button class="export-btn" onclick="toggleMyLibraryExportDropdown()">Export ▼</button>
-              <div id="myLibraryExportDropdownContent" class="export-dropdown-content">
-                <button type="button" onclick="exportMyLibraryData(); closeExportDropdown(this)">Save Data (JSON)</button>
-                <button type="button" onclick="exportMyLibraryCSV(); closeExportDropdown(this)">Export CSV</button>
-              </div>
-            </div>
-            <button class="btn btn-primary btn-header" onclick="showAddMyLibraryModal()">Add Book</button>
-            <button class="btn btn-secondary btn-header" onclick="startMyLibraryCSVImport()">Import CSV</button>
-            <input type="file" id="importMyLibraryFile" class="file-input" accept=".csv" onchange="importMyLibraryCSV()">
-            <button class="btn btn-secondary btn-header" onclick="bulkMyLibraryISBNLookup()">Lookup ISBNs</button>
-            <button class="btn btn-danger btn-header" onclick="clearAllMyLibraryBooks()">Clear All Books</button>
-          </h2>
-
-          <div id="myLibraryFilterPanel" class="filter-panel" style="display: none;">
-            <h3>Search</h3>
-            <div class="quick-search">
-              <input type="text" id="myLibraryQuickSearch" placeholder="Quick search across all fields..."
-                     onkeyup="handleMyLibraryQuickSearch(this.value)">
-            </div>
-            <div id="myLibraryFilterControls"></div>
-            <button class="btn btn-primary" onclick="applyMyLibraryFilters()">Apply Filters</button>
-            <button class="btn btn-secondary" onclick="clearMyLibraryFilters()">Clear Filters</button>
-            <button class="btn btn-secondary" onclick="hideMyLibraryFilter()">Close</button>
-          </div>
-
-          <!-- Fixed Table Header -->
-          <div class="my-library-table-header">
-            <table class="data-table" id="myLibraryHeaderTable">
-              <thead>
-                <tr>
-                  <th onclick="showMyLibrarySortDropdown(event, 'Title')">Title</th>
-                  <th onclick="showMyLibrarySortDropdown(event, 'Author')">Author</th>
-                  <th onclick="showMyLibrarySortDropdown(event, 'Category')">Category</th>
-                  <th onclick="showMyLibrarySortDropdown(event, 'CheckedOut')">Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-            </table>
-          </div>
-        </div>
-
-        <!-- Scrollable Content Area -->
-        <div class="my-library-scrollable-content">
-          <table class="data-table" id="myLibraryTable">
-            <tbody id="myLibraryTableBody">
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <!-- end of My Library view -->
-
-      <!-- Category Selection Modal for CSV Import -->
-      <div id="myLibraryCategorySelectModal" class="modal">
-        <div class="modal-content">
-          <h3>Select Default Category for Import</h3>
-          <form id="myLibraryCategorySelectForm">
-            <div class="form-group">
-              <label for="myLibraryImportCategory">Default Category:</label>
-              <select id="myLibraryImportCategory" required>
-                <!-- Will be populated by script -->
-              </select>
-            </div>
-            <div style="margin-top: 20px;">
-              <button type="submit" class="btn btn-primary">Continue to File Selection</button>
-              <button type="button" class="btn btn-secondary" onclick="cancelMyLibraryCategorySelect()">Cancel</button>
-            </div>
-          </form>
-        </div>
-      </div>
+      <!-- My Library View (owned) -->
+      <div id="ownedView" class="view">
+        <h2>My Library</h2>
+        <p class="view-placeholder-note">List, Add/Edit modal, and checkout arrive in Phase 5.</p>
+      </div> <!-- end of ownedView -->
 
       <!-- My Library Add Modal -->
       <div id="myLibraryAddModal" class="modal">
@@ -610,12 +175,6 @@
             <div class="form-group">
               <label for="myLibraryAddAuthor2Surname">Second Author — Surname:</label>
               <input type="text" id="myLibraryAddAuthor2Surname">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryAddCategory">Category:</label>
-              <select id="myLibraryAddCategory">
-                <!-- Will be populated by script -->
-              </select>
             </div>
             <div class="form-group">
               <label for="myLibraryAddISBN">ISBN:</label>
@@ -687,12 +246,6 @@
             <div class="form-group">
               <label for="myLibraryEditAuthor2Surname">Second Author — Surname:</label>
               <input type="text" id="myLibraryEditAuthor2Surname">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryEditCategory">Category:</label>
-              <select id="myLibraryEditCategory">
-                <!-- Will be populated by script -->
-              </select>
             </div>
             <div class="form-group">
               <label for="myLibraryEditISBN">ISBN:</label>
@@ -768,41 +321,6 @@
       </div>
       <!-- end of My Library Checkout Modal -->
 
-      <!-- Tag Management Modal -->
-      <div id="tagManagementModal" class="modal">
-        <div class="modal-content">
-          <h3>Tag Management</h3>
-          <div id="tagsList" class="tags-list">
-            <!-- Tags will be populated here -->
-          </div>
-          <div style="margin-top: 20px;">
-            <button type="button" class="btn btn-secondary" onclick="closeTagManagement()">Close</button>
-          </div>
-        </div>
-      </div> <!-- end of Tag Management -->
-
-      <!-- Category Management Modal -->
-      <div id="categoryManagementModal" class="modal">
-        <div class="modal-content">
-          <h3>Category Management</h3>
-          <div id="categoriesList" class="tags-list">
-            <!-- Categories will be populated here -->
-          </div>
-          <div id="categoryDeleteBooksList" style="display: none;">
-            <!-- Books using a category to be deleted will appear here -->
-          </div>
-          <div class="form-group" style="margin-top: 15px; display: flex; gap: 8px; align-items: center;">
-            <span style="font-size: 1.2em;">+</span>
-            <label for="newCategoryInput">Add Category:</label>
-            <input type="text" id="newCategoryInput" placeholder="New category name" style="flex: 1;">
-            <button type="button" class="btn btn-primary" onclick="addCategory()">Add</button>
-          </div>
-          <div style="margin-top: 20px;">
-            <button type="button" class="btn btn-secondary" onclick="closeCategoryManagement()">Close</button>
-          </div>
-        </div>
-      </div> <!-- end of Category Management -->
-
       <!-- Restore Screen 1 — Select File -->
       <div id="restoreScreen1Modal" class="modal">
         <div class="modal-content">
@@ -871,14 +389,15 @@
         </div>
       </div> <!-- end of Restore Screen 2 -->
 
-
-    </div> <!-- end of Container -->
+      </div> <!-- end of main-content -->
+    </div> <!-- end of app-shell -->
 
     <!-- Scripts - load in dependency order -->
     <script src="include/pako.min.js"></script>
     <script src="include/chart.min.js"></script>
     <script src="js/constants.js"></script>
     <script src="js/core.js"></script>
+    <script src="js/sidebar.js"></script>
     <script src="js/db-manager-web.js"></script>
     <script src="js/db-manager-tauri.js"></script>
     <script src="js/db-manager.js"></script>

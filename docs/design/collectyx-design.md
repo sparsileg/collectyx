@@ -379,7 +379,151 @@ Import rules:
 
 ---
 
-## 6. Open questions / assumptions to confirm
+## 6. Data layer API
+
+The UI never touches IndexedDB, SQLite, or `invoke()` directly. Everything
+goes through `DBManager`, which selects `DBManagerWeb` or `DBManagerTauri`
+at runtime. Both expose the identical surface below, so no code above this
+layer knows which backend is active.
+
+Note this replaces Scriptum's generic `DBManager.get/getAll/put/delete(storeName, ...)`
+surface, which does not exist in Collectyx. Store names are an
+implementation detail of the backends now, not something callers pass in.
+
+### 6.1 Surface
+
+```js
+// Collections — 'consumed' | 'queued' | 'owned'
+await DBManager.getCollection(collection)             // → joined records
+await DBManager.getCollectionRecord(collection, id)
+await DBManager.saveCollectionRecord(collection, rec) // → { id, ItemId }
+await DBManager.deleteCollectionRecord(collection, id)
+await DBManager.replaceCollection(collection, records)
+
+// Items
+await DBManager.getAllItems()
+await DBManager.saveItem(item)
+await DBManager.deleteItem(itemId)      // cascades to memberships + tags
+await DBManager.attachTag(itemId, tagId)
+await DBManager.detachTag(itemId, tagId)
+
+// Tags
+await DBManager.getAllTags()            // each carries a usage Count
+await DBManager.saveTag(tag)            // create or rename
+await DBManager.deleteTag(tagId, substituteTagId)   // substitute optional
+await DBManager.replaceAllTags(tags)
+
+// Merge (§3.3)
+await DBManager.mergeItems(survivorId, loserId, fieldResolutions)
+
+// Media types, settings
+await DBManager.getAllMediaTypes()
+await DBManager.getSettings()           // → object, or null if never set
+await DBManager.saveSettings(obj)
+
+// Lifecycle
+await DBManager.init()
+DBManager.close()
+DBManager.deleteDatabase()              // web only; no-op warning on Tauri
+```
+
+### 6.2 The joined record
+
+`getCollection()` returns flat PascalCase records with the item's fields
+and the membership row's fields side by side. The join is free on SQLite
+and simulated in JS on IndexedDB; callers cannot tell the difference.
+
+```js
+{
+  id: 'con-1',              // the membership row's id
+  ItemId: 'itm-dune',       // the canonical item
+  Owner: 'local',
+  MediaTypeId: 1,
+  Title: 'Dune',                // ┐
+  Author: 'Herbert, Frank',     // │
+  Author2: null,                // ├─ from items
+  Pages: 412,                   // │
+  ISBN: '9780441013593',        // ┘
+  Tags: ['classic', 'scifi'],   // resolved tag names, sorted
+  Finished: '2020-06-01',       // ┐
+  Rating: 9,                    // ├─ collection-specific
+  Recommend: 1,                 // │
+  Comments: 'first read',       // ┘
+  DateAdded: '2020-06-01',      // the membership row's own timestamps
+  Modified: '2020-06-01',
+  ItemDateAdded: '2026-01-01',  // the item's, kept separate so the
+  ItemModified: '2026-01-02'    // join loses neither
+}
+```
+
+Fields beyond the shared item ones, per collection:
+
+| Collection | Additional fields |
+| ---------- | ----------------------------------------------------- |
+| `consumed` | `Finished`, `Rating`, `Recommend`, `Comments`          |
+| `queued`   | `Rank`, `Source`, `Comments`                           |
+| `owned`    | `Location`, `Patron`, `CheckedOutDate`, `Comments`     |
+
+A membership row whose parent item is missing is omitted from results and
+logged, rather than returned with an undefined `Title`.
+
+### 6.3 Write semantics
+
+**A field absent from the payload keeps its stored value; a field present
+as `null` is cleared.** One `items` row is shared across collections, so
+saving a `queued` record that carries only `Rank` must not blank the
+`Pages` and `ISBN` a `consumed` record set. Callers therefore send only
+what they mean to change, and must not spread a full object padded with
+`undefined`.
+
+**`Tags` follows the same rule.** Omitting the key leaves existing tags
+untouched; `[]` removes all of them; an array sets the tags to exactly
+that list. Names are lowercased, trimmed, and deduplicated by the data
+layer, and tag rows are created on demand.
+
+**Reusing `ItemId` is how one book joins a second collection.** Saving a
+record with an existing `ItemId` attaches a new membership row to that
+same item. Saving without one mints a new item. This is what makes
+"mark finished" work without re-entering title and author, and what keeps
+a re-read a second `consumed` row rather than a duplicate book.
+
+**Deleting distinguishes membership from item.**
+`deleteCollectionRecord()` removes only the membership row — the item
+survives, since it may belong to other collections, and an item with no
+memberships is still a valid catalogue entry. `deleteItem()` removes the
+item and everything hanging off it: SQLite via `ON DELETE CASCADE`,
+IndexedDB via an explicit cascade written to match.
+
+**Writes are atomic.** A save covering the item row, the membership row,
+and tag reconciliation commits as one transaction on both backends; a
+failure partway through leaves nothing half-applied.
+
+### 6.4 Backend-specific notes
+
+Neither affects callers, but both explain behaviour that would otherwise
+look arbitrary.
+
+**Web.** IndexedDB has no joins, so stores load into memory and resolve
+via `Map` lookups. Writes commit first, then invalidate the affected
+caches; the next read repopulates. Bulk paths invalidate once rather than
+per row. Chosen over per-query cursor walks because the dataset is one
+user's collection, and over denormalizing on write because that
+reintroduces the duplication normalization removes.
+
+**Tauri.** `db-manager-tauri.js` completes a partial payload against its
+stored record before invoking, so Rust receives a complete record and both
+backends apply identical rules by construction. Costs one extra read per
+save, which is not material at this scale, and keeps the absent-versus-null
+logic in one place rather than reimplemented in Rust.
+
+**Owner.** `items`, `tags`, and `settings` carry `owner`; the membership
+tables derive it through `item_id`. v1 writes and reads everything under
+`CONSTANTS.DEFAULT_OWNER` (`'local'`) and has no auth. The column exists
+now so a future multi-user sync needs no migration.
+
+---
+
+## 7. Open questions / assumptions to confirm
 
 1. Sidebar nav labels sourced directly from `media_types` — confirm or
    override (§4.1).

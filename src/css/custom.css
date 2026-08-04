@@ -1,0 +1,26 @@
+/*
+  css/custom.css
+  Collectyx-specific settings that apply across all themes — not part of
+  the portable color palette (css/themes/*.css, shared with other apps),
+  and not structural component CSS (base.css). Typography metrics and
+  spacing that could cause layout reflow if they varied per theme
+  (font-family, letter-spacing, heading weight/transform, nav-gap,
+  border-radius scale) live here instead, so switching themes never
+  shifts layout — only color/decoration change.
+*/
+
+:root {
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    --font-ui:   -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+
+    --font-weight-heading:  400;
+    --header-h1-transform:  none;
+    --header-h1-spacing:    normal;
+    --nav-text-transform:   none;
+    --nav-letter-spacing:   normal;
+    --label-letter-spacing: 0.5px;
+    --btn-letter-spacing:   0.5px;
+    --border-radius-sm:     4px;
+    --border-radius-lg:     8px;
+    --nav-gap:              0;
+}

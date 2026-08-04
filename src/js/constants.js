@@ -40,13 +40,11 @@ const CONSTANTS = {
 
     VIEWS: {
         DASHBOARD: 'dashboard',
-        ENTER_FINISHED: 'enterFinished',
-        REVIEW: 'review',
-        EDIT: 'edit',
-        STATISTICS: 'statistics',
-        SETTINGS: 'settings',
-        TO_READ: 'toread',
-        MY_LIBRARY: 'myLibrary'
+        QUEUED: 'queued',
+        CONSUMED: 'consumed',
+        OWNED: 'owned',
+        TAGS: 'tags',
+        STATISTICS: 'statistics'
     },
 
     STORAGE_KEYS: {
@@ -56,9 +54,10 @@ const CONSTANTS = {
     },
 
     THEMES: {
-        NORDIC_DARK: 'css/themes/nordic-dark.css',
-        NORDIC_LIGHT: 'css/themes/nordic-light.css',
-        MATRIX_CODE: 'css/themes/matrix.css'
+        DARK: 'css/themes/dark.css',
+        LIGHT: 'css/themes/light.css',
+        MATRIX_CODE: 'css/themes/matrix.css',
+        FLAT: 'css/themes/flat.css'
     },
 
     MESSAGE_TYPES: {

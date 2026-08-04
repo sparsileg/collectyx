@@ -1,7 +1,5 @@
 // ── App initialisation ────────────────────────────────────────────────────────
 
-let tagsChipController = null;
-let editTagsChipController = null;
 let myLibraryAddTagsChipController = null;
 let myLibraryEditTagsChipController = null;
 
@@ -12,7 +10,16 @@ window.onload = async function () {
     // One-time migration from old localStorage blob if present
     await migrateFromLocalStorage();
 
-    await loadTheme();
+    // loadTheme() reads settings via data-manager.js's not-yet-rewired
+    // wrapper (Phase 5) and currently throws — caught here so it can't
+    // halt the rest of onload before initSidebarChrome() runs.
+    try {
+        await loadTheme();
+    } catch (e) {
+        console.error('loadTheme failed (settings path broken pending Phase 5 data-manager.js rewrite):', e);
+    }
+    if (typeof initSidebarChrome === 'function') await initSidebarChrome();
+    if (typeof initNavigation === 'function') await initNavigation();
 
     // Load all collections into memory
     await loadData();
@@ -24,16 +31,6 @@ window.onload = async function () {
     await migrateReadingListItems();
     await migrateMyLibraryItems();
 
-    populateCategorySelects();
-    renderReadBooks();
-    renderDashboard();
-
-    tagsChipController = initTagChipInput({
-        input: 'tagsInput', suggestions: 'tagsSuggestions', chipRow: 'tagsChipRow', hidden: 'tags'
-    });
-    editTagsChipController = initTagChipInput({
-        input: 'editTagsInput', suggestions: 'editTagsSuggestions', chipRow: 'editTagsChipRow', hidden: 'editTags'
-    });
     myLibraryAddTagsChipController = initTagChipInput({
         input: 'myLibraryAddTagsInput', suggestions: 'myLibraryAddTagsSuggestions', chipRow: 'myLibraryAddTagsChipRow', hidden: 'myLibraryAddTags'
     });
@@ -49,33 +46,20 @@ window.onload = async function () {
 
 // ── View routing ──────────────────────────────────────────────────────────────
 
+// Six real views only (Phase 3 — placeholder content). buttonElement is the
+// clicked <li class="nav-item"> to highlight; per-view rendering (Books
+// Read/To Be Read/My Library lists, Dashboard cards, Statistics charts)
+// arrives in Phase 5/7/8 as each view is built out for real.
 function showView(viewName, buttonElement) {
     document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
-    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
 
-    document.getElementById(viewName + 'View').classList.add('active');
-    if (buttonElement) {
-        buttonElement.classList.add('active');
-    }
+    const target = document.getElementById(viewName + 'View');
+    if (target) target.classList.add('active');
+    if (buttonElement) buttonElement.classList.add('active');
 
-    populateCategorySelects();
-
-    if (viewName === CONSTANTS.VIEWS.DASHBOARD) {
-        renderDashboard();
-    } else if (viewName === CONSTANTS.VIEWS.ENTER_FINISHED) {
-        if (tagsChipController) tagsChipController.setTags([]);
-    } else if (viewName === CONSTANTS.VIEWS.REVIEW) {
-        renderReadBooks();
-    } else if (viewName === CONSTANTS.VIEWS.STATISTICS) {
-        renderStatistics();
-    } else if (viewName === CONSTANTS.VIEWS.SETTINGS) {
-        loadSettings();
-    } else if (viewName === CONSTANTS.VIEWS.TO_READ) {
-        renderReadingList();
-    } else if (viewName === CONSTANTS.VIEWS.MY_LIBRARY) {
-        populateMyLibraryCategorySelects();
-        populateMyLibraryBookshelfSelects();
-        renderMyLibrary();
+    if (typeof updateHamburgerContextualSection === 'function') {
+        updateHamburgerContextualSection(viewName);
     }
 }
 
@@ -265,7 +249,7 @@ async function loadTheme() {
     const settings = await loadSettingsFromDB() || {};
     const theme = settings.displayTheme
         ? sanitiseThemePath(settings.displayTheme)
-        : CONSTANTS.THEMES.NORDIC_DARK;
+        : CONSTANTS.THEMES.DARK;
     document.getElementById('themeLink').href = theme;
 }
 
@@ -285,84 +269,20 @@ function getThemeColors() {
     const themeLink = document.getElementById('themeLink');
     const current   = themeLink.href;
 
-    if (current.includes('nordic-dark')) {
-        return { primary: '#0077be', secondary: '#ff6b35', tertiary: '#7b68ee', background: '#2e3440' };
-    } else if (current.includes('nordic-light')) {
-        return { primary: '#5e81ac', secondary: '#d08770', tertiary: '#b48ead', background: '#eceff4' };
-    } else if (current.includes('matrix')) {
+    if (current.includes('dark.css')) {
+        return { primary: '#4fc3f7', secondary: '#ffa726', tertiary: '#66bb6a', background: '#1a1f2e' };
+    } else if (current.includes('light.css')) {
+        return { primary: '#0d6efd', secondary: '#fd7e14', tertiary: '#198754', background: '#f8f9fa' };
+    } else if (current.includes('matrix.css')) {
         return { primary: '#00ff00', secondary: '#ffff00', tertiary: '#00ffff', background: '#000000' };
+    } else if (current.includes('flat.css')) {
+        return { primary: '#d4982e', secondary: '#72a85a', tertiary: '#c04848', background: '#4e4035' };
     }
     return { primary: '#4a90e2', secondary: '#f5a623', tertiary: '#bd10e0', background: '#0f0f0f' };
 }
 
 // ── Settings ──────────────────────────────────────────────────────────────────
-
-async function loadSettings() {
-    setTimeout(async () => {
-        const pagesInput = document.getElementById('dailyReadingPages');
-        const folderInput = document.getElementById('backupFolder');
-        const browseBtn = document.getElementById('backupFolderBrowseBtn');
-        const clearBtn = document.getElementById('backupFolderClearBtn');
-        const isTauri = typeof window.__TAURI__ !== 'undefined';
-        if (pagesInput) {
-            const settings = await loadSettingsFromDB() || {};
-            pagesInput.value = settings.dailyReadingPages || '';
-            if (folderInput) {
-                if (isTauri) {
-                    folderInput.value = settings.backupFolder || '';
-                } else {
-                    folderInput.value = '';
-                    folderInput.placeholder = 'User downloads folder';
-                    folderInput.disabled = true;
-                }
-            }
-        }
-        if (browseBtn) browseBtn.style.display = isTauri ? '' : 'none';
-        if (clearBtn) clearBtn.style.display = isTauri ? '' : 'none';
-    }, 50);
-}
-
-async function saveSettings(event) {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    const dailyReadingPages = formData.get('dailyReadingPages');
-    const backupFolder = document.getElementById('backupFolder').value || null;
-    const current = await loadSettingsFromDB() || {};
-    await saveSettingsToDB({
-        ...current,
-        dailyReadingPages: dailyReadingPages ? parseInt(dailyReadingPages) : null,
-        backupFolder: backupFolder
-    });
-    showMessage('Settings saved successfully', CONSTANTS.MESSAGE_TYPES.SUCCESS);
-    showView('dashboard', document.querySelector('[onclick*="dashboard"]'));
-}
-
-function resetSettings() {
-    document.getElementById('dailyReadingPages').value = '';
-    document.getElementById('backupFolder').value = '';
-    showMessage('Settings reset to defaults. Click Save to apply.', CONSTANTS.MESSAGE_TYPES.INFO);
-}
-
-async function selectBackupFolder() {
-    if (typeof window.__TAURI__ !== 'undefined') {
-        try {
-            const selected = await window.__TAURI_PLUGIN_DIALOG__.open({
-                directory: true,
-                multiple: false,
-                title: 'Select Backup Folder'
-            });
-            if (selected) {
-                document.getElementById('backupFolder').value = selected;
-            }
-        } catch (e) {
-            console.error('selectBackupFolder error:', e);
-            showMessage('Could not open folder picker: ' + (e.message || JSON.stringify(e)), CONSTANTS.MESSAGE_TYPES.ERROR);
-        }
-    } else {
-        showMessage('Folder picker is only available in the desktop app', CONSTANTS.MESSAGE_TYPES.INFO);
-    }
-}
-
-function clearBackupFolder() {
-    document.getElementById('backupFolder').value = '';
-}
+// loadSettings()/saveSettings()/resetSettings()/selectBackupFolder()/
+// clearBackupFolder() removed — they targeted settingsView, which no longer
+// exists. Settings is a modal (confirmed decision); Phase 10 builds it with
+// its own implementation rather than adapting these.

@@ -1,9 +1,13 @@
 /*
   base.css
-  Structural styles for Collectyx. All colours, borders, shadows, and
-  theme-specific fonts are defined as CSS custom properties in the active
-  theme file (css/themes/*.css). Nothing in this file should contain a
-  hardcoded colour value.
+  Structural styles for Collectyx. Colours, shadows, and decorative effects
+  (e.g. matrix's glow/scanline) are theme-specific, defined as CSS custom
+  properties in the active theme file (css/themes/*.css). Typography and
+  spacing that's Collectyx-specific but shared across all themes (font
+  stack, letter-spacing, border-radius scale, nav-gap) lives in
+  css/custom.css instead — switching themes changes color and decoration
+  only, never layout or type. --font-mono is the one exception, kept
+  per-theme (message area only) by deliberate choice.
 */
 
 /* ── Reset ─────────────────────────────────────────────────────────────────── */
@@ -19,9 +23,9 @@
 body {
     font-family: var(--font-body);
     font-weight: 400;
-    background: var(--color-bg-page);
+    background: var(--bg-color);
     min-height: 100vh;
-    color: var(--color-text-primary);
+    color: var(--text-color);
     position: relative;
     overflow-x: hidden;
 }
@@ -39,151 +43,16 @@ body::before {
     z-index: -1;
 }
 
-/* ── Layout ─────────────────────────────────────────────────────────────────── */
-
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-/* ── Header ─────────────────────────────────────────────────────────────────── */
-
-.header {
-    text-align: center;
-    margin-bottom: 2em;
-    color: var(--color-header);
-}
-
-.header h1 {
-    font-size: 2.5rem;
-    margin-bottom: 10px;
-    font-weight: var(--font-weight-heading, 400);
-    text-transform: var(--header-h1-transform, none);
-    letter-spacing: var(--header-h1-spacing, normal);
-    color: var(--color-accent-primary);
-    text-shadow: var(--text-shadow-accent, none);
-    animation: var(--header-animation, none);
-}
-
-@keyframes glow {
-    from { text-shadow: 0 0 10px var(--color-accent-primary), 0 0 20px var(--color-accent-primary); }
-    to   { text-shadow: 0 0 5px  var(--color-accent-primary), 0 0 10px var(--color-accent-primary), 0 0 15px var(--color-accent-primary); }
-}
-
-.header p {
-    font-weight: 400;
-    opacity: 0.8;
-    color: var(--color-text-secondary);
-    text-shadow: var(--text-shadow-subtle, none);
-}
-
-/* ── Navigation ─────────────────────────────────────────────────────────────── */
-
-.nav-bar {
-    display: flex;
-    justify-content: center;
-    gap: var(--nav-gap, 0);
-    margin-bottom: 1em;
-}
-
-.nav-btn {
-    padding: 12px 24px;
-    background: var(--color-nav-bg);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    font-weight: 400;
-    color: var(--color-nav-text);
-    text-transform: var(--nav-text-transform, none);
-    font-family: var(--font-ui);
-    font-size: 0.9em;
-    transition: all 0.3s ease;
-    border-right: none;
-    letter-spacing: var(--nav-letter-spacing, normal);
-    position: relative;
-}
-
-.nav-btn:last-child {
-    border-right: 1px solid var(--color-border);
-}
-
-.nav-btn:hover,
-.nav-btn.active {
-    background: var(--color-nav-hover-bg);
-    color: var(--color-nav-hover-text);
-    border-color: var(--color-nav-hover-border);
-    box-shadow: var(--shadow-nav-active, none);
-    text-shadow: var(--text-shadow-nav-active, none);
-}
-
-/* ── Theme selector ─────────────────────────────────────────────────────────── */
-
-.theme-selector {
-    margin-top: 1.8em;
-}
-
-.theme-selector select {
-    background: var(--color-input-bg);
-    border: 1px solid var(--color-border);
-    color: var(--color-text-primary);
-    padding: 8px 16px;
-    font-size: 0.9em;
-    font-weight: 400;
-    min-width: 140px;
-    font-family: var(--font-ui);
-    border-radius: var(--border-radius);
-}
-
-.theme-selector select:hover {
-    background: var(--color-nav-hover-bg);
-    color: var(--color-nav-hover-text);
-    box-shadow: var(--shadow-interactive, none);
-}
-
-.theme-buttons {
-    display: flex;
-    gap: 5px;
-    margin-top: 10px;
-}
-
-.btn-theme {
-    flex: 1;
-    padding: 8px 4px;
-    font-size: 0.9em;
-    border: 1px solid;
-    margin-right: 0;
-}
-
-.btn-theme[onclick*="nordic-dark"] {
-    background: #2e3440;
-    color: #88c0d0;
-    border-color: #88c0d0;
-}
-
-.btn-theme[onclick*="nordic-light"] {
-    background: #eceff4;
-    color: #5e81ac;
-    border-color: #5e81ac;
-}
-
-.btn-theme[onclick*="matrix"] {
-    background: #000000;
-    color: #00ff00;
-    border-color: #00ff00;
-    text-shadow: 0 0 5px #00ff00;
-}
-
 /* ── Message area ───────────────────────────────────────────────────────────── */
 
 .message-area {
     background: var(--color-message-bg);
     color: var(--color-message-text);
-    border-radius: var(--border-radius);
+    border-radius: var(--border-radius-sm);
     padding: 2px 10px;
     margin-bottom: 10px;
     min-height: 1.4em;
-    border-left: 3px solid var(--color-accent-secondary);
+    border-left: 3px solid var(--secondary-color);
     font-family: var(--font-mono);
     font-size: 0.9em;
     text-shadow: var(--text-shadow-subtle, none);
@@ -194,15 +63,21 @@ body::before {
 
 .view {
     display: none;
-    background: var(--color-bg-surface);
-    border-radius: var(--border-radius);
+    background: var(--card-bg);
+    border-radius: var(--border-radius-lg);
     padding: 0 40px;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--border-color);
     box-shadow: var(--shadow-surface, none);
 }
 
 .view.active {
     display: block;
+}
+
+.view-placeholder-note {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+    margin-top: 8px;
 }
 
 /* ── Forms ──────────────────────────────────────────────────────────────────── */
@@ -237,8 +112,8 @@ body::before {
     border-radius: 0;
     font-size: 0.9em;
     transition: border-color 0.3s ease;
-    background: var(--color-input-bg);
-    color: var(--color-text-primary);
+    background: var(--input-bg);
+    color: var(--text-color);
     font-family: var(--font-ui);
     font-weight: 400;
     text-shadow: var(--text-shadow-subtle, none);
@@ -248,24 +123,20 @@ body::before {
 .form-group select:focus,
 .form-group textarea:focus {
     outline: none;
-    border-bottom-color: var(--color-accent-primary);
-    box-shadow: var(--shadow-focus, none);
+    border-bottom-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring, transparent), var(--shadow-focus, none);
 }
 
 .form-group textarea {
     min-height: 100px;
     resize: vertical;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--border-color);
     padding: 16px;
-    border-radius: var(--border-radius);
+    border-radius: var(--border-radius-sm);
 }
 
 .form-group textarea:focus {
-    border-color: var(--color-accent-primary);
-}
-
-.form-group category {
-    font-size: 0.8em;
+    border-color: var(--primary-color);
 }
 
 .form-row {
@@ -288,7 +159,7 @@ body::before {
 .btn {
     padding: 10px 20px;
     border: var(--btn-border);
-    border-radius: var(--border-radius);
+    border-radius: var(--border-radius-sm);
     cursor: pointer;
     font-weight: 500;
     transition: all 0.3s ease;
@@ -331,14 +202,14 @@ body::before {
 }
 
 .btn-danger {
-    background: var(--color-danger);
+    background: var(--error-color);
     color: var(--color-danger-text);
-    border: 2px solid var(--color-danger);
+    border: 2px solid var(--error-color);
 }
 
 .btn-danger:hover {
-    background: var(--color-danger-hover);
-    border-color: var(--color-danger-hover);
+    background: var(--error-hover);
+    border-color: var(--error-hover);
     box-shadow: var(--shadow-danger-hover, none);
 }
 
@@ -381,7 +252,7 @@ body::before {
 .table-container {
     overflow-x: auto;
     margin-top: 10px;
-    border-radius: var(--border-radius);
+    border-radius: var(--border-radius-lg);
 }
 
 /* My Library column widths */
@@ -447,7 +318,7 @@ body::before {
     width: 100%;
     border-collapse: collapse;
     border: var(--table-border, none);
-    background: var(--color-bg-surface);
+    background: var(--card-bg);
     box-shadow: var(--shadow-table, none);
 }
 
@@ -455,14 +326,14 @@ body::before {
     background: var(--color-table-header-bg);
     padding: 10px 14px;
     text-align: left;
-    border-bottom: 2px solid var(--color-border);
+    border-bottom: 2px solid var(--border-color);
     border: var(--table-th-border, none);
     cursor: pointer;
     position: relative;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: var(--label-letter-spacing, 0.5px);
-    color: var(--color-text-primary);
+    color: var(--text-color);
     font-size: 0.9em;
     text-shadow: var(--text-shadow-subtle, none);
 }
@@ -473,9 +344,9 @@ body::before {
 
 .data-table td {
     padding: 6px 14px;
-    border-bottom: 1px solid var(--color-border-subtle);
+    border-bottom: 1px solid var(--border-color-light);
     border: var(--table-td-border, none);
-    color: var(--color-text-primary);
+    color: var(--text-color);
     font-weight: 400;
     font-size: 0.9em;
     text-shadow: var(--text-shadow-subtle, none);
@@ -507,10 +378,10 @@ body::before {
 
 .filter-panel {
     background: var(--color-bg-raised);
-    border-radius: var(--border-radius);
+    border-radius: var(--border-radius-sm);
     padding: 30px;
     margin-bottom: 30px;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--border-color);
     box-shadow: var(--shadow-panel, none);
 }
 
@@ -520,7 +391,7 @@ body::before {
     text-transform: uppercase;
     letter-spacing: var(--label-letter-spacing, 0.5px);
     font-size: 1.1em;
-    color: var(--color-accent-primary);
+    color: var(--primary-color);
     text-shadow: var(--text-shadow-subtle, none);
 }
 
@@ -543,8 +414,8 @@ body::before {
 .filter-value  { flex: 1; }
 
 .filter-value-input {
-    background: var(--color-input-bg) !important;
-    color: var(--color-text-primary) !important;
+    background: var(--input-bg) !important;
+    color: var(--text-color) !important;
     border: none !important;
     border-bottom: var(--input-border-bottom) !important;
     border-radius: 0 !important;
@@ -553,8 +424,8 @@ body::before {
 }
 
 .filter-value-input:focus {
-    border-bottom-color: var(--color-accent-primary) !important;
-    box-shadow: var(--shadow-focus, none) !important;
+    border-bottom-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 3px var(--focus-ring, transparent), var(--shadow-focus, none) !important;
 }
 
 /* ── Sort dropdown ──────────────────────────────────────────────────────────── */
@@ -564,8 +435,8 @@ body::before {
     top: 100%;
     left: 0;
     background: var(--color-bg-raised);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
     box-shadow: var(--shadow-dropdown);
     z-index: 1000;
     min-width: 180px;
@@ -575,7 +446,7 @@ body::before {
     padding: 12px;
     cursor: pointer;
     transition: background 0.2s;
-    color: var(--color-text-primary);
+    color: var(--text-color);
     font-weight: 400;
     text-shadow: var(--text-shadow-subtle, none);
 }
@@ -607,18 +478,18 @@ body::before {
     cursor: pointer;
     margin-left: 10px;
     padding: 4px 8px;
-    border-radius: var(--border-radius);
+    border-radius: var(--border-radius-sm);
     font-size: 16px;
     display: inline-block;
     vertical-align: middle;
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     text-shadow: var(--text-shadow-subtle, none);
     transition: all 0.2s;
 }
 
 .search-icon:hover {
     background: var(--color-bg-raised);
-    color: var(--color-accent-primary);
+    color: var(--primary-color);
     text-shadow: var(--text-shadow-accent, none);
 }
 
@@ -630,7 +501,7 @@ body::before {
     width: 100%;
     padding: 12px;
     font-size: 1.1em;
-    border: 1px solid var(--color-border-subtle);
+    border: 1px solid var(--border-color-light);
     background: transparent;
     color: inherit;
     border-radius: 0;
@@ -638,7 +509,7 @@ body::before {
 
 .quick-search input:focus {
     outline: none;
-    border-color: var(--color-accent-primary);
+    border-color: var(--primary-color);
 }
 
 /* ── Group header ───────────────────────────────────────────────────────────── */
@@ -650,9 +521,9 @@ body::before {
     text-transform: uppercase;
     letter-spacing: var(--label-letter-spacing, 0.5px);
     font-size: 12px;
-    border-top: 2px solid var(--color-accent-secondary);
-    border-bottom: 1px solid var(--color-border);
-    color: var(--color-accent-primary);
+    border-top: 2px solid var(--secondary-color);
+    border-bottom: 1px solid var(--border-color);
+    color: var(--primary-color);
     text-shadow: var(--text-shadow-subtle, none);
 }
 
@@ -674,12 +545,12 @@ body::before {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: var(--color-bg-surface);
-    border-radius: var(--border-radius);
+    background: var(--card-bg);
+    border-radius: var(--border-radius-lg);
     padding: 30px;
     max-width: 500px;
     width: 90%;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--border-color);
     box-shadow: var(--shadow-modal);
 }
 
@@ -703,7 +574,7 @@ body::before {
 .date-range input { flex: 1; }
 
 .date-range span {
-    color: var(--color-text-primary);
+    color: var(--text-color);
     font-weight: 400;
 }
 
@@ -715,7 +586,7 @@ h2 {
     text-transform: uppercase;
     letter-spacing: var(--label-letter-spacing, 0.5px);
     font-size: 1.2em;
-    color: var(--color-accent-primary);
+    color: var(--primary-color);
     text-shadow: var(--text-shadow-subtle, none);
 }
 
@@ -731,12 +602,12 @@ select {
     background-position: right 12px center;
     background-size: 16px;
     padding-right: 40px;
-    color: var(--color-text-primary);
+    color: var(--text-color);
 }
 
 select option {
     background-color: var(--color-option-bg);
-    color: var(--color-text-primary);
+    color: var(--text-color);
     padding: 8px;
 }
 
@@ -750,7 +621,7 @@ select option:hover {
 .filter-operator option,
 .filter-value-input option {
     background-color: var(--color-option-bg);
-    color: var(--color-text-primary);
+    color: var(--text-color);
     padding: 8px;
 }
 
@@ -791,7 +662,7 @@ select option:hover {
     font-size: 2.0em;
     font-weight: 400;
     line-height: 1;
-    color: var(--color-accent-primary);
+    color: var(--primary-color);
     text-shadow: var(--text-shadow-subtle, none);
 }
 
@@ -800,7 +671,7 @@ select option:hover {
     text-transform: uppercase;
     letter-spacing: 1px;
     margin-top: 5px;
-    color: var(--color-text-primary);
+    color: var(--text-color);
     text-shadow: var(--text-shadow-subtle, none);
 }
 
@@ -824,8 +695,8 @@ canvas {
 
 .export-item {
     padding: 1.5rem;
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
     background: var(--color-bg-raised);
     transition: all 0.3s ease;
     position: relative;
@@ -843,8 +714,8 @@ canvas {
 .export-item:hover::before { opacity: 1; }
 
 .export-item:hover {
-    background: var(--color-bg-raised-hover, var(--color-bg-raised));
-    border-color: var(--color-accent-secondary);
+    background: var(--card-hover, var(--color-bg-raised));
+    border-color: var(--secondary-color);
     box-shadow: var(--shadow-export-hover, none);
     text-shadow: var(--text-shadow-subtle, none);
 }
@@ -852,7 +723,7 @@ canvas {
 .export-item h3 {
     margin-top: 0;
     margin-bottom: 0.5rem;
-    color: var(--color-accent-primary);
+    color: var(--primary-color);
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: var(--label-letter-spacing, 0.5px);
@@ -862,7 +733,7 @@ canvas {
 
 .export-item p {
     margin-bottom: 1rem;
-    color: var(--color-text-primary);
+    color: var(--text-color);
     opacity: 0.9;
     line-height: 1.6;
     font-size: 0.9em;
@@ -882,13 +753,13 @@ canvas {
 }
 
 .export-btn {
-    background-color: var(--color-accent-secondary);
+    background-color: var(--secondary-color);
     color: var(--color-nav-hover-text);
     padding: 4px 8px;
     font-size: 14px;
-    border: 1px solid var(--color-accent-secondary);
+    border: 1px solid var(--secondary-color);
     cursor: pointer;
-    border-radius: var(--border-radius);
+    border-radius: var(--border-radius-sm);
     vertical-align: middle;
     font-family: var(--font-ui);
     text-transform: uppercase;
@@ -897,7 +768,7 @@ canvas {
 }
 
 .export-btn:hover {
-    background: var(--color-accent-primary);
+    background: var(--primary-color);
     box-shadow: var(--shadow-interactive, none);
 }
 
@@ -910,8 +781,8 @@ canvas {
     min-width: 160px;
     box-shadow: var(--shadow-dropdown);
     z-index: 1000;
-    border-radius: var(--border-radius);
-    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--border-color);
     margin-top: 2px;
 }
 
@@ -919,7 +790,7 @@ canvas {
     all: unset;
     box-sizing: border-box;
     width: 100%;
-    color: var(--color-text-primary);
+    color: var(--text-color);
     padding: 8px 12px;
     display: block;
     font-size: 14px;
@@ -927,7 +798,7 @@ canvas {
     font-family: var(--font-ui);
     text-shadow: var(--text-shadow-subtle, none);
     transition: all 0.2s;
-    border-bottom: 1px solid var(--color-border-subtle);
+    border-bottom: 1px solid var(--border-color-light);
     cursor: pointer;
 }
 
@@ -960,16 +831,16 @@ canvas {
 
 .dashboard-card {
     background: var(--color-bg-raised);
-    border-radius: var(--border-radius);
+    border-radius: var(--border-radius-lg);
     padding: 20px;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--border-color);
     box-shadow: var(--shadow-card, none);
 }
 
 .dashboard-card h3 {
     margin-top: 0;
     margin-bottom: 15px;
-    color: var(--color-accent-primary);
+    color: var(--primary-color);
     font-size: 1.0em;
     text-transform: uppercase;
     letter-spacing: var(--label-letter-spacing, 0.5px);
@@ -989,7 +860,7 @@ canvas {
 }
 
 .dashboard-card-drag-over {
-    border: 2px dashed var(--color-accent-primary);
+    border: 2px dashed var(--primary-color);
     background: var(--color-drag-over-bg);
     box-shadow: var(--shadow-drag-over, none);
 }
@@ -999,24 +870,24 @@ canvas {
     justify-content: space-between;
     margin-bottom: 10px;
     padding: 5px 0;
-    border-bottom: 1px solid var(--color-border-subtle);
+    border-bottom: 1px solid var(--border-color-light);
 }
 
 /* ── Recent books ───────────────────────────────────────────────────────────── */
 
 .recent-book-item {
     padding: 8px 0;
-    border-bottom: 1px solid var(--color-border-subtle);
+    border-bottom: 1px solid var(--border-color-light);
     font-size: 0.9em;
 }
 
 .recent-book-title {
-    color: var(--color-text-primary);
+    color: var(--text-color);
     font-weight: 500;
 }
 
 .recent-book-author {
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     font-size: 0.9em;
 }
 
@@ -1039,7 +910,7 @@ canvas {
 .goal-placeholder {
     text-align: center;
     padding: 20px 0;
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     opacity: 0.8;
 }
 
@@ -1052,7 +923,7 @@ canvas {
 .placeholder-content {
     text-align: center;
     padding: 40px 20px;
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     opacity: 0.8;
 }
 
@@ -1084,15 +955,15 @@ canvas {
 
 .add-book-section {
     background: var(--color-bg-raised);
-    border-radius: var(--border-radius);
+    border-radius: var(--border-radius-lg);
     padding: 20px;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--border-color);
     box-shadow: var(--shadow-card, none);
 }
 
 .add-book-section h3 {
     margin-bottom: 20px;
-    color: var(--color-accent-primary);
+    color: var(--primary-color);
     text-shadow: var(--text-shadow-subtle, none);
 }
 
@@ -1106,8 +977,8 @@ canvas {
 
 .reading-list-item {
     background: var(--color-bg-raised);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
     padding: 15px;
     display: flex;
     justify-content: space-between;
@@ -1124,7 +995,7 @@ canvas {
 
 .book-rank {
     font-weight: 500;
-    color: var(--color-accent-primary);
+    color: var(--primary-color);
     min-width: 60px;
     text-align: center;
     font-size: 0.9em;
@@ -1135,13 +1006,13 @@ canvas {
 
 .book-title {
     font-weight: 500;
-    color: var(--color-text-primary);
+    color: var(--text-color);
     margin-bottom: 4px;
     text-shadow: var(--text-shadow-subtle, none);
 }
 
 .book-author {
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     font-size: 0.9em;
     margin-bottom: 2px;
     text-shadow: var(--text-shadow-subtle, none);
@@ -1165,7 +1036,7 @@ canvas {
     align-items: center;
     gap: 15px;
     padding: 8px 0;
-    border-bottom: 1px solid var(--color-border-subtle);
+    border-bottom: 1px solid var(--border-color-light);
     font-size: 0.9em;
 }
 
@@ -1173,7 +1044,7 @@ canvas {
 
 .whats-next-rank {
     font-weight: 500;
-    color: var(--color-accent-primary);
+    color: var(--primary-color);
     min-width: 60px;
     text-align: center;
     font-size: 0.8em;
@@ -1183,14 +1054,14 @@ canvas {
 .whats-next-details { flex: 1; }
 
 .whats-next-title {
-    color: var(--color-text-primary);
+    color: var(--text-color);
     font-weight: 500;
     margin-bottom: 2px;
     text-shadow: var(--text-shadow-subtle, none);
 }
 
 .whats-next-author {
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     font-size: 0.9em;
     text-shadow: var(--text-shadow-subtle, none);
 }
@@ -1199,7 +1070,7 @@ canvas {
 
 .drag-handle {
     cursor: grab;
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     font-weight: bold;
     padding: 0 5px;
     user-select: none;
@@ -1207,7 +1078,7 @@ canvas {
 }
 
 .drag-handle:hover {
-    color: var(--color-accent-primary);
+    color: var(--primary-color);
     text-shadow: var(--text-shadow-accent, none);
 }
 
@@ -1216,7 +1087,7 @@ canvas {
 }
 
 .reading-list-item.drag-over {
-    border-top: 2px solid var(--color-accent-primary);
+    border-top: 2px solid var(--primary-color);
     background: var(--color-drag-over-bg);
     box-shadow: var(--shadow-drag-over, none);
 }
@@ -1227,18 +1098,18 @@ canvas {
 
 .reading-list-item.checked-out-item {
     background: var(--color-checked-out-bg);
-    border-left: 4px solid var(--color-accent-primary);
+    border-left: 4px solid var(--primary-color);
     box-shadow: var(--shadow-checked-out, none);
 }
 
 .reading-list-item.checked-out-item .book-title {
-    color: var(--color-accent-primary);
+    color: var(--primary-color);
     font-weight: 600;
     text-shadow: var(--text-shadow-accent, none);
 }
 
 .reading-list-item.checked-out-item .book-source {
-    color: var(--color-accent-primary);
+    color: var(--primary-color);
     font-weight: 500;
     text-shadow: var(--text-shadow-subtle, none);
 }
@@ -1251,13 +1122,13 @@ canvas {
     background: var(--color-sticky-header-bg);
     z-index: 100;
     padding-bottom: 10px;
-    border-bottom: 2px solid var(--color-border);
+    border-bottom: 2px solid var(--border-color);
     margin-bottom: 0;
 }
 
 .my-library-table-header {
     background: var(--color-sticky-header-bg);
-    border-bottom: 2px solid var(--color-border);
+    border-bottom: 2px solid var(--border-color);
 }
 
 .my-library-table-header table {
@@ -1268,7 +1139,7 @@ canvas {
 .my-library-scrollable-content {
     max-height: 60vh;
     overflow-y: auto;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--border-color);
     border-top: none;
 }
 
@@ -1287,13 +1158,13 @@ canvas {
     background: var(--color-sticky-header-bg);
     z-index: 100;
     padding-bottom: 10px;
-    border-bottom: 2px solid var(--color-border);
+    border-bottom: 2px solid var(--border-color);
     margin-bottom: 0;
 }
 
 .books-read-table-header {
     background: var(--color-sticky-header-bg);
-    border-bottom: 2px solid var(--color-border);
+    border-bottom: 2px solid var(--border-color);
 }
 
 .books-read-table-header table {
@@ -1304,7 +1175,7 @@ canvas {
 .books-read-scrollable-content {
     max-height: 60vh;
     overflow-y: auto;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--border-color);
     border-top: none;
 }
 
@@ -1314,40 +1185,6 @@ canvas {
 }
 
 .books-read-scrollable-content table thead { display: none; }
-
-/* ── Tags ───────────────────────────────────────────────────────────────────── */
-
-.tags-list {
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-.tag-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px;
-    border-bottom: 1px solid var(--color-border);
-}
-
-.tag-item:last-child { border-bottom: none; }
-
-.tag-name {
-    font-weight: 500;
-    flex: 1;
-}
-
-.tag-count {
-    margin-left: 10px;
-    opacity: 0.7;
-    font-size: 0.9em;
-}
-
-.tag-actions {
-    display: flex;
-    gap: 5px;
-    margin-left: 15px;
-}
 
 /* ── Tag chip entry ─────────────────────────────────────────────────────────── */
 
@@ -1366,9 +1203,9 @@ canvas {
     left: 0;
     right: 0;
     z-index: 10;
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
     max-height: 200px;
     overflow-y: auto;
 }
@@ -1396,7 +1233,7 @@ canvas {
     gap: 6px;
     background: var(--color-btn-secondary-bg);
     color: var(--color-btn-secondary-text);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--border-color);
     border-radius: 999px;
     padding: 4px 6px 4px 12px;
     font-size: 0.85em;
@@ -1414,14 +1251,6 @@ canvas {
 }
 
 .tag-chip-remove:hover {
-    background: var(--color-danger);
+    background: var(--error-color);
     color: var(--color-btn-primary-text);
-}
-
-/* ── Calendar picker ────────────────────────────────────────────────────────── */
-
-#finished::-webkit-calendar-picker-indicator,
-#editFinished::-webkit-calendar-picker-indicator {
-    filter: var(--calendar-picker-filter, none);
-    cursor: pointer;
 }

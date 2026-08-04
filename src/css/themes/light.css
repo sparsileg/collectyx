@@ -1,94 +1,105 @@
 /*
-  css/themes/nordic-light.css
-  Nordic Light theme — variables only. All structural CSS lives in base.css.
+  css/themes/light.css
+  Light theme — variables only. All structural CSS lives in base.css.
+  Core palette matches Astryx's light.css (shared color values across both
+  apps); Collectyx-specific variables (nav/button states, shadows, tables)
+  are Collectyx's own and have no Astryx equivalent.
 */
 
 :root {
-    /* ── Fonts ──────────────────────────────────────────────────────────────── */
-    --font-body:  'Segoe UI', 'Inter', sans-serif;
-    --font-ui:    'Segoe UI', 'Inter', sans-serif;
-    --font-mono:  'Consolas', 'Monaco', monospace;
+    /* ── Fonts (font-body/font-ui are shared across all themes — see
+       base.css. font-mono stays per-theme by choice, message area only) ── */
+    --font-mono: 'Consolas', 'Monaco', monospace;
 
-    /* ── Core palette ───────────────────────────────────────────────────────── */
-    --color-bg-page:         #eceff4;
-    --color-bg-surface:      #ffffff;
-    --color-bg-raised:       #e5e9f0;
-    --color-bg-raised-hover: #d8dee9;
+    /* ── Core palette (shared with Astryx) ─────────────────────────────────── */
+    --bg-color:     #ffffff;
+    --sidebar-bg:   #f8f9fa;
+    --card-bg:      #f8f9fa;
+    --card-hover:   #e9ecef;
+    --input-bg:     #ffffff;
 
-    --color-text-primary:    #2e3440;
-    --color-text-secondary:  #5e81ac;
-    --color-text-muted:      #81a1c1;
+    --text-color:      #212529;
+    --text-secondary:  #6c757d;
+    --primary-text:    #ffffff;
 
-    --color-accent-primary:   #5e81ac;
-    --color-accent-secondary: #88c0d0;
+    --primary-color: #0d6efd;
+    --primary-hover: #0b5ed7;
 
-    --color-header: #2e3440;
-    --color-label:  #3b4252;
+    --secondary-color: #f8f9fa;
+    --secondary-hover: #e9ecef;
 
-    /* ── Borders ────────────────────────────────────────────────────────────── */
-    --color-border:        #d8dee9;
-    --color-border-subtle: #d8dee9;
+    --border-color:       #dee2e6;
+    --border-color-light: #f1f3f5;
+
+    --success-color: #198754;
+    --warning-color: #fd7e14;
+    --error-color:   #dc3545;
+    --error-hover:   #bb2d3b;
+
+    --focus-ring: rgba(13, 110, 253, 0.25);
+
+    /* ── Collectyx-specific (no Astryx equivalent) ─────────────────────────── */
+    --color-bg-raised:   #e9ecef;
+    --color-text-muted:  #adb5bd;
+    --color-label:       #495057;
 
     /* ── Navigation ─────────────────────────────────────────────────────────── */
     --color-nav-bg:           transparent;
-    --color-nav-text:         #3b4252;
-    --color-nav-hover-bg:     #5e81ac;
-    --color-nav-hover-text:   #eceff4;
-    --color-nav-hover-border: #5e81ac;
+    --color-nav-text:         #495057;
+    --color-nav-hover-bg:     #0d6efd;
+    --color-nav-hover-text:   #ffffff;
+    --color-nav-hover-border: #0d6efd;
 
     /* ── Inputs ─────────────────────────────────────────────────────────────── */
-    --color-input-bg:    transparent;
-    --color-option-bg:   #ffffff;
-    --input-border-bottom: 2px solid #d8dee9;
+    --color-option-bg:     #ffffff;
+    --input-border-bottom: 2px solid #dee2e6;
 
     /* ── Buttons ────────────────────────────────────────────────────────────── */
-    --btn-border:            2px solid #5e81ac;
+    --btn-border:            2px solid #6c757d;
     --color-btn-bg:          transparent;
-    --color-btn-text:        #5e81ac;
-    --color-btn-hover-bg:    #5e81ac;
-    --color-btn-hover-text:  #eceff4;
+    --color-btn-text:        #6c757d;
+    --color-btn-hover-bg:    #6c757d;
+    --color-btn-hover-text:  #ffffff;
 
-    --btn-primary-border:           2px solid #88c0d0;
+    --btn-primary-border:           2px solid #0d6efd;
     --color-btn-primary-bg:         transparent;
-    --color-btn-primary-text:       #88c0d0;
-    --color-btn-primary-hover-bg:   #88c0d0;
-    --color-btn-primary-hover-text: #2e3440;
+    --color-btn-primary-text:       #0d6efd;
+    --color-btn-primary-hover-bg:   #0d6efd;
+    --color-btn-primary-hover-text: #ffffff;
 
-    --btn-secondary-border:            2px solid #81a1c1;
+    --btn-secondary-border:            2px solid #6c757d;
     --color-btn-secondary-bg:          transparent;
-    --color-btn-secondary-text:        #81a1c1;
-    --color-btn-secondary-hover-bg:    #81a1c1;
+    --color-btn-secondary-text:        #6c757d;
+    --color-btn-secondary-hover-bg:    #6c757d;
     --color-btn-secondary-hover-text:  #ffffff;
 
-    --color-danger:       #dc3545;
-    --color-danger-text:  #ffffff;
-    --color-danger-hover: #c82333;
+    --color-danger-text: #ffffff;
 
     /* ── Tables ─────────────────────────────────────────────────────────────── */
-    --color-table-header-bg:    #d8dee9;
-    --color-table-header-hover: #5e81ac;
-    --color-table-row-hover:    #e5e9f0;
+    --color-table-header-bg:    #e9ecef;
+    --color-table-header-hover: #0d6efd;
+    --color-table-row-hover:    #f8f9fa;
     --table-border:     none;
     --table-th-border:  none;
     --table-td-border:  none;
 
     /* ── Message area ───────────────────────────────────────────────────────── */
-    --color-message-bg:   #d8dee9;
-    --color-message-text: #a3be8c;
+    --color-message-bg:   #e9ecef;
+    --color-message-text: #198754;
 
     /* ── Modal ──────────────────────────────────────────────────────────────── */
-    --color-modal-overlay: rgba(236, 239, 244, 0.9);
+    --color-modal-overlay: rgba(0, 0, 0, 0.4);
 
     /* ── Sticky headers ─────────────────────────────────────────────────────── */
     --color-sticky-header-bg: #ffffff;
 
     /* ── Misc UI ────────────────────────────────────────────────────────────── */
-    --color-checked-out-bg: #d8dee9;
-    --color-drag-over-bg:   #d8dee9;
+    --color-checked-out-bg: #e9ecef;
+    --color-drag-over-bg:   #e9ecef;
 
     /* ── Shadows ────────────────────────────────────────────────────────────── */
     --shadow-surface:      0 2px 8px rgba(0, 0, 0, 0.1);
-    --shadow-card:         0 2px 4px rgba(0, 0, 0, 0.1);
+    --shadow-card:         0 1px 3px rgba(0, 0, 0, 0.1);
     --shadow-panel:        0 2px 4px rgba(0, 0, 0, 0.1);
     --shadow-table:        none;
     --shadow-list-item:    none;
@@ -110,20 +121,11 @@
     --text-shadow-nav-active: none;
     --text-shadow-btn-hover:  none;
 
-    /* ── Typography ─────────────────────────────────────────────────────────── */
-    --font-weight-heading:  400;
-    --header-h1-transform:  none;
-    --header-h1-spacing:    normal;
-    --header-animation:     none;
-    --nav-text-transform:   none;
-    --nav-letter-spacing:   normal;
-    --label-letter-spacing: 0.5px;
-    --btn-letter-spacing:   0.5px;
-    --border-radius:        2px;
-    --nav-gap:              0;
+    /* ── Decoration ─────────────────────────────────────────────────────────── */
+    --header-animation: none;
 
     /* ── Select arrow ───────────────────────────────────────────────────────── */
-    --select-arrow-svg: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b4252' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+    --select-arrow-svg: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23495057' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
 
     /* ── Calendar picker ────────────────────────────────────────────────────── */
     --calendar-picker-filter: none;
@@ -131,19 +133,12 @@
     /* ── Export item hover overlay ──────────────────────────────────────────── */
     --export-item-hover-overlay: none;
 
-    /* ── Body scanline effect — none for nordic themes ──────────────────────── */
+    /* ── Body scanline effect — none for this theme ─────────────────────────── */
     --body-before-content: none;
     --body-before-bg: none;
 }
 
-/* Nordic Light nav active state */
-.nav-btn.active {
-    background: #88c0d0;
-    color: #2e3440;
-    border-color: #88c0d0;
-}
-
 /* Light theme table header hover — text goes light */
 .data-table th:hover {
-    color: #eceff4;
+    color: #ffffff;
 }

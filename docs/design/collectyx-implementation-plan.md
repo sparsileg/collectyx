@@ -165,7 +165,7 @@ placeholder views.
    via a root font-size CSS custom property.
 6. Placeholder content (heading only) in each of the six views — real
    content arrives in later phases.
-7. **Confirm the two open assumptions from design doc §6** (nav labels
+7. **Confirm the two open assumptions from design doc §7** (nav labels
    sourced from `media_types`; Settings as a modal) before building
    further on top of them.
 
