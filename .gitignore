@@ -1,8 +1,3 @@
-electron/assets
-electron/dist
-electron/node_modules
-electron/src
-
 # Logs
 logs
 *.log
@@ -139,3 +134,12 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# SQLite dev artifacts, in case one ever lands outside the OS app-data dir
+*.db
+*.db-wal
+*.db-shm
