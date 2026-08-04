@@ -1,15 +1,15 @@
-# Scriptum Development Session Onboarding
+# Collectyx Development Session Onboarding
 
 **For:** Claude (next session)
 **Purpose:** Get up to speed on Stan's project and working style immediately
-**Project:** Scriptum — a book tracking and library management application
-**Current version:** 0.7.0
+**Project:** Collectyx — a physical and digital media tracking and library management application, starting with books, extending later to other forms of media
+**Current version:** 0.1.0
 
 ---
 
 ## Who is Stan?
 
-Stan is the sole developer of Scriptum. He is experienced, direct, and efficient. During active development he communicates tersely:
+Stan is the sole developer of Collectyx. He is experienced, direct, and efficient. During active development he communicates tersely:
 
 - "proceed" = continue with next change
 - "tested" / "done" / "working" = confirmed good
@@ -19,23 +19,26 @@ He does not need pleasantries, preamble, or lengthy explanations. Match his ener
 
 ---
 
-## What is Scriptum?
+## What is Collectyx?
 
-Scriptum is a browser-based and Tauri desktop book tracking and personal library management tool. It allows users to:
+Collectyx is a browser-based and Tauri desktop media tracking and personal library management tool. Books are the first supported media type; the schema is built to extend to others (DVD/Blu-ray, CD, digital movies, etc.) later without a rework. For books specifically, it allows users to:
 
 - Track books they have read (Books Read)
-- Manage a prioritised reading list (Reading List)
+- Manage a prioritised to-be-read list (To Be Read)
 - Catalogue their personal book collection (My Library)
 - View statistics and reading goals on a dashboard
 - Export/import/backup their data
 
+Architecturally, this is a normalized schema — one canonical `items` table plus three collection-membership tables (`consumed`, `queued`, `owned`) rather than three independent flat tables. Full schema and rationale live in the design document, not here.
+
 **Tech stack:** Vanilla JavaScript, CSS custom properties, IndexedDB (web) / SQLite (Tauri) — no frameworks. Source in `src/` subdirectory. Tauri v2 desktop build in `src-tauri/`.
 
-**Dual-backend architecture:** `db-manager.js` selects the backend at runtime:
+**Dual-backend architecture:** A JavaScript manager selects the backend at runtime:
+
 - `window.__TAURI__` present → `DBManagerTauri` → SQLite via Rust commands
 - Browser → `DBManagerWeb` → IndexedDB
 
-**Tauri desktop version:** Fully operational. SQLite migration complete through Phase 5. Dev workflow: `npx tauri dev` from project root. `withGlobalTauri: true` required in `tauri.conf.json`.
+**Project status:** Freshly cloned from Scriptum's repo history; no functional Collectyx code has been written yet. See the phased implementation plan for current phase — starting point is Phase 0 (project identity & scaffold). `withGlobalTauri: true` will be required in `tauri.conf.json` once the Tauri scaffold exists, matching Scriptum's established pattern.
 
 ---
 
@@ -44,10 +47,12 @@ Scriptum is a browser-based and Tauri desktop book tracking and personal library
 Stan has a well-established working methodology. Violating it causes friction.
 
 ### The Rhythm
+
 **Plan → Discuss → Approve → One Change → Test → Confirm → Next**
 
-### BEFORE/AFTER Blocks
-All code changes are delivered as explicit BEFORE/AFTER blocks with full code — no ellipsis, no placeholders, no `// ... existing code ...`. Every block must be complete and match disk exactly. **Always include the filename** above each BEFORE/AFTER pair.
+### Git Patches
+
+With rare exception, code changes are delivered as Git patches and Stan applies them. If, for some reason, a Git patch file cannot be used, use BEFORE/AFTER blocks with full code — no ellipsis, no placeholders, no `// ... existing code ...`. Every block must be complete and match disk exactly. **Always include the filename** above each BEFORE/AFTER pair.
 
 ```
 **filename.js**
@@ -60,42 +65,44 @@ AFTER:
 ```
 
 ### Hard Rules
-- **Always include the filename** in every BEFORE/AFTER block.
+
 - **Discuss before coding.** Propose the approach, get explicit go-ahead.
 - **Never assume file state.** Ask Stan to upload the file before making changes to a file not recently seen.
-- **BEFORE blocks must match disk exactly.**
-- **No ellipsis placeholders** in code blocks — ever.
-- **No "repeat this for lines X and Y"** — provide full BEFORE/AFTER for each occurrence.
-- **Stop `npx tauri dev` before editing files.** Hot-reload while editing can trigger partial JS execution that clears SQLite tables. This has happened multiple times.
+- **Stop `npx tauri dev` before editing files.** Hot-reload while editing can trigger partial JS execution that clears SQLite tables. This has happened multiple times on Scriptum and the same risk applies here.
 
 ---
 
 ## Key Architecture Details
 
+**Note:** Some specifics below may shift as Collectyx's actual implementation takes shape — check against the design document and current source rather than assuming this table is still accurate mid-project.
+
 | Concern | Pattern |
 |---|---|
-| All constants | `CONSTANTS` object in `config.js` |
+| All constants | `CONSTANTS` object in `constants.js` |
 | DB backend selector | `db-manager.js` — `DBManager` shim |
 | Web persistence | `DBManagerWeb` → IndexedDB (`db-manager-web.js`) |
 | Tauri persistence | `DBManagerTauri` → Rust invoke calls (`db-manager-tauri.js`) |
 | Data layer | `data-manager.js` — all reads/writes go through `DBManager` |
 | Themes | CSS custom properties; 3 themes: Dark (Nordic), Light (Nordic), Matrix |
-| Backup | `backupDatabaseFile()` in `file.js` — gzip compressed to backup folder |
-| Restore | `restore.js` — two-screen modal, accepts `.json` and `.json.gz` |
-| Categories | JSON array stored in settings table; managed via `category-management.js` |
-| Tags | JSON array per book record; managed via `tags.js` |
-| Statistics | `statistics.js` — Chart.js charts |
+| Backup | gzip-compressed to a configured backup folder, same pattern as Scriptum's `file.js` |
+| Restore | Two-screen confirm modal, same pattern as Scriptum's `restore.js` |
+| Tags | Relational — `tags` table + `item_tags` junction table, not a JSON array. Managed via the Tags CRUD view (design doc §4.6). |
+| Statistics | Chart.js charts |
 | File dialogs | `tauri-plugin-dialog` via `window.__TAURI_PLUGIN_DIALOG__` |
 | File writes | `tauri-plugin-fs` via `window.__TAURI_PLUGIN_FS__` |
 
+There is no Category concept anywhere in Collectyx. Tags are the only classification axis — see design doc §2 and §3.2.
+
 **Naming conventions:**
-- HTML IDs: camelCase (legacy) / kebab-case (new)
+
+- HTML IDs: kebab-case (new project, no legacy camelCase to carry forward)
 - CSS classes: kebab-case
 - JS functions/variables: camelCase
-- DB stores: camelCase (`booksRead`, `readingList`, `myLibrary`, `settings`)
-- Rust commands: snake_case (`get_all_books_read`, `save_book_read`, etc.)
+- DB stores/tables: camelCase or snake_case per backend convention — `items`, `consumed`, `queued`, `owned`, `tags`, `item_tags`, `media_types`, `settings`
+- Rust commands: snake_case, table-scoped (e.g. `get_all_items`, `save_consumed`, `merge_items`)
 
 **JS field names vs SQL columns:**
+
 - JS objects use PascalCase field names (`Title`, `Author`, `Finished`, `Recommend`)
 - SQL columns use lowercase (`title`, `author`, `finished`, `recommend`)
 - Rust structs bridge these via `#[serde(rename = "Title")]` attributes
@@ -104,119 +111,38 @@ AFTER:
 
 ## Directory Structure
 
-```
-scriptum/
-├── src/
-│   ├── css/
-│   │   ├── base.css
-│   │   └── themes/
-│   │       ├── nordic-dark.css
-│   │       ├── nordic-light.css
-│   │       └── matrix.css
-│   ├── include/
-│   │   ├── chart.min.js
-│   │   └── pako.min.js
-│   ├── js/
-│   │   ├── config.js
-│   │   ├── constants.js
-│   │   ├── core.js
-│   │   ├── data-manager.js
-│   │   ├── db-manager.js
-│   │   ├── db-manager-web.js
-│   │   ├── db-manager-tauri.js
-│   │   ├── read-books.js
-│   │   ├── reading-list.js
-│   │   ├── my-library.js
-│   │   ├── file.js
-│   │   ├── statistics.js
-│   │   ├── dashboard.js
-│   │   ├── tags.js
-│   │   ├── category-management.js
-│   │   ├── restore.js
-│   │   ├── isbn.js
-│   │   └── [other app JS files]
-│   └── index.html
-└── src-tauri/
-    ├── src/
-    │   ├── main.rs
-    │   ├── lib.rs
-    │   ├── constants.rs
-    │   ├── commands/
-    │   │   ├── mod.rs
-    │   │   ├── books_read.rs
-    │   │   ├── reading_list.rs
-    │   │   ├── my_library.rs
-    │   │   └── settings.rs
-    │   └── db/
-    │       ├── mod.rs
-    │       ├── schema.rs
-    │       └── migrations.rs
-    ├── capabilities/
-    │   └── default.json
-    ├── Cargo.toml
-    └── tauri.conf.json
-```
+Not yet finalized. Will mirror Scriptum's `src/` + `src-tauri/` split in spirit, but Rust command files and JS data files are restructured around the normalized schema (`items`, `consumed`, `queued`, `owned`, `tags`, `media_types`) rather than Scriptum's three flat-table files. Don't assume a specific filename exists until it's been seen or confirmed this session — this is a standing hard rule, not specific to this doc.
 
 ---
 
 ## SQLite Schema
 
-**`books_read`**
-`id` (TEXT PK), `title`, `author`, `author2`, `pages` (INTEGER), `category`, `recommend` (INTEGER 0/1), `isbn`, `comments`, `tags` (JSON array string), `finished` (TEXT YYYY-MM-DD), `rating` (INTEGER 1-10), `cover_url`, `date_added`, `modified`
-
-**`reading_list`**
-`id` (TEXT PK), `title`, `author`, `author2`, `pages`, `category`, `isbn`, `comments`, `tags` (JSON array string), `rank` (INTEGER nullable=Unranked), `my_library_id`, `date_added`, `modified`
-
-**`my_library`**
-`id` (TEXT PK), `title`, `author`, `author2`, `pages`, `category`, `isbn`, `comments`, `tags` (JSON array string), `location`, `patron`, `checked_out` (TEXT YYYY-MM-DD), `date_added`, `modified`
-
-**`settings`**
-`id` (TEXT PK), `data` (TEXT JSON blob) — single row keyed `'app-settings'` containing `displayTheme`, `dailyReadingPages`, `backupFolder`, `categories` (JSON array)
+See the design document for the full schema, ER diagram, and rationale — not reproduced here.
 
 **Schema version:** 1 (tracked via `PRAGMA user_version`)
-**SQLite location:** `~/.local/share/Scriptum/scriptum.db` (Linux)
+**SQLite location:** `~/.local/share/Collectyx/collectyx.db` (Linux)
 
 ---
 
 ## Known Issues and Gotchas
 
-- **Hot-reload data wipe risk:** If `npx tauri dev` is running when a source file is saved mid-edit, the app hot-reloads with incomplete JS, which can trigger `clear_books_read` via `saveData()`. Always stop the dev server before editing. A 90% threshold guard in `saveData()` provides a safety net but is not foolproof.
-- **Tags are JSON strings in SQLite** — must be `JSON.stringify()` before saving and `JSON.parse()` after loading. `loadMyLibraryData()` handles this on load.
-- **`Recommend` field** — stored as INTEGER (0/1) in SQLite, displayed as Y/N in UI. Legacy backups use `"Y"`/`"N"` strings — `importUnifiedDatabase()` normalises these on import.
-- **Date format** — stored as `YYYY-MM-DD`, displayed and entered as `MM/DD/YYYY`. `dateToStorage()` and `dateFromStorage()` in `core.js` handle conversion. Legacy backups may contain `DD-MMM-YYYY` — `dateFromStorage()` handles both.
-- **`generateCategoryOptions()` is async** — all call sites must `await` it or use `.then()`.
-- **`saveData()` guard** — skips write if `books.length === 0` or if in-memory count is less than 90% of SQLite count. Same guards exist for `saveReadingListData()` and `saveMyLibraryData()`.
+- **Hot-reload data wipe risk:** If `npx tauri dev` is running when a source file is saved mid-edit, the app can hot-reload with incomplete JS, potentially triggering a destructive write. Always stop the dev server before editing. This has caused real data loss on Scriptum in the past — treat it as an active risk on Collectyx too, not a solved problem.
 - **Tauri file dialog** is at `window.__TAURI_PLUGIN_DIALOG__`, not `window.__TAURI__.dialog`.
 - **Tauri file system** is at `window.__TAURI_PLUGIN_FS__`, not `window.__TAURI__.fs`.
-- **Capabilities file** (`src-tauri/capabilities/default.json`) must explicitly grant permissions for dialog and fs operations including path scopes.
+- **Capabilities file** (`src-tauri/capabilities/default.json`) must explicitly grant permissions for dialog and fs operations, including path scopes.
+- **Date format convention** (carried forward from Scriptum, pending confirmation it still applies): stored as `YYYY-MM-DD`, displayed and entered as `MM/DD/YYYY`. Confirm this is still the intended convention before assuming it.
 
 ---
 
 ## Migration Plan Status
 
-| Phase | Description | Status |
-|---|---|---|
-| 1 | Project restructure and library organisation | ✅ Complete |
-| 2 | Backup format audit and compatibility test suite | ✅ Complete |
-| 3 | Data layer replacement (localStorage → IndexedDB) | ✅ Complete |
-| 4 | Tauri project scaffold | ✅ Complete |
-| 5 | Rust commands and Tauri backend wiring | ✅ Complete |
-| 6 | Export/import and backup (native file dialogs) | 🔄 In progress |
-| 7 | Android build | ⬜ Pending |
-| 8 | ISBN scanner (Android) | ⬜ Pending |
-| 9 | Cloudflare D1 sync | ❌ Dropped from Scriptum scope |
+See the phased implementation plan for details.
 
 ---
 
 ## Open Items / What's Next
 
-- Category Management UI — just implemented, needs testing
-- UI tweaks — ongoing
-- Release build (`npx tauri build`)
-- Full regression test of web (IndexedDB) version
-- Phase 6 — native file dialogs for export (partially done — backup folder implemented)
-- Phase 7 — Android build
-- Phase 8 — ISBN scanner
+See the phased implementation plan for details.
 
 ---
 
@@ -225,8 +151,8 @@ scriptum/
 - Forgot to include filename in BEFORE/AFTER blocks — Stan had to ask repeatedly.
 - Generated BEFORE blocks that didn't match disk exactly.
 - Used `window.__TAURI__.dialog` instead of `window.__TAURI_PLUGIN_DIALOG__`.
-- Forgot that `generateCategoryOptions()` became async — left call sites without `await`.
-- Added `console.trace()` to `saveData()` without removing it — caused white page in Tauri due to unrelated stray backtick introduced during editing.
+- Missed updating a call site when a previously-synchronous helper became async.
+- Added `console.trace()` to a save function without removing it — caused a white page in Tauri due to an unrelated stray backtick introduced during editing.
 - Batched multiple file changes without explicit per-file BEFORE/AFTER — caused confusion.
 - Generated `mod.rs` with trailing `nn` characters — caused Rust compile errors.
 
@@ -234,13 +160,12 @@ scriptum/
 
 ## Principles Stan Cares About Most
 
-1. **Always include filename** in every BEFORE/AFTER block.
-2. **Stop dev server before editing** — hot-reload has caused data loss multiple times.
+1. **Patches, or filename-labeled BEFORE/AFTER when a patch isn't possible** — never an unlabeled or partial code block.
+2. **Stop dev server before editing** — hot-reload has caused data loss before; treat the risk as live, not historical.
 3. **No stale file assumptions** — view or ask for the file before touching it.
 4. **Discuss before coding** — always.
-5. **Full BEFORE/AFTER blocks** — no shortcuts, no placeholders, no ellipsis.
-6. **One change at a time** — always.
-7. **Backward compatibility is non-negotiable** — existing backup files must always import cleanly.
-8. **Never silently drop data** — unknown fields log a warning but never cause errors.
-9. **Web build must always work** — after every change, the browser version is regression-tested.
-10. **Clean, simple solutions** — park complexity that isn't worth it.
+5. **Collectyx does not carry Scriptum's forward-compatibility guarantee.** It needs one well-tested, one-time import path for Scriptum backups (phased plan, Phase 6) — not permanent backward compatibility for every future version of its own export format.
+6. **Never silently drop data** — unknown or unexpected fields should be logged, not silently discarded, even if the exact mechanism differs from Scriptum's.
+7. **Web build must always work** — after every major change, the browser version is regression-tested, not just Tauri.
+8. **Clean, simple solutions** — park complexity that isn't worth it.
+9. **The design document and phased implementation plan are the source of truth** for schema, view layout, and project status. This onboarding doc covers context and working process — check those documents, not this one, for what's actually being built and where things stand.

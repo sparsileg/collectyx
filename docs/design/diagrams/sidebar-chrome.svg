@@ -1,0 +1,36 @@
+<svg width="340" height="480" viewBox="0 0 340 480" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <rect x="0" y="0" width="340" height="480" fill="#ffffff"/>
+  <rect x="10" y="10" width="300" height="460" rx="12" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+
+  <rect x="26" y="26" width="30" height="30" rx="6" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="41" y="47" text-anchor="middle" font-size="14" font-weight="bold" fill="#000000">C</text>
+  <text x="66" y="47" font-size="16" font-weight="bold" fill="#000000">Collectyx</text>
+
+  <line x1="262" y1="32" x2="288" y2="32" stroke="#000000" stroke-width="2"/>
+  <line x1="262" y1="40" x2="288" y2="40" stroke="#000000" stroke-width="2"/>
+  <line x1="262" y1="48" x2="288" y2="48" stroke="#000000" stroke-width="2"/>
+
+  <line x1="26" y1="70" x2="286" y2="70" stroke="#e2e8f0" stroke-width="1"/>
+
+  <rect x="26" y="82" width="260" height="34" rx="6" fill="#ffffff" stroke="#94a3b8"/>
+  <text x="38" y="103" font-size="13" fill="#000000">Theme: Dark</text>
+  <text x="266" y="103" font-size="12" fill="#000000">&#9662;</text>
+
+  <rect x="26" y="124" width="260" height="34" rx="6" fill="#ffffff" stroke="#94a3b8"/>
+  <line x1="112" y1="124" x2="112" y2="158" stroke="#94a3b8"/>
+  <line x1="200" y1="124" x2="200" y2="158" stroke="#94a3b8"/>
+  <text x="60" y="145" text-anchor="middle" font-size="14" fill="#000000">&#8722;</text>
+  <text x="156" y="145" text-anchor="middle" font-size="13" fill="#000000">Aa</text>
+  <text x="243" y="145" text-anchor="middle" font-size="14" fill="#000000">+</text>
+
+  <line x1="26" y1="172" x2="286" y2="172" stroke="#e2e8f0" stroke-width="1"/>
+
+  <rect x="26" y="184" width="260" height="36" rx="6" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="40" y="207" font-size="14" font-weight="bold" fill="#000000">Dashboard</text>
+
+  <text x="40" y="251" font-size="14" fill="#000000">To Be Read</text>
+  <text x="40" y="295" font-size="14" fill="#000000">Books Read</text>
+  <text x="40" y="339" font-size="14" fill="#000000">My Library</text>
+  <text x="40" y="383" font-size="14" fill="#000000">Tags</text>
+  <text x="40" y="427" font-size="14" fill="#000000">Statistics</text>
+</svg>

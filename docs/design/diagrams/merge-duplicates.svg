@@ -1,0 +1,38 @@
+<svg width="640" height="380" viewBox="0 0 640 380" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <rect x="0" y="0" width="640" height="380" fill="#ffffff"/>
+  <rect x="10" y="10" width="620" height="360" rx="10" fill="#ffffff" stroke="#94a3b8"/>
+  <text x="30" y="42" font-size="16" font-weight="bold" fill="#000000">Find duplicates</text>
+
+  <rect x="30" y="58" width="200" height="290" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="42" y="80" font-size="11" font-weight="bold" fill="#555555">POSSIBLE DUPLICATES</text>
+  <rect x="42" y="92" width="176" height="48" rx="6" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="52" y="110" font-size="11" font-weight="bold" fill="#000000">Dune</text>
+  <text x="52" y="126" font-size="10" fill="#333333">2 matching records</text>
+  <rect x="42" y="148" width="176" height="48" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="52" y="166" font-size="11" fill="#000000">Piranesi</text>
+  <text x="52" y="182" font-size="10" fill="#333333">2 matching records</text>
+
+  <line x1="250" y1="58" x2="250" y2="348" stroke="#e2e8f0"/>
+
+  <text x="270" y="80" font-size="11" font-weight="bold" fill="#555555">RESOLVE &#8212; DUNE</text>
+
+  <text x="270" y="106" font-size="11" fill="#333333">Pages</text>
+  <circle cx="330" cy="102" r="5" fill="#ffffff" stroke="#000000"/>
+  <text x="342" y="106" font-size="11" fill="#000000">412</text>
+  <circle cx="390" cy="102" r="5" fill="#1d4ed8" stroke="#1d4ed8"/>
+  <text x="402" y="106" font-size="11" fill="#000000">688</text>
+
+  <text x="270" y="136" font-size="11" fill="#333333">ISBN</text>
+  <circle cx="330" cy="132" r="5" fill="#1d4ed8" stroke="#1d4ed8"/>
+  <text x="342" y="136" font-size="11" fill="#000000">9780441013593</text>
+  <circle cx="330" cy="150" r="5" fill="#ffffff" stroke="#000000"/>
+  <text x="342" y="154" font-size="11" fill="#000000">(none)</text>
+
+  <text x="270" y="180" font-size="11" fill="#333333">Tags</text>
+  <text x="330" y="180" font-size="11" fill="#333333">sci-fi, favorites, classic &#8212; merged as a union</text>
+
+  <rect x="270" y="300" width="120" height="32" rx="6" fill="#1d4ed8"/>
+  <text x="330" y="321" text-anchor="middle" font-size="12" font-weight="bold" fill="#ffffff">Merge records</text>
+  <rect x="400" y="300" width="90" height="32" rx="6" fill="#ffffff" stroke="#94a3b8"/>
+  <text x="445" y="321" text-anchor="middle" font-size="12" fill="#000000">Not a match</text>
+</svg>

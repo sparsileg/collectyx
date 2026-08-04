@@ -1,0 +1,66 @@
+<svg width="700" height="360" viewBox="0 0 700 360" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <rect x="0" y="0" width="700" height="360" fill="#ffffff"/>
+
+  <!-- Quick Stats -->
+  <rect x="20" y="20" width="210" height="150" rx="10" fill="#ffffff" stroke="#94a3b8"/>
+  <rect x="20" y="20" width="210" height="30" rx="10" fill="#dbeafe"/>
+  <rect x="20" y="40" width="210" height="10" fill="#dbeafe"/>
+  <text x="34" y="40" font-size="13" font-weight="bold" fill="#000000">Quick stats</text>
+  <text x="34" y="76" font-size="12" fill="#333333">Total books: 128</text>
+  <text x="34" y="96" font-size="12" fill="#333333">Pages: 41,204</text>
+  <text x="34" y="116" font-size="12" fill="#333333">This year: 14 books</text>
+  <text x="34" y="136" font-size="12" fill="#333333">Avg pages/day: 62</text>
+
+  <!-- Top Tags (new) -->
+  <rect x="245" y="20" width="210" height="150" rx="10" fill="#ffffff" stroke="#94a3b8"/>
+  <rect x="245" y="20" width="210" height="30" rx="10" fill="#dbeafe"/>
+  <rect x="245" y="40" width="210" height="10" fill="#dbeafe"/>
+  <text x="259" y="40" font-size="13" font-weight="bold" fill="#000000">Top tags</text>
+  <rect x="259" y="66" width="60" height="20" rx="10" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="289" y="80" text-anchor="middle" font-size="11" fill="#000000">sci-fi 24</text>
+  <rect x="325" y="66" width="70" height="20" rx="10" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="360" y="80" text-anchor="middle" font-size="11" fill="#000000">favorites 19</text>
+  <rect x="259" y="94" width="80" height="20" rx="10" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="299" y="108" text-anchor="middle" font-size="11" fill="#000000">non-fiction 15</text>
+  <rect x="345" y="94" width="60" height="20" rx="10" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="375" y="108" text-anchor="middle" font-size="11" fill="#000000">memoir 9</text>
+
+  <!-- Books Read (consumed) -->
+  <rect x="470" y="20" width="210" height="150" rx="10" fill="#ffffff" stroke="#94a3b8"/>
+  <rect x="470" y="20" width="210" height="30" rx="10" fill="#dbeafe"/>
+  <rect x="470" y="40" width="210" height="10" fill="#dbeafe"/>
+  <text x="484" y="40" font-size="13" font-weight="bold" fill="#000000">Recently finished</text>
+  <text x="484" y="72" font-size="12" fill="#333333">Project Hail Mary</text>
+  <text x="484" y="92" font-size="12" fill="#333333">The Fifth Season</text>
+  <text x="484" y="112" font-size="12" fill="#333333">Piranesi</text>
+
+  <!-- Reading Goals -->
+  <rect x="20" y="190" width="210" height="150" rx="10" fill="#ffffff" stroke="#94a3b8"/>
+  <rect x="20" y="190" width="210" height="30" rx="10" fill="#dbeafe"/>
+  <rect x="20" y="210" width="210" height="10" fill="#dbeafe"/>
+  <text x="34" y="210" font-size="13" font-weight="bold" fill="#000000">Reading goals</text>
+  <text x="34" y="240" font-size="12" fill="#333333">Daily goal: 40 pages</text>
+  <rect x="34" y="252" width="30" height="60" fill="#dbeafe"/>
+  <rect x="70" y="272" width="30" height="40" fill="#dbeafe"/>
+  <rect x="106" y="232" width="30" height="80" fill="#93c5fd"/>
+  <rect x="142" y="262" width="30" height="50" fill="#dbeafe"/>
+
+  <!-- What's Next (queued) -->
+  <rect x="245" y="190" width="210" height="150" rx="10" fill="#ffffff" stroke="#94a3b8"/>
+  <rect x="245" y="190" width="210" height="30" rx="10" fill="#dbeafe"/>
+  <rect x="245" y="210" width="210" height="10" fill="#dbeafe"/>
+  <text x="259" y="210" font-size="13" font-weight="bold" fill="#000000">What&#8217;s next</text>
+  <text x="259" y="240" font-size="12" fill="#333333">1. Klara and the Sun</text>
+  <text x="259" y="260" font-size="12" fill="#333333">2. The Overstory</text>
+  <text x="259" y="280" font-size="12" fill="#333333">3. Sea of Tranquility</text>
+
+  <!-- My Library Stats (owned) -->
+  <rect x="470" y="190" width="210" height="150" rx="10" fill="#ffffff" stroke="#94a3b8"/>
+  <rect x="470" y="190" width="210" height="30" rx="10" fill="#dbeafe"/>
+  <rect x="470" y="210" width="210" height="10" fill="#dbeafe"/>
+  <text x="484" y="210" font-size="13" font-weight="bold" fill="#000000">My library stats</text>
+  <text x="484" y="240" font-size="12" fill="#333333">Total books: 340</text>
+  <text x="484" y="260" font-size="12" fill="#333333">No tags: 12</text>
+  <text x="484" y="280" font-size="12" fill="#333333">No ISBN: 58</text>
+  <text x="484" y="300" font-size="12" fill="#333333">Checked out: 3</text>
+</svg>

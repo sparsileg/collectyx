@@ -1,0 +1,35 @@
+<svg width="520" height="420" viewBox="0 0 520 420" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <rect x="0" y="0" width="520" height="420" fill="#ffffff"/>
+
+  <rect x="10" y="10" width="170" height="400" rx="12" fill="#ffffff" stroke="#94a3b8"/>
+  <rect x="24" y="24" width="24" height="24" rx="5" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="36" y="41" text-anchor="middle" font-size="12" font-weight="bold" fill="#000000">C</text>
+  <rect x="140" y="22" width="26" height="26" rx="5" fill="#dbeafe" stroke="#93c5fd"/>
+  <line x1="146" y1="30" x2="160" y2="30" stroke="#000000" stroke-width="2"/>
+  <line x1="146" y1="36" x2="160" y2="36" stroke="#000000" stroke-width="2"/>
+  <line x1="146" y1="42" x2="160" y2="42" stroke="#000000" stroke-width="2"/>
+  <line x1="24" y1="62" x2="166" y2="62" stroke="#e2e8f0"/>
+  <text x="34" y="96" font-size="13" fill="#000000">Dashboard</text>
+  <text x="34" y="124" font-size="13" fill="#000000">To Be Read</text>
+  <text x="34" y="152" font-size="13" fill="#000000">Books Read</text>
+  <rect x="24" y="164" width="142" height="28" rx="5" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="34" y="182" font-size="13" font-weight="bold" fill="#000000">My Library</text>
+  <text x="34" y="208" font-size="13" fill="#000000">Tags</text>
+  <text x="34" y="236" font-size="13" fill="#000000">Statistics</text>
+
+  <rect x="200" y="10" width="310" height="400" rx="10" fill="#ffffff" stroke="#94a3b8"/>
+
+  <text x="216" y="34" font-size="11" font-weight="bold" fill="#555555">GLOBAL</text>
+  <text x="216" y="60" font-size="13" fill="#000000">Settings</text>
+  <text x="216" y="88" font-size="13" fill="#000000">Backup database</text>
+  <text x="216" y="116" font-size="13" fill="#000000">Export all data</text>
+  <text x="216" y="144" font-size="13" fill="#000000">Restore from backup</text>
+  <text x="216" y="172" font-size="13" fill="#000000">Find duplicates</text>
+
+  <line x1="216" y1="190" x2="494" y2="190" stroke="#e2e8f0"/>
+
+  <text x="216" y="214" font-size="11" font-weight="bold" fill="#1e3a8a">THIS VIEW &#8212; MY LIBRARY</text>
+  <text x="216" y="242" font-size="13" fill="#000000">Export (JSON)</text>
+  <text x="216" y="270" font-size="13" fill="#000000">Export (CSV)</text>
+  <text x="216" y="298" font-size="13" fill="#000000">Import CSV</text>
+</svg>
