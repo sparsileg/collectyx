@@ -63,6 +63,9 @@ const OwnedView = {
     async load(containerId) {
         try {
             const data = await DBManager.getCollection('owned');
+            // Same discrepancy as consumed/queued — matched to Rust's
+            // ORDER BY i.title ASC so both backends agree.
+            data.sort((a, b) => (a.Title || '').localeCompare(b.Title || ''));
             CollectionView.render(containerId, 'owned', data);
         } catch (e) {
             console.error('OwnedView.load: could not load My Library', e);

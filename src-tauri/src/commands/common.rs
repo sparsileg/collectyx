@@ -80,10 +80,28 @@ pub fn owner_or_default(owner: &Option<String>) -> String {
 
 /// Upserts the parent items row for a joined record.
 ///
-/// The JS layer sends complete records — it merges any partial payload
-/// against stored state before invoking, using the same helpers the web
-/// backend uses, so both backends apply identical semantics. This function
-/// therefore writes what it is given rather than re-deriving the merge.
+/// Unlike db-manager-tauri.js's own "complete a partial payload" step —
+/// which only works when the payload carries the *membership* row's own
+/// id, since that is what it looks up to fill in gaps — there is no
+/// equivalent completion for the *item* half of a payload. A payload that
+/// references an existing item via ItemId without repeating that item's
+/// Title/Author/Author2/Pages/ISBN is a normal, expected case (checkout/
+/// check-in, "To Read", or a bulk import writing several memberships
+/// against one item), not a request to blank those fields. So this
+/// function falls back to the stored value for any column the payload
+/// didn't supply, rather than assuming the caller always sent a complete
+/// row — which was the actual bug: a Scriptum-converted import's Consumed
+/// entries correctly carry only ItemId (no item fields, by design, since
+/// the item was already written first via saveItem()), and the old
+/// unconditional UPDATE wiped Title/Author/Pages/ISBN right back out the
+/// moment the first Consumed row for that item was written.
+///
+/// Absent and explicit-null aren't distinguished here (both fall back to
+/// the stored value) — nothing on the JS side currently tries to
+/// explicitly null Title/Author/Author2/Pages/ISBN, so this is safe for
+/// every real caller today. A fully correct distinction would need
+/// ItemFields' Option types to become double-Options (Some(None) = clear,
+/// None = leave alone) — a larger, separate change than this fix.
 pub fn upsert_item(tx: &Transaction, fields: &ItemFields, now: &str) -> Result<String> {
     let item_id = fields
         .item_id
@@ -104,11 +122,11 @@ pub fn upsert_item(tx: &Transaction, fields: &ItemFields, now: &str) -> Result<S
          ON CONFLICT(id) DO UPDATE SET
             owner         = excluded.owner,
             media_type_id = excluded.media_type_id,
-            title         = excluded.title,
-            author        = excluded.author,
-            author2       = excluded.author2,
-            pages         = excluded.pages,
-            isbn          = excluded.isbn,
+            title         = CASE WHEN excluded.title != '' THEN excluded.title ELSE items.title END,
+            author        = COALESCE(excluded.author, items.author),
+            author2       = COALESCE(excluded.author2, items.author2),
+            pages         = COALESCE(excluded.pages, items.pages),
+            isbn          = COALESCE(excluded.isbn, items.isbn),
             modified      = excluded.modified",
         params![
             item_id,

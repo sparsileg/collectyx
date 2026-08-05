@@ -36,6 +36,17 @@ const QueuedView = {
     async load(containerId) {
         try {
             const data = await DBManager.getCollection('queued');
+            // Same discrepancy as consumed/owned — the web backend's join
+            // doesn't sort; Rust's SQL does. Matched here so both backends
+            // show identical order: ranked items first (ascending),
+            // unranked last (alphabetical by title within each group).
+            data.sort((a, b) => {
+                const aUnranked = a.Rank == null ? 1 : 0;
+                const bUnranked = b.Rank == null ? 1 : 0;
+                if (aUnranked !== bUnranked) return aUnranked - bUnranked;
+                if (aUnranked === 0) return a.Rank - b.Rank;
+                return (a.Title || '').localeCompare(b.Title || '');
+            });
             CollectionView.render(containerId, 'queued', data);
         } catch (e) {
             console.error('QueuedView.load: could not load To Be Read', e);

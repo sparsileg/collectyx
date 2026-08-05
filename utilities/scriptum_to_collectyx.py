@@ -1,0 +1,277 @@
+#!/usr/bin/env python3
+"""
+scriptum_to_collectyx.py — one-time conversion of a Scriptum backup's
+Books Read data into a Collectyx-native backup file, ready to import
+through Collectyx's own "Restore from Backup" (hamburger menu).
+
+Scope (matches collectyx-design.md §5 / Phase 6, confirmed with Stan):
+  - Only Books Read migrates. Reading List and My Library are read (for
+    the summary printed to the console) but NOT converted -- Scriptum's
+    own cross-references between them (e.g. Reading List's MyLibraryId)
+    are exactly the "hard cross-collection identity-match problem" the
+    design doc deliberately scoped this migration away from. Re-enter
+    those by hand or via Collectyx's own CSV import instead.
+  - Category becomes a tag (lowercased). Any existing Tags array on a
+    Books Read record (seen in some Scriptum backups, not all) is
+    merged in too.
+  - Recommend maps to Rating: No -> 1, Yes -> 4 (confirmed with Stan).
+    The raw Recommend value is also preserved on the record, normalized
+    to a plain 0/1 -- the schema still has that column even though the
+    UI no longer shows it.
+  - A repeated (Title, Author) pair across multiple Books Read entries
+    is treated as a re-read: one Item, multiple Consumed rows -- this
+    is exactly consumed.rs's own model ("a re-read is a second row
+    against the same item_id, not a duplicate item"), not something
+    invented for this script.
+  - Real Scriptum data is messier than the schema suggests: Recommend
+    shows up as both an int (0/1) and a string ("Y"), Pages shows up as
+    both an int and a numeric string, and Finished dates are D-Mon-YYYY
+    (e.g. "9-Sep-2025"), not ISO -- this script handles all of that
+    defensively rather than assuming clean input.
+
+Usage:
+    python3 scriptum_to_collectyx.py scriptum-backup.json.gz collectyx-import.json.gz
+    python3 scriptum_to_collectyx.py scriptum-backup.json collectyx-import.json
+
+Reads and writes both plain .json and gzipped .json.gz -- whichever
+extension you give each path -- matching what Collectyx's Restore
+screen itself accepts.
+
+Importing the output WILL WIPE all current Collectyx data before
+restoring (Collectyx's restore is wipe-then-replace, confirmed with
+Stan as the intended, checkbox-gated behavior) -- back up first if you
+have anything in Collectyx already that you want to keep.
+"""
+
+import sys
+import gzip
+import json
+import re
+import uuid
+from datetime import datetime, timezone
+
+MONTHS = {
+    'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+    'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
+    'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12',
+}
+
+APP_NAME = 'Collectyx'
+SCHEMA_VERSION = 1
+
+
+def parse_scriptum_date(raw):
+    """Scriptum stores Finished as D-Mon-YYYY or DD-Mon-YYYY (e.g.
+    '9-Sep-2025'), confirmed against a real backup -- not the YYYY-MM-DD
+    the schema's own comments might suggest. Some backups may already
+    carry ISO dates (core.js's getYearFromFinishedDate() handles both,
+    so evidently this has happened before). Returns YYYY-MM-DD, or None
+    if the value can't be parsed at all -- a None Finished date is kept
+    rather than dropping the whole record; better to import a book with
+    a blank date than to silently lose it."""
+    if not raw:
+        return None
+    raw = raw.strip()
+
+    if re.match(r'^\d{4}-\d{2}-\d{2}$', raw):
+        return raw
+
+    m = re.match(r'^(\d{1,2})-([A-Za-z]{3})-(\d{4})$', raw)
+    if m:
+        day, mon, year = m.groups()
+        mon_num = MONTHS.get(mon.lower())
+        if mon_num:
+            return f'{year}-{mon_num}-{int(day):02d}'
+
+    return None
+
+
+def recommend_to_rating(raw):
+    """No -> 1, Yes -> 4 (confirmed with Stan). Handles the 0/1 int form
+    and the 'Y'/'N'-style string form -- both appear in real data."""
+    if raw is None:
+        return None
+    if isinstance(raw, bool):
+        return 4 if raw else 1
+    if isinstance(raw, (int, float)):
+        return 4 if raw else 1
+    if isinstance(raw, str):
+        return 4 if raw.strip().lower() in ('y', 'yes', '1', 'true') else 1
+    return None
+
+
+def recommend_to_flag(raw):
+    """Normalizes Recommend to a plain 0/1 int for storage -- the schema
+    still carries this column even though the UI doesn't show it."""
+    if raw is None:
+        return None
+    if isinstance(raw, bool):
+        return 1 if raw else 0
+    if isinstance(raw, (int, float)):
+        return 1 if raw else 0
+    if isinstance(raw, str):
+        return 1 if raw.strip().lower() in ('y', 'yes', '1', 'true') else 0
+    return None
+
+
+def coerce_pages(raw):
+    if raw is None or raw == '':
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def normalize_key(title, author):
+    """Same-book detection for re-read grouping -- whitespace-collapsed,
+    case-insensitive Title+Author match. Deliberately simple (exact
+    match after normalizing, not fuzzy); Collectyx's own Find Duplicates
+    feature (Phase 9) is the right place for fuzzier matching, not a
+    one-time conversion script."""
+    return (
+        re.sub(r'\s+', ' ', (title or '').strip().lower()),
+        re.sub(r'\s+', ' ', (author or '').strip().lower()),
+    )
+
+
+def load_scriptum_backup(path):
+    with open(path, 'rb') as f:
+        raw = f.read()
+    if path.endswith('.gz'):
+        raw = gzip.decompress(raw)
+    return json.loads(raw)
+
+
+def write_collectyx_backup(data, path):
+    text = json.dumps(data)
+    if path.endswith('.gz'):
+        with open(path, 'wb') as f:
+            f.write(gzip.compress(text.encode('utf-8')))
+    else:
+        with open(path, 'w') as f:
+            f.write(text)
+
+
+def convert(scriptum_data):
+    books_read = scriptum_data.get('BooksRead', [])
+
+    items_by_key = {}    # normalized (title, author) -> item dict
+    consumed = []
+    skipped = []
+
+    for record in books_read:
+        title = (record.get('Title') or '').strip()
+        if not title:
+            skipped.append(record.get('id', '<no id>'))
+            continue
+        author = (record.get('Author') or '').strip()
+
+        key = normalize_key(title, author)
+        if key not in items_by_key:
+            item_id = str(uuid.uuid4())
+            items_by_key[key] = {
+                'id': item_id,
+                'Owner': 'local',
+                'MediaTypeId': 1,
+                'Title': title,
+                'Author': author,
+                'Author2': None,
+                'Pages': coerce_pages(record.get('Pages')),
+                'ISBN': record.get('ISBN') or None,
+            }
+        else:
+            item_id = items_by_key[key]['id']
+            # A re-read entry might be missing Pages/ISBN even when an
+            # earlier entry for the same book had them (or vice versa) --
+            # fill gaps rather than let a later blank overwrite a real
+            # value, and don't overwrite a real value with a later blank.
+            if items_by_key[key]['Pages'] is None:
+                items_by_key[key]['Pages'] = coerce_pages(record.get('Pages'))
+            if not items_by_key[key]['ISBN']:
+                items_by_key[key]['ISBN'] = record.get('ISBN') or None
+
+        tags = set()
+        category = (record.get('Category') or '').strip()
+        if category:
+            tags.add(re.sub(r'\s+', '', category.lower()))
+        for t in (record.get('Tags') or []):
+            if isinstance(t, str) and t.strip():
+                tags.add(re.sub(r'\s+', '', t.strip().lower()))
+
+        consumed.append({
+            'id': str(uuid.uuid4()),
+            'ItemId': item_id,
+            'Finished': parse_scriptum_date(record.get('Finished')),
+            'Rating': recommend_to_rating(record.get('Recommend')),
+            'Recommend': recommend_to_flag(record.get('Recommend')),
+            'Comments': record.get('Comments') or None,
+            'Tags': sorted(tags),
+        })
+
+    all_tags = set()
+    for c in consumed:
+        all_tags |= set(c['Tags'])
+    tags_summary = [
+        {'id': name, 'Name': name, 'Count': sum(1 for c in consumed if name in c['Tags'])}
+        for name in sorted(all_tags)
+    ]
+
+    return list(items_by_key.values()), consumed, tags_summary, skipped
+
+
+def main():
+    if len(sys.argv) != 3:
+        print(f'Usage: {sys.argv[0]} <scriptum-backup.json[.gz]> <collectyx-import.json[.gz]>')
+        sys.exit(1)
+
+    in_path, out_path = sys.argv[1], sys.argv[2]
+
+    print(f'Reading {in_path}...')
+    scriptum_data = load_scriptum_backup(in_path)
+
+    total_books_read = len(scriptum_data.get('BooksRead', []))
+    total_reading_list = len(scriptum_data.get('ReadingList', []))
+    total_my_library = len(scriptum_data.get('MyLibrary', []))
+    print(f'Found {total_books_read} Books Read, {total_reading_list} Reading List, '
+          f'{total_my_library} My Library records in the source file.')
+    print("Per Phase 6's scope: only Books Read is converted. "
+          'Reading List and My Library are intentionally skipped.')
+
+    items, consumed, tags_summary, skipped = convert(scriptum_data)
+
+    if skipped:
+        print(f'Skipped {len(skipped)} record(s) with no Title: {skipped}')
+
+    unique_books = len(items)
+    rereads = len(consumed) - unique_books
+    print(f'Converted to {unique_books} unique item(s), {len(consumed)} Books Read '
+          f'entr{"y" if len(consumed) == 1 else "ies"} '
+          f'({rereads} treated as re-read{"" if rereads == 1 else "s"} of an already-seen book), '
+          f'{len(tags_summary)} tag(s).')
+
+    output = {
+        'Header': {
+            'appName': APP_NAME,
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'appVersion': scriptum_data.get('Header', {}).get('appVersion', 'unknown'),
+            'schemaVersion': SCHEMA_VERSION,
+            'convertedFrom': 'Scriptum',
+        },
+        'Items': items,
+        'Consumed': consumed,
+        'Queued': [],
+        'Owned': [],
+        'Tags': tags_summary,
+        'Settings': {},
+    }
+
+    write_collectyx_backup(output, out_path)
+    print(f'Wrote {out_path}')
+    print("Import this through Collectyx's hamburger menu -> Restore from Backup. "
+          'That WIPES all current Collectyx data before restoring -- back up first '
+          'if you have anything in Collectyx already that you want to keep.')
+
+
+if __name__ == '__main__':
+    main()

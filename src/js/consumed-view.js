@@ -36,6 +36,15 @@ const ConsumedView = {
     async load(containerId) {
         try {
             const data = await DBManager.getCollection('consumed');
+            // The Tauri backend's SQL sorts (ORDER BY finished DESC,
+            // date_added DESC); the web backend's IndexedDB join does
+            // not sort at all. Sorting here means both backends show
+            // the same order regardless of that discrepancy.
+            data.sort((a, b) => {
+                const f = (b.Finished || '').localeCompare(a.Finished || '');
+                if (f !== 0) return f;
+                return (b.DateAdded || '').localeCompare(a.DateAdded || '');
+            });
             CollectionView.render(containerId, 'consumed', data);
         } catch (e) {
             console.error('ConsumedView.load: could not load Books Read', e);

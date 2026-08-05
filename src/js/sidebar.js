@@ -218,13 +218,13 @@ function hamburgerAction(action) {
             showMessage('Settings — coming in a later phase', CONSTANTS.MESSAGE_TYPES.INFO);
             break;
         case 'backup':
-            if (typeof backupDatabaseFile === 'function') backupDatabaseFile();
+            BackupRestore.backupDatabase();
             break;
         case 'export':
-            if (typeof saveDatabaseFile === 'function') saveDatabaseFile();
+            BackupRestore.exportAllData();
             break;
         case 'restore':
-            if (typeof showRestoreScreen1 === 'function') showRestoreScreen1();
+            BackupRestore.showScreen1();
             break;
         case 'duplicates':
             showMessage('Find Duplicates — coming in a later phase', CONSTANTS.MESSAGE_TYPES.INFO);
