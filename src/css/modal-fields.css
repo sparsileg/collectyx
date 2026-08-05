@@ -1,0 +1,82 @@
+/*
+  css/modal-fields.css
+  Field patterns shared across the three purpose-built modals (Books Read,
+  To Be Read, My Library) — not a generic component, just CSS three
+  separately-coded modals happen to reuse. See collectyx-design.md §4.5
+  discussion: Stan prioritized matching each collection's exact spec over
+  forcing one shared modal component, so the JS for these lives in three
+  separate files even though the visual language stays consistent here.
+*/
+
+/* ── Modal visibility ──────────────────────────────────────────────────── */
+/* base.css's .modal defaults to display:none with no class-based override
+   anywhere — every modal in this app needs this rule to ever become
+   visible. Generic on .open rather than per-ID so a future modal doesn't
+   silently inherit this same gap. */
+
+.modal.open {
+    display: block;
+}
+
+/* ── Author / Author 2 block ──────────────────────────────────────────────── */
+/* One heading ("Author" / "Author 2") above a Given Name + Surname row,
+   rather than a per-field label — keeps both rows the same width and stops
+   long labels pushing fields past the modal's edge. */
+
+.form-group-heading {
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: 0.85em;
+    letter-spacing: var(--label-letter-spacing);
+    color: var(--color-label);
+    margin-bottom: 6px;
+}
+
+.form-group-heading:not(:first-child) {
+    margin-top: 14px;
+}
+
+.author-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.author-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 4px;
+    border: none;
+    border-bottom: var(--input-border-bottom);
+    background: var(--input-bg);
+    color: var(--text-color);
+    font-family: var(--font-ui);
+    font-size: 0.9em;
+}
+
+.author-row input:focus {
+    outline: none;
+    border-bottom-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring, transparent);
+}
+
+/* ── Wider modal for the three-field-block layout ───────────────────────── */
+/* +10em over the base .modal-content max-width (500px), per Stan. */
+
+.modal-content-wide {
+    max-width: calc(500px + 10em);
+}
+
+/* ── Modal action row (Save/Cancel left, Delete right) ──────────────────── */
+
+.modal-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+}
+
+.modal-actions-left {
+    display: flex;
+    gap: 10px;
+}

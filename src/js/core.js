@@ -52,14 +52,25 @@ window.onload = async function () {
 // arrives in Phase 5/7/8 as each view is built out for real.
 function showView(viewName, buttonElement) {
     document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
-    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
 
     const target = document.getElementById(viewName + 'View');
     if (target) target.classList.add('active');
-    if (buttonElement) buttonElement.classList.add('active');
 
     if (typeof updateHamburgerContextualSection === 'function') {
         updateHamburgerContextualSection(viewName);
+    }
+
+    // Re-fetches every time a collection view becomes active, rather than
+    // caching at this layer — reads are cheap locally and a second cache
+    // on top of DBManager's own is one more thing to keep in sync. Not
+    // awaited: showView() stays synchronous for its existing callers
+    // (nav click handlers); each view's load() handles its own errors.
+    if (viewName === CONSTANTS.VIEWS.CONSUMED && typeof ConsumedView !== 'undefined') {
+        ConsumedView.load('consumedView');
+    } else if (viewName === CONSTANTS.VIEWS.QUEUED && typeof QueuedView !== 'undefined') {
+        QueuedView.load('queuedView');
+    } else if (viewName === CONSTANTS.VIEWS.OWNED && typeof OwnedView !== 'undefined') {
+        OwnedView.load('ownedView');
     }
 }
 
@@ -234,6 +245,40 @@ function formatAuthorName(surname, given) {
     return s || g;
 }
 
+// Inverse of formatAuthorName — splits a stored "Surname, Given" string
+// back into its two parts for repopulating an Edit form. A name with no
+// comma (only surname or only given was ever entered) is treated as
+// surname-only, matching formatAuthorName's own fallback behavior.
+function splitAuthorName(combined) {
+    const value = (combined || '').trim();
+    if (!value) return { surname: '', given: '' };
+    const commaIndex = value.indexOf(',');
+    if (commaIndex === -1) return { surname: value, given: '' };
+    return {
+        surname: value.slice(0, commaIndex).trim(),
+        given: value.slice(commaIndex + 1).trim()
+    };
+}
+
+// ── media_types labels ──────────────────────────────────────────────────────
+// Shared by sidebar nav and the three collection modals/views so there's
+// one fetch, one source of truth. Defaults here are the fallback if the
+// fetch in sidebar.js's initNavigation() fails; that function overwrites
+// these in place once real data loads.
+const MediaLabels = {
+    ConsumedLabel: 'Books Read',
+    QueuedLabel: 'To Be Read',
+    OwnedLabel: 'My Library',
+
+    todayISO() {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+};
+
 // ── ID generation ─────────────────────────────────────────────────────────────
 
 function generateBookId() {
@@ -249,7 +294,7 @@ async function loadTheme() {
     const settings = await loadSettingsFromDB() || {};
     const theme = settings.displayTheme
         ? sanitiseThemePath(settings.displayTheme)
-        : CONSTANTS.THEMES.DARK;
+        : CONSTANTS.THEMES.NORDIC;
     document.getElementById('themeLink').href = theme;
 }
 
@@ -269,7 +314,9 @@ function getThemeColors() {
     const themeLink = document.getElementById('themeLink');
     const current   = themeLink.href;
 
-    if (current.includes('dark.css')) {
+    if (current.includes('nordic.css')) {
+        return { primary: '#88c0d0', secondary: '#ebcb8b', tertiary: '#a3be8c', background: '#2e3440' };
+    } else if (current.includes('dark.css')) {
         return { primary: '#4fc3f7', secondary: '#ffa726', tertiary: '#66bb6a', background: '#1a1f2e' };
     } else if (current.includes('light.css')) {
         return { primary: '#0d6efd', secondary: '#fd7e14', tertiary: '#198754', background: '#f8f9fa' };

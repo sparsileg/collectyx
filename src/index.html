@@ -9,7 +9,9 @@
     <link rel="stylesheet" href="css/custom.css">
     <link rel="stylesheet" href="css/sidebar.css">
     <link rel="stylesheet" href="css/hamburger-menu.css">
-    <link rel="stylesheet" href="css/themes/dark.css" id="themeLink">
+    <link rel="stylesheet" href="css/collection-view.css">
+    <link rel="stylesheet" href="css/modal-fields.css">
+    <link rel="stylesheet" href="css/themes/nordic.css" id="themeLink">
 
   </head>
   <body>
@@ -43,6 +45,7 @@
               <span class="theme-dropdown-arrow">▾</span>
             </div>
             <div class="theme-dropdown-menu" id="theme-dropdown-menu">
+              <div class="theme-dropdown-item" data-theme="css/themes/nordic.css">Nordic</div>
               <div class="theme-dropdown-item" data-theme="css/themes/dark.css">Dark</div>
               <div class="theme-dropdown-item" data-theme="css/themes/light.css">Light</div>
               <div class="theme-dropdown-item" data-theme="css/themes/matrix.css">Matrix</div>
@@ -150,6 +153,210 @@
         <h2>My Library</h2>
         <p class="view-placeholder-note">List, Add/Edit modal, and checkout arrive in Phase 5.</p>
       </div> <!-- end of ownedView -->
+
+      <!-- ── Phase 5 collection modals ─────────────────────────────────── -->
+
+      <!-- Books Read modal -->
+      <div id="cbrModal" class="modal">
+        <div class="modal-content modal-content-wide">
+          <h3 id="cbrModalTitle">Add</h3>
+          <form id="cbrForm" onsubmit="ConsumedModal.save(event)">
+            <div class="form-group">
+              <label for="cbrFinished">Finished:</label>
+              <input type="text" id="cbrFinished" maxlength="10">
+            </div>
+            <div class="form-group">
+              <label for="cbrTitle">Title:</label>
+              <input type="text" id="cbrTitle" required>
+            </div>
+
+            <div class="form-group-heading">Author</div>
+            <div class="author-row">
+              <input type="text" id="cbrAuthorGiven" placeholder="Given Name(s)">
+              <input type="text" id="cbrAuthorSurname" placeholder="Surname">
+            </div>
+
+            <div class="form-group-heading">Author 2</div>
+            <div class="author-row">
+              <input type="text" id="cbrAuthor2Given" placeholder="Given Name(s)">
+              <input type="text" id="cbrAuthor2Surname" placeholder="Surname">
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="cbrPages">Pages:</label>
+                <input type="number" id="cbrPages" min="1">
+              </div>
+              <div class="form-group">
+                <label for="cbrISBN">ISBN:</label>
+                <input type="text" id="cbrISBN">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="cbrRating">Rating:</label>
+              <select id="cbrRating"></select>
+            </div>
+
+            <div class="form-group">
+              <label for="cbrTagsInput">Tags:</label>
+              <div class="tag-chip-container">
+                <div class="tag-chip-field">
+                  <input type="text" id="cbrTagsInput" placeholder="Type a tag and press Enter" autocomplete="off">
+                  <div class="tag-chip-suggestions" id="cbrTagsSuggestions"></div>
+                </div>
+                <div class="tag-chip-row" id="cbrTagsChipRow"></div>
+                <input type="hidden" id="cbrTags">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="cbrComments">Comments:</label>
+              <textarea id="cbrComments" placeholder="Optional notes"></textarea>
+            </div>
+
+            <div class="modal-actions">
+              <div class="modal-actions-left">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-secondary" onclick="ConsumedModal.close()">Cancel</button>
+              </div>
+              <button type="button" id="cbrDeleteBtn" class="btn btn-danger" onclick="ConsumedModal.deleteRecord()">Delete</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <!-- end of Books Read modal -->
+
+      <!-- To Be Read modal -->
+      <div id="tbrModal" class="modal">
+        <div class="modal-content modal-content-wide">
+          <h3 id="tbrModalTitle">Add</h3>
+          <form id="tbrForm" onsubmit="QueuedModal.save(event)">
+            <div class="form-group">
+              <label for="tbrTitle">Title:</label>
+              <input type="text" id="tbrTitle" required>
+            </div>
+            <div class="form-group">
+              <label for="tbrOrder">Order:</label>
+              <input type="number" id="tbrOrder" min="1" placeholder="Optional">
+            </div>
+
+            <div class="form-group-heading">Author</div>
+            <div class="author-row">
+              <input type="text" id="tbrAuthorGiven" placeholder="Given Name(s)">
+              <input type="text" id="tbrAuthorSurname" placeholder="Surname">
+            </div>
+
+            <div class="form-group-heading">Author 2</div>
+            <div class="author-row">
+              <input type="text" id="tbrAuthor2Given" placeholder="Given Name(s)">
+              <input type="text" id="tbrAuthor2Surname" placeholder="Surname">
+            </div>
+
+            <div class="form-group">
+              <label for="tbrSource">Source:</label>
+              <input type="text" id="tbrSource" placeholder="e.g. a friend, a podcast">
+            </div>
+
+            <div class="modal-actions">
+              <div class="modal-actions-left">
+                <button type="submit" class="btn btn-primary" id="tbrSaveBtn">Add to Reading List</button>
+                <button type="button" class="btn btn-secondary" onclick="QueuedModal.close()">Cancel</button>
+              </div>
+              <button type="button" id="tbrDeleteBtn" class="btn btn-danger" onclick="QueuedModal.deleteRecord()">Remove</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <!-- end of To Be Read modal -->
+
+      <!-- My Library modal -->
+      <div id="mlModal" class="modal">
+        <div class="modal-content modal-content-wide">
+          <h3 id="mlModalTitle">Add</h3>
+          <form id="mlForm" onsubmit="OwnedModal.save(event)">
+            <div class="form-group">
+              <label for="mlTitle">Title:</label>
+              <input type="text" id="mlTitle" required>
+            </div>
+
+            <div class="form-group-heading">Author</div>
+            <div class="author-row">
+              <input type="text" id="mlAuthorGiven" placeholder="Given Name(s)">
+              <input type="text" id="mlAuthorSurname" placeholder="Surname">
+            </div>
+
+            <div class="form-group-heading">Author 2</div>
+            <div class="author-row">
+              <input type="text" id="mlAuthor2Given" placeholder="Given Name(s)">
+              <input type="text" id="mlAuthor2Surname" placeholder="Surname">
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="mlPages">Pages:</label>
+                <input type="number" id="mlPages" min="1">
+              </div>
+              <div class="form-group">
+                <label for="mlISBN">ISBN:</label>
+                <input type="text" id="mlISBN">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="mlLocation">Location:</label>
+              <input type="text" id="mlLocation">
+            </div>
+
+            <div class="form-group">
+              <label for="mlTagsInput">Tags:</label>
+              <div class="tag-chip-container">
+                <div class="tag-chip-field">
+                  <input type="text" id="mlTagsInput" placeholder="Type a tag and press Enter" autocomplete="off">
+                  <div class="tag-chip-suggestions" id="mlTagsSuggestions"></div>
+                </div>
+                <div class="tag-chip-row" id="mlTagsChipRow"></div>
+                <input type="hidden" id="mlTags">
+              </div>
+            </div>
+
+            <div class="modal-actions">
+              <div class="modal-actions-left">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-secondary" onclick="OwnedModal.close()">Cancel</button>
+              </div>
+              <button type="button" id="mlDeleteBtn" class="btn btn-danger" onclick="OwnedModal.deleteRecord()">Delete</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <!-- end of My Library modal -->
+
+      <!-- Checkout modal (My Library C/O button) -->
+      <div id="checkoutModal" class="modal">
+        <div class="modal-content">
+          <h3>Check Out Book</h3>
+          <p id="checkoutBookTitle" style="margin-bottom: 16px; font-weight: 500;"></p>
+          <form id="checkoutForm" onsubmit="OwnedView.confirmCheckout(event)">
+            <div class="form-group">
+              <label for="checkoutPatron">Patron:</label>
+              <input type="text" id="checkoutPatron" required>
+            </div>
+            <div class="modal-actions">
+              <div class="modal-actions-left">
+                <button type="submit" class="btn btn-primary">Check Out</button>
+                <button type="button" class="btn btn-secondary" onclick="OwnedView.closeCheckout()">Cancel</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+      <!-- end of Checkout modal -->
+
+      <!-- Shared CSV import file picker — one input, reused across all
+           three collections. CollectionIO tracks which collection
+           triggered it. -->
+      <input type="file" id="csvImportInput" accept=".csv" style="display: none;" onchange="CollectionIO.handleImportFileSelected(event)">
 
       <!-- My Library Add Modal -->
       <div id="myLibraryAddModal" class="modal">
@@ -401,6 +608,17 @@
     <script src="js/db-manager-web.js"></script>
     <script src="js/db-manager-tauri.js"></script>
     <script src="js/db-manager.js"></script>
+    <script src="js/date-utils.js"></script>
+    <script src="js/rating-utils.js"></script>
+    <script src="js/csv-utils.js"></script>
+    <script src="js/collection-view.js"></script>
+    <script src="js/collection-io.js"></script>
+    <script src="js/consumed-modal.js"></script>
+    <script src="js/consumed-view.js"></script>
+    <script src="js/queued-modal.js"></script>
+    <script src="js/queued-view.js"></script>
+    <script src="js/owned-modal.js"></script>
+    <script src="js/owned-view.js"></script>
     <script src="js/data-manager.js"></script>
     <script src="js/file.js"></script>
     <script src="js/dashboard.js"></script>

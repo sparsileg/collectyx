@@ -23,19 +23,28 @@ function tagsToString(tagsArray) {
 }
 
 function getAllLibraryTags() {
-    const tagCounts = {};
+    return _libraryTagCache;
+}
 
-    TAGGABLE_COLLECTIONS.forEach(collection => {
-        collection.getItems().forEach(book => {
-            if (book.Tags && Array.isArray(book.Tags)) {
-                book.Tags.forEach(tag => {
-                    tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-                });
-            }
-        });
-    });
+// Cache of {tagName: count}, refreshed via refreshLibraryTagCache().
+// getAllLibraryTags() is called synchronously in a few places — chip-input
+// autocomplete on every keystroke being the hot path — but the real data
+// now lives behind DBManager.getAllTags(), which is async (IndexedDB or a
+// Tauri invoke()). Re-fetching on every keystroke would be wasteful and
+// slow, so this fetches once when a chip input initializes and again each
+// time its modal opens (via the returned controller's refreshSuggestions()),
+// with synchronous reads against whatever's cached in between.
+let _libraryTagCache = {};
 
-    return tagCounts;
+async function refreshLibraryTagCache() {
+    try {
+        const tags = await DBManager.getAllTags();
+        const counts = {};
+        (tags || []).forEach(t => { counts[t.Name] = t.Count || 0; });
+        _libraryTagCache = counts;
+    } catch (e) {
+        console.error('refreshLibraryTagCache: could not load tags', e);
+    }
 }
 
 // One reusable chip-based multi-tag entry control, instantiated once per
@@ -52,6 +61,12 @@ function initTagChipInput(ids) {
     if (!input || !suggestions || !chipRow || !hidden) return null;
 
     let tags = [];
+
+    // Fire-and-forget — initTagChipInput() itself isn't async (core.js
+    // calls it without awaiting), so the first keystroke or two might race
+    // ahead of this completing. Harmless: showSuggestions() just reads
+    // whatever's cached, empty object until this resolves.
+    refreshLibraryTagCache();
 
     function syncHidden() {
         hidden.value = tags.join(', ');
@@ -141,6 +156,12 @@ function initTagChipInput(ids) {
         },
         getTags() {
             return [...tags];
+        },
+        // Called by each modal's open() — keeps autocomplete current with
+        // tags created in earlier saves this session, not just whatever
+        // existed when the page first loaded.
+        refreshSuggestions() {
+            refreshLibraryTagCache();
         }
     };
 }

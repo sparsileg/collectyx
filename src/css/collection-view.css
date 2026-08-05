@@ -1,0 +1,163 @@
+/*
+  css/collection-view.css
+  Shared chrome (header/search/list container) plus three distinct column
+  layouts — one per collection, since Books Read/To Be Read/My Library
+  genuinely look different (Stan: match each view's spec over forcing
+  visual uniformity). Column widths for each layout are shared between the
+  header row and list rows via the matching *-columns class.
+*/
+
+.collection-view-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.collection-view-header h2 {
+    margin: 0;
+}
+
+.collection-add-btn {
+    margin-right: 0;
+}
+
+.collection-list-header {
+    padding: 10px 12px;
+    background: var(--color-table-header-bg);
+    border-radius: var(--border-radius-sm);
+    font-weight: 500;
+    font-size: 0.85em;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--label-letter-spacing);
+    display: grid;
+    gap: 12px;
+}
+
+.collection-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.collection-list-row {
+    display: grid;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.collection-list-row:hover {
+    background: var(--color-table-row-hover);
+}
+
+/* Grid items default to min-width:auto (their content's min-content size),
+   which both prevents text-overflow:ellipsis from working and is what let
+   a too-narrow track force this row into wrapping. Applies to every direct
+   child of a row or header, regardless of column count, so this can't
+   recur even if a future column count/template mismatch happens again. */
+.collection-list-row > *,
+.collection-list-header > * {
+    min-width: 0;
+}
+
+.collection-list-row .col-title,
+.collection-list-row .col-author,
+.collection-list-row .col-extra,
+.collection-list-row .col-tags,
+.collection-list-row .col-rating,
+.collection-list-row .col-status,
+.collection-list-row .col-source,
+.collection-list-row .stacked-title,
+.collection-list-row .stacked-author,
+.collection-list-row .stacked-source {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.collection-list-row .col-title {
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.collection-list-row .col-author,
+.collection-list-row .col-extra,
+.collection-list-row .col-tags,
+.collection-list-row .col-rating,
+.collection-list-row .col-status,
+.collection-list-row .col-source {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
+.collection-list-empty {
+    padding: 30px 12px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* ── Books Read (consumed): Finished | Title | Author | Tags | Rating ──── */
+
+.consumed-columns {
+    grid-template-columns: 110px 2fr 1.5fr 1.5fr 140px;
+}
+
+/* ── To Be Read (queued): Order | stacked Title/Author/Source | Tags | Finished-btn ── */
+
+.queued-columns {
+    grid-template-columns: 80px 2.5fr 1.5fr 120px;
+}
+
+.col-stacked {
+    min-width: 0;
+}
+
+.col-stacked .stacked-title {
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.col-stacked .stacked-author,
+.col-stacked .stacked-source {
+    font-size: 0.85em;
+    color: var(--text-secondary);
+}
+
+.queued-finished-btn {
+    margin-right: 0;
+    justify-self: end;
+    white-space: nowrap;
+}
+
+/* ── My Library (owned): Title | Author | Tags | Status | Actions ──────── */
+
+.owned-columns {
+    grid-template-columns: 2fr 1.5fr 1.5fr 130px 170px;
+}
+
+.col-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.col-actions .btn {
+    margin-right: 0;
+    padding: 6px 10px;
+    font-size: 0.85em;
+}
+
+/* ── Delete button in modal action rows ─────────────────────────────────── */
+
+#cbrDeleteBtn,
+#tbrDeleteBtn,
+#mlDeleteBtn {
+    margin-right: 0;
+}

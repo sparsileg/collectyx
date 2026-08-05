@@ -4,6 +4,7 @@
 
 const SIDEBAR_CONSTANTS = {
     THEME_LABELS: {
+        'css/themes/nordic.css': 'Nordic',
         'css/themes/dark.css': 'Dark',
         'css/themes/light.css': 'Light',
         'css/themes/matrix.css': 'Matrix',
@@ -52,6 +53,13 @@ async function initSidebarChrome() {
         console.error('initSidebarChrome: could not load settings', e);
     }
     applyFontSize(settings.fontSize || SIDEBAR_CONSTANTS.FONT_SIZE.DEFAULT);
+
+    // CollectionView reads this synchronously (list/modal date formatting
+    // happens on every render, not worth an async fetch each time) — same
+    // settings object already fetched above, no extra DBManager call.
+    if (typeof CollectionView !== 'undefined') {
+        CollectionView._dateFormatCache = settings.dateFormat || DateUtils.DEFAULT_FORMAT;
+    }
 }
 
 function wireThemeDropdownItems() {
@@ -83,11 +91,19 @@ async function initNavigation() {
         console.error('initNavigation: could not load media_types (using fallback labels)', e);
     }
 
+    // Mutate the shared object in place — MediaLabels (core.js) is read by
+    // the three collection modals/views too, so this one fetch covers both.
+    if (typeof MediaLabels !== 'undefined') {
+        if (labels.ConsumedLabel) MediaLabels.ConsumedLabel = labels.ConsumedLabel;
+        if (labels.QueuedLabel) MediaLabels.QueuedLabel = labels.QueuedLabel;
+        if (labels.OwnedLabel) MediaLabels.OwnedLabel = labels.OwnedLabel;
+    }
+
     const list = document.getElementById('sidebarNavList');
     if (!list) return;
     list.innerHTML = '';
 
-    SIDEBAR_CONSTANTS.NAV_ITEMS.forEach((item, index) => {
+    SIDEBAR_CONSTANTS.NAV_ITEMS.forEach((item) => {
         const label =
             item.view === 'queued' ? (labels.QueuedLabel || item.label) :
             item.view === 'consumed' ? (labels.ConsumedLabel || item.label) :
@@ -95,7 +111,7 @@ async function initNavigation() {
             item.label;
 
         const li = document.createElement('li');
-        li.className = 'nav-item' + (index === 0 ? ' active' : '');
+        li.className = 'nav-item';
         li.textContent = label;
         li.dataset.view = item.view;
         li.addEventListener('click', () => showView(item.view, li));
@@ -217,12 +233,22 @@ function hamburgerAction(action) {
 }
 
 // Contextual section — only Books Read/To Be Read/My Library get one
-// (design doc §4.2). Real Export/Import wiring arrives in Phase 5; this
-// just establishes the container appears/disappears correctly per view.
+// (design doc §4.2). viewName doubles as the collection key ('consumed'/
+// 'queued'/'owned') — CONSTANTS.VIEWS values match COLLECTION_IO_SPEC's
+// keys directly, no separate mapping needed.
 function updateHamburgerContextualSection(viewName) {
     const section = document.getElementById('hamburgerContextualSection');
     if (!section) return;
-    section.innerHTML = SIDEBAR_CONSTANTS.HAMBURGER_CONTEXTUAL_VIEWS.includes(viewName)
-        ? '<div class="hamburger-menu-item hamburger-menu-item-disabled">Export / Import — coming in Phase 5</div>'
-        : '';
+    if (!SIDEBAR_CONSTANTS.HAMBURGER_CONTEXTUAL_VIEWS.includes(viewName)) {
+        section.innerHTML = '';
+        return;
+    }
+    const label = viewName === 'consumed' ? MediaLabels.ConsumedLabel
+        : viewName === 'queued' ? MediaLabels.QueuedLabel
+        : MediaLabels.OwnedLabel;
+    section.innerHTML = `
+        <div class="hamburger-menu-item" onclick="closeHamburgerMenu(); CollectionIO.exportCSV('${viewName}')">${escapeHtml(label)} Export CSV</div>
+        <div class="hamburger-menu-item" onclick="closeHamburgerMenu(); CollectionIO.exportJSON('${viewName}')">${escapeHtml(label)} Export JSON</div>
+        <div class="hamburger-menu-item" onclick="closeHamburgerMenu(); CollectionIO.triggerImportCSV('${viewName}')">${escapeHtml(label)} Import CSV</div>
+    `;
 }

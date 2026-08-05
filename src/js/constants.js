@@ -54,6 +54,7 @@ const CONSTANTS = {
     },
 
     THEMES: {
+        NORDIC: 'css/themes/nordic.css',
         DARK: 'css/themes/dark.css',
         LIGHT: 'css/themes/light.css',
         MATRIX_CODE: 'css/themes/matrix.css',
