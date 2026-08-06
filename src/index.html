@@ -196,9 +196,11 @@
               <input type="text" id="tagFormName" required autocomplete="off">
             </div>
             <div class="tag-chip-error" id="tagFormNameError" style="display: none;"></div>
-            <div style="margin-top: 20px;">
-              <button type="submit" class="btn btn-primary">Save</button>
-              <button type="button" class="btn btn-secondary" onclick="TagFormModal.close()">Cancel</button>
+            <div class="modal-actions">
+              <div class="modal-actions-left">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-secondary" onclick="TagFormModal.close()">Cancel</button>
+              </div>
             </div>
           </form>
         </div>
@@ -216,9 +218,11 @@
               <option value="">No substitute</option>
             </select>
           </div>
-          <div style="margin-top: 20px;">
-            <button type="button" class="btn btn-danger" onclick="TagDeleteModal.confirm()">Delete</button>
-            <button type="button" class="btn btn-secondary" onclick="TagDeleteModal.close()">Cancel</button>
+          <div class="modal-actions">
+            <div class="modal-actions-left">
+              <button type="button" class="btn btn-danger" onclick="TagDeleteModal.confirm()">Delete</button>
+              <button type="button" class="btn btn-secondary" onclick="TagDeleteModal.close()">Cancel</button>
+            </div>
           </div>
         </div>
       </div>
@@ -260,9 +264,11 @@
               <input type="number" id="editReadingListRank" min="1" placeholder="Optional">
               <button type="button" class="btn btn-small" onclick="clearRank()" style="margin-left: 5px;">Unrank</button>
             </div>
-            <div style="margin-top: 20px;">
-              <button type="submit" class="btn btn-primary">Save Changes</button>
-              <button type="button" class="btn btn-secondary" onclick="cancelReadingListEdit()">Cancel</button>
+            <div class="modal-actions">
+              <div class="modal-actions-left">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <button type="button" class="btn btn-secondary" onclick="cancelReadingListEdit()">Cancel</button>
+              </div>
             </div>
           </form>
         </div>

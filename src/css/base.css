@@ -582,6 +582,14 @@ body::before {
     max-width: 650px;
 }
 
+/* Direct-child selector deliberately excludes restoreScreen1Modal/
+   restoreScreen2Modal, whose h3 sits inside a flex header row rather than
+   as a direct child of .modal-content — their inline margin:0 is a
+   different layout, not an exception to override. */
+.modal-content > h3 {
+    margin-bottom: 30px;
+}
+
 /* ── Date range ─────────────────────────────────────────────────────────────── */
 
 .date-range {

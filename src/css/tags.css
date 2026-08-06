@@ -160,12 +160,11 @@
 }
 
 /* ── Tag Delete Modal ──────────────────────────────────────────────────────── */
-/* No h3-to-body spacing rule existed anywhere for either tag modal — the
-   Rename modal's apparent gap comes from .form-group's own padding, not an
-   actual margin. Giving the description text real spacing here, reusing
-   the 30px .form-group already uses for this same kind of separation. */
+/* h3-to-p gap now comes from base.css's generic .modal-content > h3 rule.
+   Only the p-to-form-group gap stays here — .form-group has no margin-top
+   of its own, so without this the substitute select would sit flush
+   against the confirmation text. */
 
 #tagDeleteModal .modal-content > p {
-    margin-top: 30px;
     margin-bottom: 20px;
 }
