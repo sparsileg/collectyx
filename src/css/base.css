@@ -57,6 +57,9 @@ body::before {
     font-size: 0.9em;
     text-shadow: var(--text-shadow-subtle, none);
     box-shadow: var(--shadow-message, none);
+    position: sticky;
+    top: 0;
+    z-index: 90;
 }
 
 /* ── Views ──────────────────────────────────────────────────────────────────── */
@@ -72,6 +75,22 @@ body::before {
 
 .view.active {
     display: block;
+}
+
+/* Applied to the four views (Books Read, To Be Read, My Library, Tags)
+   whose header chrome must stay fixed while their list scrolls. Each
+   view's own header/list split (collection-view.css, tags.css) marks
+   its fixed pieces flex-shrink:0 and its list flex:1 — this rule just
+   turns the view itself into the flex column that makes that possible,
+   sized by flex:1 against .main-content's own flex column rather than a
+   guessed height. Dashboard/Statistics are untouched — plain
+   .view.active block layout, same as before. */
+.view.view-scroll-locked.active {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .view-placeholder-note {

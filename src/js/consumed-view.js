@@ -4,8 +4,7 @@
     const headerHtml = `
         <div class="collection-list-header consumed-columns">
             <span>Finished</span>
-            <span>Title</span>
-            <span>Author</span>
+            <span>Book</span>
             <span>Tags</span>
             <span>Rating</span>
         </div>
@@ -16,8 +15,10 @@
         return `
             <div class="collection-list-row consumed-columns" onclick="ConsumedModal.open('${record.id}', '${containerId}')">
                 <span class="col-extra">${escapeHtml(DateUtils.formatDate(record.Finished, format))}</span>
-                <span class="col-title">${escapeHtml(record.Title || '')}</span>
-                <span class="col-author">${escapeHtml(record.Author || '')}</span>
+                <div class="col-stacked">
+                    <div class="stacked-title">${escapeHtml(record.Title || '')}</div>
+                    <div class="stacked-author">by ${escapeHtml(record.Author || '')}</div>
+                </div>
                 <span class="col-tags">${escapeHtml((record.Tags || []).join(', '))}</span>
                 <span class="col-rating">${escapeHtml(RatingUtils.display(record.Rating))}</span>
             </div>

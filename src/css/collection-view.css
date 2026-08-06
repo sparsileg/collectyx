@@ -35,11 +35,20 @@
     gap: 12px;
 }
 
+.view-scroll-locked.active > .collection-view-header,
+.view-scroll-locked.active > .quick-search,
+.view-scroll-locked.active > .collection-list-header {
+    flex-shrink: 0;
+}
+
 .collection-list {
     display: flex;
     flex-direction: column;
     gap: 6px;
     margin-top: 8px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .collection-list-row {
@@ -106,7 +115,7 @@
 /* ── Books Read (consumed): Finished | Title | Author | Tags | Rating ──── */
 
 .consumed-columns {
-    grid-template-columns: 110px 2fr 1.5fr 1.5fr 140px;
+    grid-template-columns: 110px 3.5fr 1.5fr 140px;
 }
 
 /* ── To Be Read (queued): Order | stacked Title/Author/Source | Tags | Finished-btn ── */
@@ -158,7 +167,7 @@
 /* ── My Library (owned): Title | Author | Tags | Status | Actions ──────── */
 
 .owned-columns {
-    grid-template-columns: 2fr 1.5fr 1.5fr 130px 170px;
+    grid-template-columns: 3.5fr 1.5fr 130px 170px;
 }
 
 .col-actions {

@@ -13,7 +13,7 @@ const SIDEBAR_CONSTANTS = {
     FONT_SIZE: {
         DEFAULT: 100,
         STEP: 10,
-        MIN: 80,
+        MIN: 70,
         MAX: 150
     },
     // Fixed nav entries plus their fallback labels. Queued/Consumed/Owned

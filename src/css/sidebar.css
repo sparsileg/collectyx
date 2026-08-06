@@ -18,6 +18,8 @@
     min-width: 0;
     padding: 20px;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
 }
 
 /* ── Sidebar ───────────────────────────────────────────────────────────────── */

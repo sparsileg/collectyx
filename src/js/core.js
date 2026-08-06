@@ -81,7 +81,8 @@ function showView(viewName, buttonElement) {
 
 // ── Message area ──────────────────────────────────────────────────────────────
 
-let _errorDismissTimer = null;
+let _messageDismissTimer = null;
+const MESSAGE_AUTO_DISMISS_MS = 60000;
 
 function showMessage(text, type = CONSTANTS.MESSAGE_TYPES.INFO) {
     const messageArea = document.getElementById('messageArea');
@@ -96,26 +97,23 @@ function showMessage(text, type = CONSTANTS.MESSAGE_TYPES.INFO) {
         type === CONSTANTS.MESSAGE_TYPES.ERROR   ? '#dc3545' :
         type === CONSTANTS.MESSAGE_TYPES.SUCCESS  ? '#28a745' : '#667eea';
 
-    // Auto-dismiss error messages after 5 seconds
-    if (_errorDismissTimer) clearTimeout(_errorDismissTimer);
-    if (type === CONSTANTS.MESSAGE_TYPES.ERROR) {
-        _errorDismissTimer = setTimeout(() => {
-            messageArea.textContent = '';
-            _errorDismissTimer = null;
-        }, 5000);
-    }
+    // Every message auto-dismisses after 60s. Only one timer is ever live —
+    // clearing before setting means a new message restarts the clock rather
+    // than stacking a second dismiss behind the first.
+    if (_messageDismissTimer) clearTimeout(_messageDismissTimer);
+    _messageDismissTimer = setTimeout(() => {
+        messageArea.textContent = '';
+        _messageDismissTimer = null;
+    }, MESSAGE_AUTO_DISMISS_MS);
 }
 
 function clearMessage() {
-    if (_errorDismissTimer) {
-        clearTimeout(_errorDismissTimer);
-        _errorDismissTimer = null;
+    if (_messageDismissTimer) {
+        clearTimeout(_messageDismissTimer);
+        _messageDismissTimer = null;
     }
     const messageArea = document.getElementById('messageArea');
-    // Only clear if it's currently showing an error (red border)
-    if (messageArea.style.borderLeftColor === 'rgb(220, 53, 69)') {
-        messageArea.textContent = '';
-    }
+    messageArea.textContent = '';
 }
 
 // ── Date helpers ──────────────────────────────────────────────────────────────

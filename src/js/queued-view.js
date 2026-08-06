@@ -23,7 +23,7 @@
                 <span class="col-tags">${escapeHtml((record.Tags || []).join(', '))}</span>
                 <div class="col-actions">
                     <button type="button" class="btn btn-secondary queued-reading-btn"
-                            onclick="event.stopPropagation(); QueuedView.toggleCurrentlyReading('${record.id}', '${containerId}', ${!reading})">${reading ? 'Stop Reading' : 'Currently Reading'}</button>
+                            onclick="event.stopPropagation(); QueuedView.toggleCurrentlyReading('${record.id}', '${containerId}', ${!reading})">${reading ? 'Stop Reading' : 'Start Reading'}</button>
                     <button type="button" class="btn btn-secondary queued-finished-btn"
                             onclick="event.stopPropagation(); QueuedView.markFinished('${record.id}', '${containerId}')">Finished</button>
                 </div>

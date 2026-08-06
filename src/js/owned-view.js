@@ -16,8 +16,7 @@
 (function registerOwnedView() {
     const headerHtml = `
         <div class="collection-list-header owned-columns">
-            <span>Title</span>
-            <span>Author</span>
+            <span>Book</span>
             <span>Tags</span>
             <span>Status</span>
             <span>Actions</span>
@@ -41,8 +40,10 @@
 
         return `
             <div class="collection-list-row owned-columns" onclick="OwnedModal.open('${record.id}', '${containerId}')">
-                <span class="col-title">${escapeHtml(record.Title || '')}</span>
-                <span class="col-author">${escapeHtml(record.Author || '')}</span>
+                <div class="col-stacked">
+                    <div class="stacked-title">${escapeHtml(record.Title || '')}</div>
+                    <div class="stacked-author">by ${escapeHtml(record.Author || '')}</div>
+                </div>
                 <span class="col-tags">${escapeHtml((record.Tags || []).join(', '))}</span>
                 <span class="col-status">${statusText}</span>
                 <span class="col-actions" onclick="event.stopPropagation()">${buttons.join('')}</span>

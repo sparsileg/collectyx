@@ -33,11 +33,19 @@
     padding: 6px 30px 6px 8px;
 }
 
+.view-scroll-locked.active > h2,
+.view-scroll-locked.active > .tags-toolbar {
+    flex-shrink: 0;
+}
+
 .tags-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
     padding-bottom: 20px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .tag-item {

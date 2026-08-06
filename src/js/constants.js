@@ -125,7 +125,7 @@ const CONSTANTS = {
     ROW_LIMITS: {
         RECENT_FINISHED: 5,
         WHATS_NEXT: 4,
-        TOP_TAGS: 5
+        TOP_TAGS: 7
     }
 };
 

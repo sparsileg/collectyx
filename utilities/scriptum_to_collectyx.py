@@ -1,46 +1,58 @@
 #!/usr/bin/env python3
 """
-scriptum_to_collectyx.py — one-time conversion of a Scriptum backup's
-Books Read data into a Collectyx-native backup file, ready to import
-through Collectyx's own "Restore from Backup" (hamburger menu).
+scriptum_to_collectyx.py — one-time conversion of a Scriptum backup into a
+Collectyx-native backup file, ready to import through Collectyx's own
+"Restore from Backup" (hamburger menu).
 
-Scope (matches collectyx-design.md §5 / Phase 6, confirmed with Stan):
-  - Only Books Read migrates. Reading List and My Library are read (for
-    the summary printed to the console) but NOT converted -- Scriptum's
-    own cross-references between them (e.g. Reading List's MyLibraryId)
-    are exactly the "hard cross-collection identity-match problem" the
-    design doc deliberately scoped this migration away from. Re-enter
-    those by hand or via Collectyx's own CSV import instead.
-  - Category becomes a tag (lowercased). Any existing Tags array on a
-    Books Read record (seen in some Scriptum backups, not all) is
-    merged in too.
+Scope (extended from the original Books-Read-only Phase 6 script, confirmed
+with Stan):
+  - Books Read, Reading List, and My Library all convert now.
+  - Reading List's MyLibraryId is the ONLY cross-section link honored.
+    When a Reading List entry has one, its Queued row shares the same
+    Item as the matching My Library entry's Owned row -- normalization's
+    payoff. No other cross-section identity matching is attempted: a
+    book appearing in both Books Read and My Library, with no explicit
+    link, becomes two separate Items. That's deliberate (design doc's
+    "fuzzy title+author matching belongs to Find Duplicates, not a
+    one-time import") -- run Collectyx's own Find Duplicates afterward
+    to clean those up, same as Books Read re-reads across a botched
+    import always could.
+  - Category becomes a tag (lowercased, whitespace stripped) on both
+    Books Read and My Library items. My Library's own Tags array (seen
+    on some records) merges in too. Reading List has no tag source in
+    Scriptum and gets none here -- if it shares an Item with a My
+    Library entry, that Item's tags already cover it.
+  - Reading List's IsCheckedOut is dropped -- not a stored Collectyx
+    field, it's derived live from the linked Owned row's Patron/
+    CheckedOutDate wherever a link exists.
   - Recommend maps to Rating: No -> 1, Yes -> 4 (confirmed with Stan).
     The raw Recommend value is also preserved on the record, normalized
     to a plain 0/1 -- the schema still has that column even though the
-    UI no longer shows it.
-  - A repeated (Title, Author) pair across multiple Books Read entries
-    is treated as a re-read: one Item, multiple Consumed rows -- this
-    is exactly consumed.rs's own model ("a re-read is a second row
-    against the same item_id, not a duplicate item"), not something
-    invented for this script.
+    UI no longer shows it. My Library and Reading List have no Recommend
+    field in Scriptum, so nothing to map there.
   - Real Scriptum data is messier than the schema suggests: Recommend
     shows up as both an int (0/1) and a string ("Y"), Pages shows up as
     both an int and a numeric string, and Finished dates are D-Mon-YYYY
-    (e.g. "9-Sep-2025"), not ISO -- this script handles all of that
-    defensively rather than assuming clean input.
+    (e.g. "9-Sep-2025") as well as already-ISO -- this script handles
+    all of that defensively rather than assuming clean input.
+  - Settings are NOT converted -- Scriptum's Settings shape (theme as a
+    CSS path, dailyReadingPages, old dashboard card ids) doesn't match
+    Collectyx's, and re-entering a handful of preferences by hand is
+    simpler than a lossy field-by-field translation. Output Settings is
+    always {}, which Collectyx's restore leaves untouched.
 
 Usage:
     python3 scriptum_to_collectyx.py scriptum-backup.json.gz collectyx-import.json.gz
     python3 scriptum_to_collectyx.py scriptum-backup.json collectyx-import.json
 
 Reads and writes both plain .json and gzipped .json.gz -- whichever
-extension you give each path -- matching what Collectyx's Restore
-screen itself accepts.
+extension you give each path -- matching what Collectyx's Restore screen
+itself accepts.
 
 Importing the output WILL WIPE all current Collectyx data before
-restoring (Collectyx's restore is wipe-then-replace, confirmed with
-Stan as the intended, checkbox-gated behavior) -- back up first if you
-have anything in Collectyx already that you want to keep.
+restoring (Collectyx's restore is wipe-then-replace, confirmed with Stan
+as the intended, checkbox-gated behavior) -- back up first if you have
+anything in Collectyx already that you want to keep.
 """
 
 import sys
@@ -124,15 +136,18 @@ def coerce_pages(raw):
 
 
 def normalize_key(title, author):
-    """Same-book detection for re-read grouping -- whitespace-collapsed,
-    case-insensitive Title+Author match. Deliberately simple (exact
-    match after normalizing, not fuzzy); Collectyx's own Find Duplicates
-    feature (Phase 9) is the right place for fuzzier matching, not a
-    one-time conversion script."""
+    """Same-book detection for Books Read re-read grouping only --
+    whitespace-collapsed, case-insensitive Title+Author match. Not used
+    across sections (see module docstring) -- Collectyx's own Find
+    Duplicates (Phase 9) is the right place for that, not this script."""
     return (
         re.sub(r'\s+', ' ', (title or '').strip().lower()),
         re.sub(r'\s+', ' ', (author or '').strip().lower()),
     )
+
+
+def normalize_tag(name):
+    return re.sub(r'\s+', '', (name or '').strip().lower())
 
 
 def load_scriptum_backup(path):
@@ -153,10 +168,25 @@ def write_collectyx_backup(data, path):
             f.write(text)
 
 
-def convert(scriptum_data):
+def new_item(title, author, pages=None, isbn=None):
+    return {
+        'id': str(uuid.uuid4()),
+        'Owner': 'local',
+        'MediaTypeId': 1,
+        'Title': title,
+        'Author': author,
+        'Author2': None,
+        'Pages': pages,
+        'ISBN': isbn or None,
+    }
+
+
+def convert_books_read(scriptum_data):
+    """Unchanged from the original Phase 6 script: re-reads of the same
+    (Title, Author) collapse onto one Item, multiple Consumed rows."""
     books_read = scriptum_data.get('BooksRead', [])
 
-    items_by_key = {}    # normalized (title, author) -> item dict
+    items_by_key = {}
     consumed = []
     skipped = []
 
@@ -169,23 +199,12 @@ def convert(scriptum_data):
 
         key = normalize_key(title, author)
         if key not in items_by_key:
-            item_id = str(uuid.uuid4())
-            items_by_key[key] = {
-                'id': item_id,
-                'Owner': 'local',
-                'MediaTypeId': 1,
-                'Title': title,
-                'Author': author,
-                'Author2': None,
-                'Pages': coerce_pages(record.get('Pages')),
-                'ISBN': record.get('ISBN') or None,
-            }
+            item = new_item(title, author, coerce_pages(record.get('Pages')),
+                             record.get('ISBN'))
+            items_by_key[key] = item
+            item_id = item['id']
         else:
             item_id = items_by_key[key]['id']
-            # A re-read entry might be missing Pages/ISBN even when an
-            # earlier entry for the same book had them (or vice versa) --
-            # fill gaps rather than let a later blank overwrite a real
-            # value, and don't overwrite a real value with a later blank.
             if items_by_key[key]['Pages'] is None:
                 items_by_key[key]['Pages'] = coerce_pages(record.get('Pages'))
             if not items_by_key[key]['ISBN']:
@@ -194,10 +213,10 @@ def convert(scriptum_data):
         tags = set()
         category = (record.get('Category') or '').strip()
         if category:
-            tags.add(re.sub(r'\s+', '', category.lower()))
+            tags.add(normalize_tag(category))
         for t in (record.get('Tags') or []):
             if isinstance(t, str) and t.strip():
-                tags.add(re.sub(r'\s+', '', t.strip().lower()))
+                tags.add(normalize_tag(t))
 
         consumed.append({
             'id': str(uuid.uuid4()),
@@ -209,15 +228,112 @@ def convert(scriptum_data):
             'Tags': sorted(tags),
         })
 
+    return list(items_by_key.values()), consumed, skipped
+
+
+def convert_my_library(scriptum_data):
+    """One Item + one Owned row per My Library record -- no dedup within
+    the section, each entry is already a distinct physical copy. Returns
+    the id_map (Scriptum My Library id -> new Item id) Reading List's
+    MyLibraryId link needs."""
+    my_library = scriptum_data.get('MyLibrary', [])
+
+    items = []
+    owned = []
+    id_map = {}
+    skipped = []
+
+    for record in my_library:
+        title = (record.get('Title') or '').strip()
+        if not title:
+            skipped.append(record.get('id', '<no id>'))
+            continue
+        author = (record.get('Author') or '').strip()
+
+        item = new_item(title, author, coerce_pages(record.get('Pages')),
+                         record.get('ISBN'))
+        items.append(item)
+        id_map[record.get('id')] = item['id']
+
+        tags = set()
+        category = (record.get('Category') or '').strip()
+        if category:
+            tags.add(normalize_tag(category))
+        for t in (record.get('Tags') or []):
+            if isinstance(t, str) and t.strip():
+                tags.add(normalize_tag(t))
+
+        owned.append({
+            'id': str(uuid.uuid4()),
+            'ItemId': item['id'],
+            'Location': record.get('Location') or None,
+            'Patron': record.get('Patron') or None,
+            'CheckedOutDate': record.get('CheckedOutDate') or None,
+            'Comments': record.get('Comments') or None,
+            'Tags': sorted(tags),
+        })
+
+    return items, owned, id_map, skipped
+
+
+def convert_reading_list(scriptum_data, my_library_id_map):
+    """A Reading List entry with a MyLibraryId that matches a converted
+    My Library record reuses that Item (shared item_id) -- this is the
+    one explicit cross-section link Scriptum provides, so it's the only
+    one honored. Everything else mints its own Item."""
+    reading_list = scriptum_data.get('ReadingList', [])
+
+    items = []
+    queued = []
+    skipped = []
+    linked_count = 0
+
+    for record in reading_list:
+        title = (record.get('Title') or '').strip()
+        if not title:
+            skipped.append(record.get('id', '<no id>'))
+            continue
+        author = (record.get('Author') or '').strip()
+
+        linked_item_id = my_library_id_map.get(record.get('MyLibraryId'))
+        if linked_item_id:
+            item_id = linked_item_id
+            linked_count += 1
+        else:
+            item = new_item(title, author)
+            items.append(item)
+            item_id = item['id']
+
+        queued.append({
+            'id': str(uuid.uuid4()),
+            'ItemId': item_id,
+            'Rank': record.get('Rank'),
+            'Source': record.get('Source') or None,
+            'Comments': None,
+        })
+
+    return items, queued, skipped, linked_count
+
+
+def summarize_tags(consumed, owned):
+    """Informational only -- Collectyx's restore recreates tag rows from
+    each record's own Tags array, not from this top-level list. It only
+    feeds the Current-vs-Backup count shown on the Restore confirm
+    screen, so an approximate aggregate is fine."""
     all_tags = set()
     for c in consumed:
-        all_tags |= set(c['Tags'])
-    tags_summary = [
-        {'id': name, 'Name': name, 'Count': sum(1 for c in consumed if name in c['Tags'])}
+        all_tags |= set(c.get('Tags') or [])
+    for o in owned:
+        all_tags |= set(o.get('Tags') or [])
+    return [
+        {
+            'id': name,
+            'Name': name,
+            'Count': sum(1 for c in consumed if name in (c.get('Tags') or []))
+                    + sum(1 for o in owned if name in (o.get('Tags') or [])),
+        }
         for name in sorted(all_tags)
     ]
-
-    return list(items_by_key.values()), consumed, tags_summary, skipped
 
 
 def main():
@@ -235,20 +351,25 @@ def main():
     total_my_library = len(scriptum_data.get('MyLibrary', []))
     print(f'Found {total_books_read} Books Read, {total_reading_list} Reading List, '
           f'{total_my_library} My Library records in the source file.')
-    print("Per Phase 6's scope: only Books Read is converted. "
-          'Reading List and My Library are intentionally skipped.')
 
-    items, consumed, tags_summary, skipped = convert(scriptum_data)
+    br_items, consumed, br_skipped = convert_books_read(scriptum_data)
+    ml_items, owned, ml_id_map, ml_skipped = convert_my_library(scriptum_data)
+    rl_items, queued, rl_skipped, linked_count = convert_reading_list(scriptum_data, ml_id_map)
 
+    all_items = br_items + ml_items + rl_items
+    tags_summary = summarize_tags(consumed, owned)
+
+    skipped = br_skipped + ml_skipped + rl_skipped
     if skipped:
         print(f'Skipped {len(skipped)} record(s) with no Title: {skipped}')
 
-    unique_books = len(items)
-    rereads = len(consumed) - unique_books
-    print(f'Converted to {unique_books} unique item(s), {len(consumed)} Books Read '
-          f'entr{"y" if len(consumed) == 1 else "ies"} '
-          f'({rereads} treated as re-read{"" if rereads == 1 else "s"} of an already-seen book), '
-          f'{len(tags_summary)} tag(s).')
+    rereads = len(consumed) - len(br_items)
+    print(f'Books Read -> {len(br_items)} item(s), {len(consumed)} entries '
+          f'({rereads} re-read{"" if rereads == 1 else "s"}).')
+    print(f'My Library -> {len(ml_items)} item(s), {len(owned)} entries.')
+    print(f'Reading List -> {len(rl_items)} new item(s) + {linked_count} linked to '
+          f'an existing My Library item, {len(queued)} entries.')
+    print(f'Total: {len(all_items)} item(s), {len(tags_summary)} tag(s).')
 
     output = {
         'Header': {
@@ -258,10 +379,10 @@ def main():
             'schemaVersion': SCHEMA_VERSION,
             'convertedFrom': 'Scriptum',
         },
-        'Items': items,
+        'Items': all_items,
         'Consumed': consumed,
-        'Queued': [],
-        'Owned': [],
+        'Queued': queued,
+        'Owned': owned,
         'Tags': tags_summary,
         'Settings': {},
     }
