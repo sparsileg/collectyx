@@ -5,12 +5,18 @@ use crate::db::schema;
 /// Runs all pending migrations against the open connection.
 /// Uses SQLite's PRAGMA user_version to track the applied schema version.
 pub fn run_migrations(conn: &Connection) -> Result<()> {
-    let version = get_schema_version(conn)?;
+    let mut version = get_schema_version(conn)?;
     log::info!("Database schema version: {}", version);
 
     if version < 1 {
         migrate_v1(conn)?;
+        version = 1;
     }
+    if version < 2 {
+        migrate_v2(conn)?;
+        version = 2;
+    }
+    let _ = version;
 
     Ok(())
 }
@@ -51,6 +57,25 @@ fn migrate_v1(conn: &Connection) -> Result<()> {
     ))?;
 
     log::info!("Migration v1 complete");
+    Ok(())
+}
+
+/// Migration v2 — additive: the `app_meta` key/value table (owner-switch
+/// testing, and a home for real auth state later) plus a
+/// `currently_reading` flag on `queued`. Neither touches existing data.
+fn migrate_v2(conn: &Connection) -> Result<()> {
+    log::info!("Running migration v2 — app_meta table, queued.currently_reading");
+
+    conn.execute_batch(&format!(
+        "BEGIN;
+        {}
+        ALTER TABLE queued ADD COLUMN currently_reading INTEGER NOT NULL DEFAULT 0;
+        PRAGMA user_version = 2;
+        COMMIT;",
+        schema::CREATE_APP_META,
+    ))?;
+
+    log::info!("Migration v2 complete");
     Ok(())
 }
 

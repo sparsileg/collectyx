@@ -1,5 +1,6 @@
 // mod.rs
 
+pub mod app_meta;
 pub mod common;
 pub mod consumed;
 pub mod items;

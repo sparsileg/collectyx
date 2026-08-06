@@ -10,7 +10,6 @@ use tauri::State;
 use crate::commands::common::{
     self, owner_or_default, reconcile_tags, tags_by_item, today, upsert_item, ItemFields,
 };
-use crate::constants::DEFAULT_OWNER;
 use crate::AppState;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -77,7 +76,7 @@ fn row_to_record(row: &rusqlite::Row) -> Result<ConsumedRecord> {
 #[tauri::command]
 pub fn get_all_consumed(state: State<AppState>) -> Result<Vec<ConsumedRecord>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let owner = DEFAULT_OWNER;
+    let owner = common::current_owner(&db);
 
     let mut stmt = db.prepare(SELECT_JOINED).map_err(|e| e.to_string())?;
     let mut records = stmt
@@ -87,7 +86,7 @@ pub fn get_all_consumed(state: State<AppState>) -> Result<Vec<ConsumedRecord>, S
         .map_err(|e| e.to_string())?;
     drop(stmt);
 
-    let tag_map = tags_by_item(&db, owner).map_err(|e| e.to_string())?;
+    let tag_map = tags_by_item(&db, &owner).map_err(|e| e.to_string())?;
     for record in records.iter_mut() {
         if let Some(item_id) = &record.item.item_id {
             record.item.tags = Some(tag_map.get(item_id).cloned().unwrap_or_default());
@@ -121,7 +120,7 @@ fn write_one(
     bump_modified_on_new_link: bool,
 ) -> Result<String> {
     let item_id = upsert_item(tx, &record.item, now)?;
-    let owner = owner_or_default(&record.item.owner);
+    let owner = owner_or_default(&record.item.owner, &common::current_owner(tx));
     let id = record.id.clone().unwrap_or_else(common::new_uuid);
     let date_added = record.date_added.clone().unwrap_or_else(|| now.to_string());
 

@@ -1,0 +1,25 @@
+/*
+  css/settings.css
+  Settings modal and its Owner (Testing) sub-modal. No settings-specific
+  rules existed in base.css to extract — Settings had no implementation
+  before this phase — so this file is new additions only, layered on top
+  of base.css's shared .modal/.modal-content/.form-group chrome.
+*/
+
+.settings-backup-actions {
+    display: flex;
+    gap: 8px;
+    margin: -20px 0 20px;
+}
+
+.settings-section-divider {
+    border-top: 1px solid var(--border-color);
+    margin: 20px 0;
+}
+
+.settings-hint {
+    color: var(--text-secondary);
+    font-size: 0.85em;
+    margin-bottom: 16px;
+    line-height: 1.5;
+}

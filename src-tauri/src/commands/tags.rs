@@ -4,8 +4,7 @@ use rusqlite::{params, Result};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::commands::common::{new_uuid, today};
-use crate::constants::DEFAULT_OWNER;
+use crate::commands::common::{self, new_uuid, today};
 use crate::AppState;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -33,6 +32,7 @@ pub struct TagRecord {
 #[tauri::command]
 pub fn get_all_tags(state: State<AppState>) -> Result<Vec<TagRecord>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
+    let owner = common::current_owner(&db);
 
     let mut stmt = db
         .prepare(
@@ -45,7 +45,7 @@ pub fn get_all_tags(state: State<AppState>) -> Result<Vec<TagRecord>, String> {
         .map_err(|e| e.to_string())?;
 
     let tags = stmt
-        .query_map(params![DEFAULT_OWNER], |row| {
+        .query_map(params![owner], |row| {
             Ok(TagRecord {
                 id: Some(row.get(0)?),
                 owner: Some(row.get(1)?),
@@ -74,7 +74,7 @@ pub fn save_tag(state: State<AppState>, tag: TagRecord) -> Result<String, String
         return Err("Tag name cannot be empty".to_string());
     }
 
-    let owner = tag.owner.clone().unwrap_or_else(|| DEFAULT_OWNER.to_string());
+    let owner = tag.owner.clone().unwrap_or_else(|| common::current_owner(&db));
     let id = tag.id.clone().unwrap_or_else(new_uuid);
 
     let clash: Option<String> = db
@@ -151,10 +151,11 @@ pub fn delete_tag(
 #[tauri::command]
 pub fn replace_all_tags(state: State<AppState>, tags: Vec<TagRecord>) -> Result<(), String> {
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let owner = common::current_owner(&db);
     let tx = db.transaction().map_err(|e| e.to_string())?;
     let now = today();
 
-    tx.execute("DELETE FROM tags WHERE owner = ?1", params![DEFAULT_OWNER])
+    tx.execute("DELETE FROM tags WHERE owner = ?1", params![owner])
         .map_err(|e| e.to_string())?;
 
     for tag in &tags {
@@ -167,7 +168,7 @@ pub fn replace_all_tags(state: State<AppState>, tags: Vec<TagRecord>) -> Result<
              VALUES (?1,?2,?3,?4,?5)",
             params![
                 tag.id.clone().unwrap_or_else(new_uuid),
-                tag.owner.clone().unwrap_or_else(|| DEFAULT_OWNER.to_string()),
+                tag.owner.clone().unwrap_or_else(|| owner.clone()),
                 name,
                 tag.date_added.clone().unwrap_or_else(|| now.clone()),
                 now

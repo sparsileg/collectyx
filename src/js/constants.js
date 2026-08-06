@@ -7,7 +7,7 @@ const CONSTANTS = {
 
     DB: {
         NAME:    'collectyx-db',
-        VERSION: 1
+        VERSION: 2
     },
 
     // Owner value for every row in v1. The schema carries `owner` so a
@@ -24,7 +24,16 @@ const CONSTANTS = {
         OWNED:       'owned',
         TAGS:        'tags',
         ITEM_TAGS:   'item_tags',
-        SETTINGS:    'settings'
+        SETTINGS:    'settings',
+        // Not owner-scoped — see db-manager-web.js's _owner()/getAppMeta().
+        APP_META:    'app_meta'
+    },
+
+    // Keys used in the app_meta store/table. Generic key/value shape so a
+    // real auth mechanism (session token, API key hash) can reuse this
+    // store later without a migration.
+    APP_META_KEYS: {
+        CURRENT_OWNER: 'current_owner'
     },
 
     // The three collection roles, used to look up per-collection field

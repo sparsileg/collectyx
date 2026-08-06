@@ -182,4 +182,20 @@ const DBManagerTauri = {
     async saveSettings(settingsObj) {
         return invoke('save_settings', { data: JSON.stringify(settingsObj || {}) });
     },
+
+    // ── App meta (not owner-scoped) ──────────────────────────────────────────
+
+    async getAppMeta(key) {
+        return invoke('get_app_meta', { key: key });
+    },
+
+    async setAppMeta(key, value) {
+        return invoke('set_app_meta', { key: key, value: value });
+    },
+
+    // ── Currently Reading (queued) ───────────────────────────────────────────
+
+    async setCurrentlyReading(id, value) {
+        return invoke('toggle_currently_reading', { id: id, value: !!value });
+    },
 };

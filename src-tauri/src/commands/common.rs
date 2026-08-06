@@ -74,8 +74,22 @@ pub fn today() -> String {
     format!("{:04}-{:02}-{:02}", y, m, d)
 }
 
-pub fn owner_or_default(owner: &Option<String>) -> String {
-    owner.clone().unwrap_or_else(|| DEFAULT_OWNER.to_string())
+pub fn owner_or_default(owner: &Option<String>, fallback: &str) -> String {
+    owner.clone().unwrap_or_else(|| fallback.to_string())
+}
+
+/// The currently-active owner, per app_meta's `current_owner` key, falling
+/// back to DEFAULT_OWNER if unset (v1's untouched, no-testing-switch path).
+///
+/// app_meta is deliberately not owner-scoped — it's what lets the app know
+/// which owner's rows every other query should scope to.
+pub fn current_owner(conn: &rusqlite::Connection) -> String {
+    conn.query_row(
+        "SELECT value FROM app_meta WHERE key = ?1",
+        params![crate::constants::APP_META_CURRENT_OWNER_KEY],
+        |row| row.get::<_, String>(0),
+    )
+    .unwrap_or_else(|_| DEFAULT_OWNER.to_string())
 }
 
 /// Upserts the parent items row for a joined record.
@@ -107,7 +121,7 @@ pub fn upsert_item(tx: &Transaction, fields: &ItemFields, now: &str) -> Result<S
         .item_id
         .clone()
         .unwrap_or_else(|| new_uuid());
-    let owner = owner_or_default(&fields.owner);
+    let owner = owner_or_default(&fields.owner, &current_owner(tx));
     let media_type_id = fields.media_type_id.unwrap_or(1);
     let date_added = fields
         .item_date_added

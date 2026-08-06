@@ -216,13 +216,13 @@ document.addEventListener('click', (event) => {
 
 // Global section items. Backup/Export/Restore call existing functions
 // (file.js/restore.js) — same calls Quick Actions used before it was
-// retired in favour of this menu (design doc §4.3). Settings and Find
-// Duplicates have no implementation yet (Phase 10, Phase 9).
+// retired in favour of this menu (design doc §4.3). Find Duplicates has
+// no implementation yet (Phase 9, deferred).
 function hamburgerAction(action) {
     closeHamburgerMenu();
     switch (action) {
         case 'settings':
-            showMessage('Settings — coming in a later phase', CONSTANTS.MESSAGE_TYPES.INFO);
+            SettingsModal.open();
             break;
         case 'backup':
             BackupRestore.backupDatabase();

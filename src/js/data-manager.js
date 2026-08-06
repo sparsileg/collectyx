@@ -69,19 +69,14 @@ async function migrateFromLocalStorage() {
     }
 }
 
-/**
- * Sanitise a stored theme path to the current expected format.
- * Handles legacy paths from old Electron/localStorage versions.
- */
-function sanitiseThemePath(path) {
-    if (!path) return CONSTANTS.THEMES.NORDIC_DARK;
-    // Map any known legacy path to its current equivalent
-    if (path.includes('nordic-dark'))  return CONSTANTS.THEMES.NORDIC_DARK;
-    if (path.includes('nordic-light')) return CONSTANTS.THEMES.NORDIC_LIGHT;
-    if (path.includes('matrix'))       return CONSTANTS.THEMES.MATRIX_CODE;
-    // Unknown — fall back to default
-    return CONSTANTS.THEMES.NORDIC_DARK;
-}
+// sanitiseThemePath() removed — core.js owns the canonical version now.
+// This file's copy referenced CONSTANTS.THEMES.NORDIC_DARK/NORDIC_LIGHT,
+// keys that don't exist in the current THEMES shape (NORDIC/DARK/LIGHT/
+// MATRIX_CODE/FLAT), so every path except one containing "matrix" fell
+// through to `undefined` — and since this script loads after core.js,
+// its same-named global function declaration silently won, clobbering
+// the correct one on every launch. The three call sites below (still
+// present) now resolve to core.js's version instead, which is correct.
 
 // ── BooksRead ─────────────────────────────────────────────────────────────────
 

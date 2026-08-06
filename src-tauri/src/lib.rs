@@ -65,6 +65,7 @@ pub fn run() {
             commands::queued::save_queued,
             commands::queued::delete_queued,
             commands::queued::replace_all_queued,
+            commands::queued::toggle_currently_reading,
             // owned (My Library)
             commands::owned::get_all_owned,
             commands::owned::save_owned,
@@ -78,6 +79,9 @@ pub fn run() {
             // settings
             commands::settings::get_settings,
             commands::settings::save_settings,
+            // app_meta (not owner-scoped — current_owner testing switch)
+            commands::app_meta::get_app_meta,
+            commands::app_meta::set_app_meta,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| panic!("error while running {}: {:?}", APP_NAME, e));

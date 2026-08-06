@@ -105,7 +105,7 @@ function renderRecentBooks(consumed) {
 async function renderReadingGoals(consumed) {
     const goalDisplay = document.getElementById('goalDisplay');
     const settings = await DBManager.getSettings() || {};
-    const dailyGoal = settings.dailyReadingPages || CONSTANTS.DEFAULT_DAILY_READING_GOAL;
+    const dailyGoal = settings.dailyReadingGoal || CONSTANTS.DEFAULT_DAILY_READING_GOAL;
 
     goalDisplay.innerHTML = `<p class="goal-current">Daily Goal: ${dailyGoal} pages</p>`;
     renderReadingGoalChart(dailyGoal, consumed);

@@ -320,7 +320,7 @@ remaining phases can be dogfooded against it rather than synthetic data.
 
 ## Phase 9 — Find Duplicates / Merge
 
-**Goal:** per design doc §3.3 and §4.7.
+**Goal:** per design doc §3.3 and §4.7. Read these sections and discuss. Do we really need/want this capability?
 
 ### Tasks
 
@@ -376,9 +376,9 @@ from Phase 6's one-time Scriptum importer.
    sync-payload structure, same constraint Scriptum operated under for
    its own export format.
 2. Backup Database / Export All Data — same gzip-if-available pattern as
-   Scriptum's `file.js`.
+   Scriptum's `file.js`. 
 3. Restore — same two-screen confirm flow as Scriptum's `restore.js`,
-   adapted to the new format.
+   adapted to the new format. Expand the restore so it can read Scriptum's backups for all collections, including tags.
 
 ### Acceptance criteria
 

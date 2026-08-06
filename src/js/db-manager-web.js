@@ -38,9 +38,10 @@ const COLLECTION_FIELD_MAPS = {
         Comments:  'comments',
     },
     queued: {
-        Rank:     'rank',
-        Source:   'source',
-        Comments: 'comments',
+        Rank:             'rank',
+        Source:           'source',
+        Comments:         'comments',
+        CurrentlyReading: 'currently_reading',
     },
     owned: {
         Location:       'location',
@@ -97,7 +98,7 @@ const JoinHelpers = {
      * A membership row whose parent item is missing is dropped and reported
      * via onOrphan rather than silently yielding undefined Title.
      */
-    joinCollection(collection, membershipRows, items, itemTags, tags, onOrphan) {
+    joinCollection(collection, membershipRows, items, itemTags, tags, onOrphan, ownerFilter) {
         if (!COLLECTION_FIELD_MAPS[collection]) {
             throw new Error('Unknown collection "' + collection + '"');
         }
@@ -111,6 +112,9 @@ const JoinHelpers = {
                 if (onOrphan) onOrphan(collection, row);
                 return;
             }
+            // A different owner's item is not an orphan — just not part of
+            // this read. Silent skip, no warning.
+            if (ownerFilter && item.owner !== ownerFilter) return;
             out.push(JoinHelpers.toRecord(
                 collection, row, item, tagsByItem.get(row.item_id) || []
             ));
@@ -381,6 +385,9 @@ const DBManagerWeb = {
                 // Keyed on owner, matching settings' SQL primary key.
                 ensure(S.SETTINGS, { keyPath: 'owner' });
 
+                // Not owner-scoped — see _owner()/getAppMeta() below.
+                ensure(S.APP_META, { keyPath: 'key' });
+
                 console.log('DBManagerWeb: schema created — ' +
                             Array.from(idb.objectStoreNames).join(', '));
             };
@@ -391,6 +398,15 @@ const DBManagerWeb = {
         console.log('DBManagerWeb: database opened — ' +
                     Array.from(db.objectStoreNames).join(', '));
         await this.seedMediaTypes();
+
+        this._currentOwner = CONSTANTS.DEFAULT_OWNER;
+        try {
+            const stored = await this._rawGet(CONSTANTS.STORES.APP_META, CONSTANTS.APP_META_KEYS.CURRENT_OWNER);
+            if (stored && stored.value) this._currentOwner = stored.value;
+        } catch (e) {
+            console.error('DBManagerWeb: could not load current_owner, using default', e);
+        }
+
         return db;
     },
 
@@ -487,9 +503,15 @@ const DBManagerWeb = {
                String(d.getDate()).padStart(2, '0');
     },
 
+    /** The currently-active owner — app_meta's override if set at init(),
+     *  else CONSTANTS.DEFAULT_OWNER. See getAppMeta()/setAppMeta(). */
+    _owner() {
+        return this._currentOwner || CONSTANTS.DEFAULT_OWNER;
+    },
+
     _defaults() {
         return {
-            owner: CONSTANTS.DEFAULT_OWNER,
+            owner: this._owner(),
             mediaTypeId: CONSTANTS.MEDIA_TYPE_BOOKS,
             today: this._today(),
         };
@@ -548,7 +570,7 @@ const DBManagerWeb = {
             this._load(CONSTANTS.STORES.TAGS),
         ]);
         return JoinHelpers.joinCollection(
-            collection, results[0], results[1], results[2], results[3], this._onOrphan
+            collection, results[0], results[1], results[2], results[3], this._onOrphan, this._owner()
         );
     },
 
@@ -708,7 +730,8 @@ const DBManagerWeb = {
             this._load(CONSTANTS.STORES.TAGS),
         ]);
         const tagsByItem = JoinHelpers.tagNamesByItem(loaded[1], loaded[2]);
-        return loaded[0].map(item => {
+        const owner = this._owner();
+        return loaded[0].filter(item => item.owner === owner).map(item => {
             const rec = {
                 id: item.id,
                 Owner: item.owner,
@@ -738,7 +761,7 @@ const DBManagerWeb = {
         if (existing) Object.keys(existing).forEach(k => { row[k] = existing[k]; });
 
         row.id = item.id || this._newId();
-        row.owner = item.Owner || (existing && existing.owner) || CONSTANTS.DEFAULT_OWNER;
+        row.owner = item.Owner || (existing && existing.owner) || this._owner();
         row.media_type_id = item.MediaTypeId || (existing && existing.media_type_id) ||
                             CONSTANTS.MEDIA_TYPE_BOOKS;
         row.date_added = item.DateAdded ||
@@ -813,7 +836,8 @@ const DBManagerWeb = {
             this._load(CONSTANTS.STORES.ITEM_TAGS),
         ]);
         const counts = JoinHelpers.tagUsageCounts(loaded[1]);
-        return loaded[0].map(t => ({
+        const owner = this._owner();
+        return loaded[0].filter(t => t.owner === owner).map(t => ({
             id: t.id,
             Owner: t.owner,
             Name: t.name,
@@ -827,7 +851,7 @@ const DBManagerWeb = {
         const today = this._today();
         const row = {
             id: tag.id || this._newId(),
-            owner: tag.Owner || CONSTANTS.DEFAULT_OWNER,
+            owner: tag.Owner || this._owner(),
             name: String(tag.Name || '').trim().toLowerCase(),
             date_added: tag.DateAdded || today,
             modified: today,
@@ -879,7 +903,7 @@ const DBManagerWeb = {
     async replaceAllTags(tagList) {
         const S = CONSTANTS.STORES;
         const today = this._today();
-        const owner = CONSTANTS.DEFAULT_OWNER;
+        const owner = this._owner();
         const existing = await this._load(S.TAGS);
 
         const ops = [];
@@ -970,12 +994,13 @@ const DBManagerWeb = {
 
     // ── Settings ──────────────────────────────────────────────────────────────
 
-    // Owner is not a parameter: v1 is single-owner and the Rust side reads
-    // DEFAULT_OWNER internally. Keeping the signatures identical means the
-    // two backends stay drop-in interchangeable; when multi-user arrives,
-    // both change together.
+    // Owner is not a parameter: both backends resolve it internally —
+    // Rust via current_owner(&db), here via this._owner() — so the two
+    // stay drop-in interchangeable; switching the active owner (app_meta's
+    // current_owner) changes which row this reads/writes without either
+    // caller needing to know.
     async getSettings() {
-        const row = await this._rawGet(CONSTANTS.STORES.SETTINGS, CONSTANTS.DEFAULT_OWNER);
+        const row = await this._rawGet(CONSTANTS.STORES.SETTINGS, this._owner());
         if (!row) return null;
         // Stored as a JSON string so both backends persist the identical
         // shape; SQLite's settings.data is TEXT.
@@ -992,10 +1017,50 @@ const DBManagerWeb = {
             store: CONSTANTS.STORES.SETTINGS,
             action: 'put',
             value: {
-                owner: CONSTANTS.DEFAULT_OWNER,
+                owner: this._owner(),
                 data: JSON.stringify(settingsObj || {}),
             },
         }]);
         this._invalidate(CONSTANTS.STORES.SETTINGS);
+    },
+
+    // ── App meta (not owner-scoped) ─────────────────────────────────────────
+    // Generic key/value store. First use: the current_owner testing switch.
+    // Kept generic so a real auth mechanism (session token, API key hash)
+    // can reuse it later without another migration.
+
+    async getAppMeta(key) {
+        const row = await this._rawGet(CONSTANTS.STORES.APP_META, key);
+        return row ? row.value : null;
+    },
+
+    async setAppMeta(key, value) {
+        await this._rawWrite([CONSTANTS.STORES.APP_META], [{
+            store: CONSTANTS.STORES.APP_META,
+            action: 'put',
+            value: { key: key, value: value },
+        }]);
+        this._invalidate(CONSTANTS.STORES.APP_META);
+        if (key === CONSTANTS.APP_META_KEYS.CURRENT_OWNER) {
+            // Every cache holds the previous owner's rows — drop all of it,
+            // not just APP_META, so the next read of anything re-fetches
+            // scoped to the new owner.
+            this._currentOwner = value || CONSTANTS.DEFAULT_OWNER;
+            this._invalidate();
+        }
+    },
+
+    // ── Currently Reading (queued) ────────────────────────────────────────────
+    // Direct partial update — bypasses saveCollectionRecord/splitRecord
+    // entirely so this can never be blanked by an unrelated Add/Edit save,
+    // and vice versa: the Add/Edit modal never sends this field.
+    async setCurrentlyReading(id, value) {
+        const S = CONSTANTS.STORES;
+        const row = await this._rawGet(S.QUEUED, id);
+        if (!row) throw new Error('Queued record not found: ' + id);
+        row.currently_reading = value ? 1 : 0;
+        row.modified = this._today();
+        await this._rawWrite([S.QUEUED], [{ store: S.QUEUED, action: 'put', value: row }]);
+        this._invalidate(S.QUEUED);
     },
 };

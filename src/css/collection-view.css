@@ -112,7 +112,7 @@
 /* ── To Be Read (queued): Order | stacked Title/Author/Source | Tags | Finished-btn ── */
 
 .queued-columns {
-    grid-template-columns: 80px 2.5fr 1.5fr 120px;
+    grid-template-columns: 80px 2.5fr 1.5fr 220px;
 }
 
 .col-stacked {
@@ -134,6 +134,25 @@
     margin-right: 0;
     justify-self: end;
     white-space: nowrap;
+}
+
+.queued-reading-btn {
+    margin-right: 0;
+    white-space: nowrap;
+}
+
+/* ── Currently Reading (queued) ─────────────────────────────────────────── */
+
+.collection-list-row.currently-reading {
+    background: var(--color-checked-out-bg, var(--color-table-row-hover));
+    border-left: 4px solid var(--primary-color);
+}
+
+.currently-reading-badge {
+    display: inline-block;
+    color: var(--primary-color);
+    font-weight: 600;
+    margin-right: 4px;
 }
 
 /* ── My Library (owned): Title | Author | Tags | Status | Actions ──────── */

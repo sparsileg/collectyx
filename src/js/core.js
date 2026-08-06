@@ -295,6 +295,17 @@ function generateBookId() {
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
+// Whitelists a stored theme path against the known set before it's used as
+// a <link href>. Guards against a corrupted or stale settings value, and
+// fixes a real bug: this was referenced but never defined, so loadTheme()
+// threw on every load where a theme had actually been saved — caught
+// silently by window.onload's try/catch, leaving whatever the static HTML
+// default happened to be rather than the user's chosen theme.
+function sanitiseThemePath(path) {
+    const known = Object.keys(CONSTANTS.THEMES).map(k => CONSTANTS.THEMES[k]);
+    return known.includes(path) ? path : CONSTANTS.THEMES.NORDIC;
+}
+
 async function loadTheme() {
     const settings = await DBManager.getSettings() || {};
     const theme = settings.displayTheme

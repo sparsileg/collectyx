@@ -11,17 +11,22 @@
     `;
 
     function rowFn(record, containerId) {
+        const reading = !!record.CurrentlyReading;
         return `
-            <div class="collection-list-row queued-columns" onclick="QueuedModal.open('${record.id}', '${containerId}')">
+            <div class="collection-list-row queued-columns${reading ? ' currently-reading' : ''}" onclick="QueuedModal.open('${record.id}', '${containerId}')">
                 <span class="col-extra">${record.Rank != null ? escapeHtml(String(record.Rank)) : 'Unranked'}</span>
                 <div class="col-stacked">
                     <div class="stacked-title">${escapeHtml(record.Title || '')}</div>
                     <div class="stacked-author">by ${escapeHtml(record.Author || '')}</div>
-                    <div class="stacked-source">Source: ${escapeHtml(record.Source || '')}</div>
+                    <div class="stacked-source">${reading ? '<span class="currently-reading-badge">Currently Reading</span> ' : ''}Source: ${escapeHtml(record.Source || '')}</div>
                 </div>
                 <span class="col-tags">${escapeHtml((record.Tags || []).join(', '))}</span>
-                <button type="button" class="btn btn-secondary queued-finished-btn"
-                        onclick="event.stopPropagation(); QueuedView.markFinished('${record.id}', '${containerId}')">Finished</button>
+                <div class="col-actions">
+                    <button type="button" class="btn btn-secondary queued-reading-btn"
+                            onclick="event.stopPropagation(); QueuedView.toggleCurrentlyReading('${record.id}', '${containerId}', ${!reading})">${reading ? 'Stop Reading' : 'Currently Reading'}</button>
+                    <button type="button" class="btn btn-secondary queued-finished-btn"
+                            onclick="event.stopPropagation(); QueuedView.markFinished('${record.id}', '${containerId}')">Finished</button>
+                </div>
             </div>
         `;
     }
@@ -32,6 +37,21 @@
 
 const QueuedView = {
     CONSUMED_CONTAINER_ID: 'consumedView',
+
+    // Multiple books may be marked Currently Reading at once — no
+    // single-book enforcement, per Stan. Direct write (setCurrentlyReading)
+    // rather than a round trip through the Edit modal, matching the
+    // "do one thing and leave" per-row-button pattern already used for
+    // Finished.
+    async toggleCurrentlyReading(id, containerId, value) {
+        try {
+            await DBManager.setCurrentlyReading(id, value);
+            this.load(containerId);
+        } catch (e) {
+            console.error('QueuedView.toggleCurrentlyReading failed', e);
+            showMessage('Could not update Currently Reading — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
+        }
+    },
 
     async load(containerId) {
         try {

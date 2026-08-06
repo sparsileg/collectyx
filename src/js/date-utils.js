@@ -8,7 +8,7 @@ const DateUtils = {
         DMY: 'DD-MM-YYYY',
         ISO: 'YYYY-MM-DD'
     },
-    DEFAULT_FORMAT: 'MM-DD-YYYY',
+    DEFAULT_FORMAT: 'YYYY-MM-DD',
 
     // YYYY-MM-DD (storage) -> display string in the given format.
     // Returns '' for empty/malformed input rather than throwing, so callers

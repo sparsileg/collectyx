@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Collectyx</title>
 
+    <link rel="stylesheet" href="css/themes/nordic.css" id="themeLink">
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/custom.css">
     <link rel="stylesheet" href="css/sidebar.css">
@@ -13,7 +14,7 @@
     <link rel="stylesheet" href="css/modal-fields.css">
     <link rel="stylesheet" href="css/tags.css">
     <link rel="stylesheet" href="css/dashboard.css">
-    <link rel="stylesheet" href="css/themes/nordic.css" id="themeLink">
+    <link rel="stylesheet" href="css/settings.css">
 
   </head>
   <body>
@@ -650,6 +651,69 @@
       </div>
       <!-- end of My Library Checkout Modal -->
 
+      <!-- Settings Modal -->
+      <div id="settingsModal" class="modal">
+        <div class="modal-content">
+          <h3>Settings</h3>
+          <form id="settingsForm" onsubmit="SettingsModal.save(event)">
+            <div class="form-group">
+              <label for="settingsDailyGoal">Daily Reading Goal:</label>
+              <input type="number" id="settingsDailyGoal" min="1" placeholder="Pages per day">
+            </div>
+            <div class="form-group">
+              <label for="settingsDateFormat">Date Display:</label>
+              <select id="settingsDateFormat">
+                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                <option value="DD-MM-YYYY">DD-MM-YYYY</option>
+                <option value="MM-DD-YYYY">MM-DD-YYYY</option>
+              </select>
+            </div>
+            <div class="form-group" id="settingsBackupFolderGroup">
+              <label for="settingsBackupFolder">Backup Folder:</label>
+              <input type="text" id="settingsBackupFolder" readonly>
+            </div>
+            <div class="settings-backup-actions" id="settingsBackupActions" style="display: none;">
+              <button type="button" class="btn btn-secondary btn-small" onclick="SettingsModal.browseBackupFolder()">Browse</button>
+              <button type="button" class="btn btn-secondary btn-small" onclick="SettingsModal.clearBackupFolder()">Clear</button>
+            </div>
+
+            <div class="settings-section-divider"></div>
+            <button type="button" class="btn btn-secondary" onclick="OwnerTestModal.open()">Owner (Testing)&hellip;</button>
+
+            <div style="margin-top: 20px;">
+              <button type="submit" class="btn btn-primary">Save</button>
+              <button type="button" class="btn btn-secondary" onclick="SettingsModal.close()">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <!-- end of Settings Modal -->
+
+      <!-- Owner (Testing) Modal -->
+      <div id="ownerTestModal" class="modal">
+        <div class="modal-content">
+          <h3>Owner (Testing)</h3>
+          <p class="settings-hint">
+            Testing only — switches which owner's data is visible so
+            owner-scoping can be exercised without a real multi-user
+            backend. Not part of the permanent multi-user design.
+          </p>
+          <div class="form-group">
+            <label for="ownerTestCurrent">Current Owner:</label>
+            <input type="text" id="ownerTestCurrent" readonly>
+          </div>
+          <div class="form-group">
+            <label for="ownerTestNew">New Owner Key:</label>
+            <input type="text" id="ownerTestNew" placeholder="e.g. test-owner-2" autocomplete="off">
+          </div>
+          <div style="margin-top: 20px;">
+            <button type="button" class="btn btn-primary" onclick="OwnerTestModal.save()">Switch</button>
+            <button type="button" class="btn btn-secondary" onclick="OwnerTestModal.close()">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <!-- end of Owner (Testing) Modal -->
+
       <!-- Restore Screen 1 — Select File -->
       <div id="restoreScreen1Modal" class="modal">
         <div class="modal-content">
@@ -731,6 +795,7 @@
     <script src="js/db-manager-tauri.js"></script>
     <script src="js/db-manager.js"></script>
     <script src="js/date-utils.js"></script>
+    <script src="js/settings.js"></script>
     <script src="js/rating-utils.js"></script>
     <script src="js/csv-utils.js"></script>
     <script src="js/backup-restore.js"></script>

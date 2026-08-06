@@ -5,8 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::State;
 
-use crate::commands::common::{new_uuid, tags_by_item, today};
-use crate::constants::DEFAULT_OWNER;
+use crate::commands::common::{self, new_uuid, tags_by_item, today};
 use crate::AppState;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -63,7 +62,7 @@ pub struct MergeResult {
 #[tauri::command]
 pub fn get_all_items(state: State<AppState>) -> Result<Vec<ItemRecord>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let owner = DEFAULT_OWNER;
+    let owner = common::current_owner(&db);
 
     let mut stmt = db
         .prepare(
@@ -96,7 +95,7 @@ pub fn get_all_items(state: State<AppState>) -> Result<Vec<ItemRecord>, String> 
         .map_err(|e| e.to_string())?;
     drop(stmt);
 
-    let tag_map = tags_by_item(&db, owner).map_err(|e| e.to_string())?;
+    let tag_map = tags_by_item(&db, &owner).map_err(|e| e.to_string())?;
     for item in items.iter_mut() {
         item.tags = tag_map.get(&item.id).cloned().unwrap_or_default();
     }

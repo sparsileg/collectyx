@@ -101,6 +101,18 @@ CREATE TABLE IF NOT EXISTS settings (
     data   TEXT NOT NULL
 );";
 
+/// Process-level key/value state — deliberately NOT owner-scoped, since
+/// its first use (the `current_owner` testing switch) is exactly the
+/// owner-independent bootstrap value that `settings` can't hold without a
+/// chicken-and-egg problem. Generic key/value shape so a real auth
+/// mechanism (session token, API key hash) can reuse this table later
+/// without another migration.
+pub const CREATE_APP_META: &str = "
+CREATE TABLE IF NOT EXISTS app_meta (
+    key    TEXT PRIMARY KEY,
+    value  TEXT NOT NULL
+);";
+
 /// Indexes on the foreign keys every join traverses.
 pub const CREATE_INDEXES: &str = "
 CREATE INDEX IF NOT EXISTS idx_items_owner       ON items(owner);

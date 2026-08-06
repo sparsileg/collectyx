@@ -6,7 +6,12 @@ pub const APP_NAME: &str = "Collectyx";
 pub const DB_FILE_NAME: &str = "collectyx.db";
 
 /// Current schema version. Increment when adding a new migration.
-pub const CURRENT_SCHEMA_VERSION: u32 = 1;
+pub const CURRENT_SCHEMA_VERSION: u32 = 2;
+
+/// app_meta key holding the currently-active owner (testing feature —
+/// switches which owner's rows every command scopes to). Not owner-scoped
+/// itself; see db/schema.rs's CREATE_APP_META.
+pub const APP_META_CURRENT_OWNER_KEY: &str = "current_owner";
 
 /// Owner value used for every row in v1.
 ///
