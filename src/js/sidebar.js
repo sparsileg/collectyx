@@ -45,6 +45,7 @@ const SIDEBAR_CONSTANTS = {
 async function initSidebarChrome() {
     syncThemeDropdownLabel();
     wireThemeDropdownItems();
+    renderSidebarVersion();
 
     let settings = {};
     try {
@@ -60,6 +61,12 @@ async function initSidebarChrome() {
     if (typeof CollectionView !== 'undefined') {
         CollectionView._dateFormatCache = settings.dateFormat || DateUtils.DEFAULT_FORMAT;
     }
+}
+
+function renderSidebarVersion() {
+    const el = document.getElementById('sidebarVersionFooter');
+    if (!el) return;
+    el.textContent = `v${CONSTANTS.APP_VERSION} d${CONSTANTS.DB.VERSION}`;
 }
 
 function wireThemeDropdownItems() {

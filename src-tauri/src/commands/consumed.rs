@@ -103,7 +103,7 @@ pub fn save_consumed(state: State<AppState>, record: ConsumedRecord) -> Result<S
     let tx = db.transaction().map_err(|e| e.to_string())?;
     let now = today();
 
-    let id = write_one(&tx, &record, &now).map_err(|e| e.to_string())?;
+    let id = write_one(&tx, &record, &now, true).map_err(|e| e.to_string())?;
 
     tx.commit().map_err(|e| e.to_string())?;
     Ok(id)
@@ -111,10 +111,14 @@ pub fn save_consumed(state: State<AppState>, record: ConsumedRecord) -> Result<S
 
 /// Writes one record's item row, membership row, and tag links. Shared by
 /// save_consumed and replace_all_consumed so both apply identical rules.
+/// bump_modified_on_new_link is true only for the interactive single-save
+/// path — restore reproduces historical state and shouldn't make every
+/// reused tag look like fresh activity.
 fn write_one(
     tx: &rusqlite::Transaction,
     record: &ConsumedRecord,
     now: &str,
+    bump_modified_on_new_link: bool,
 ) -> Result<String> {
     let item_id = upsert_item(tx, &record.item, now)?;
     let owner = owner_or_default(&record.item.owner);
@@ -146,7 +150,7 @@ fn write_one(
 
     // None means the payload said nothing about tags — leave links alone.
     if let Some(names) = &record.item.tags {
-        reconcile_tags(tx, &item_id, &owner, names, now)?;
+        reconcile_tags(tx, &item_id, &owner, names, now, bump_modified_on_new_link)?;
     }
 
     Ok(id)
@@ -176,7 +180,7 @@ pub fn replace_all_consumed(
         .map_err(|e| e.to_string())?;
 
     for record in &records {
-        write_one(&tx, record, &now).map_err(|e| e.to_string())?;
+        write_one(&tx, record, &now, false).map_err(|e| e.to_string())?;
     }
 
     tx.commit().map_err(|e| e.to_string())?;

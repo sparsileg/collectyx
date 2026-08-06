@@ -148,12 +148,25 @@ pub fn upsert_item(tx: &Transaction, fields: &ItemFields, now: &str) -> Result<S
 /// Sets an item's tags to exactly `names`, creating tag rows as needed and
 /// removing links the item no longer has. Names are lowercased and
 /// deduplicated, matching the tags table's UNIQUE(owner, name).
+///
+/// When `bump_modified_on_new_link` is true, a reused tag that's newly
+/// linked to this item also gets its modified stamp bumped — otherwise a
+/// tag's Last Updated only ever reflects its own creation or an explicit
+/// rename, never actual usage, which defeats the point of the Tags view's
+/// sort-by-last-updated. A tag the item already carried is left untouched
+/// even if it's in `names` again — nothing changed for it.
+///
+/// Callers pass false for bulk/restore paths (replace_all_*) — restoring
+/// a backup reproduces historical state and shouldn't make every reused
+/// tag look like fresh activity, same reasoning as db-manager-web.js's
+/// replaceCollection() on the web side.
 pub fn reconcile_tags(
     tx: &Transaction,
     item_id: &str,
     owner: &str,
     names: &[String],
     now: &str,
+    bump_modified_on_new_link: bool,
 ) -> Result<()> {
     let mut wanted: Vec<String> = names
         .iter()
@@ -162,6 +175,14 @@ pub fn reconcile_tags(
         .collect();
     wanted.sort();
     wanted.dedup();
+
+    // Fetched up front — needed both to know what to drop (below) and,
+    // per reused tag, whether this save is a genuinely new attachment.
+    let mut stmt = tx.prepare("SELECT tag_id FROM item_tags WHERE item_id = ?1")?;
+    let current: Vec<String> = stmt
+        .query_map(params![item_id], |row| row.get(0))?
+        .collect::<Result<Vec<_>>>()?;
+    drop(stmt);
 
     let mut tag_ids: Vec<String> = Vec::new();
 
@@ -175,7 +196,15 @@ pub fn reconcile_tags(
             .ok();
 
         let tag_id = match existing {
-            Some(id) => id,
+            Some(id) => {
+                if bump_modified_on_new_link && !current.contains(&id) {
+                    tx.execute(
+                        "UPDATE tags SET modified = ?1 WHERE id = ?2",
+                        params![now, id],
+                    )?;
+                }
+                id
+            }
             None => {
                 let id = new_uuid();
                 tx.execute(
@@ -191,12 +220,6 @@ pub fn reconcile_tags(
 
     // Drop links that are no longer wanted. Done as a delete-then-insert
     // rather than a NOT IN with a built string, to keep the query bound.
-    let mut stmt = tx.prepare("SELECT tag_id FROM item_tags WHERE item_id = ?1")?;
-    let current: Vec<String> = stmt
-        .query_map(params![item_id], |row| row.get(0))?
-        .collect::<Result<Vec<_>>>()?;
-    drop(stmt);
-
     for existing_id in &current {
         if !tag_ids.contains(existing_id) {
             tx.execute(

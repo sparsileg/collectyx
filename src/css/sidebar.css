@@ -9,7 +9,8 @@
 
 .app-shell {
     display: flex;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
 }
 
 .main-content {
@@ -28,6 +29,7 @@
     flex-direction: column;
     background: var(--sidebar-bg);
     border-right: 1px solid var(--border-color);
+    overflow: hidden;
 }
 
 .sidebar-header {

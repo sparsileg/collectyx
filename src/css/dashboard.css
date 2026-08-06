@@ -1,0 +1,171 @@
+/**
+ * dashboard.css
+ * Dashboard view — card grid, drag-reorder states, and the six cards'
+ * internal rendering (Quick Stats rows, Recently Finished, Reading Goals
+ * chart, What's Next, My Library Stats). Pulled out of base.css so
+ * dashboard-scoped rules live with the view they belong to, same pattern
+ * as tags.css.
+ */
+
+/* ── Card grid ──────────────────────────────────────────────────────────────── */
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+#dashboardView {
+    padding-bottom: 20px;
+}
+
+.dashboard-card {
+    background: var(--color-bg-raised);
+    border-radius: var(--border-radius-lg);
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-card, none);
+}
+
+.dashboard-card h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: var(--primary-color);
+    font-size: 1.0em;
+    text-transform: uppercase;
+    letter-spacing: var(--label-letter-spacing, 0.5px);
+    font-weight: 500;
+    text-shadow: var(--text-shadow-subtle, none);
+}
+
+.dashboard-card-draggable {
+    cursor: move;
+    transition: all 0.3s ease;
+}
+
+.dashboard-card-dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+    z-index: 1000;
+}
+
+.dashboard-card-drag-over {
+    border: 2px dashed var(--primary-color);
+    background: var(--color-drag-over-bg);
+    box-shadow: var(--shadow-drag-over, none);
+}
+
+/* ── Quick Stats card ───────────────────────────────────────────────────────── */
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border-color-light);
+}
+
+/* ── Recently Finished card ────────────────────────────────────────────────── */
+
+.recent-book-item {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color-light);
+    font-size: 0.9em;
+}
+
+.recent-book-title {
+    color: var(--text-color);
+    font-weight: 500;
+}
+
+.recent-book-author {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
+/* ── Empty states ───────────────────────────────────────────────────────────── */
+
+.goal-placeholder {
+    text-align: center;
+    padding: 20px 0;
+    color: var(--text-secondary);
+    opacity: 0.8;
+}
+
+.goal-placeholder p {
+    margin-bottom: 15px;
+    font-size: 0.9em;
+    text-shadow: var(--text-shadow-subtle, none);
+}
+
+/* ── Reading Goals card ─────────────────────────────────────────────────────── */
+
+.goal-current {
+    text-align: center;
+    font-weight: 500;
+    margin-bottom: 15px;
+    color: inherit;
+}
+
+.reading-progress-chart { height: 200px; }
+#readingGoalChart { max-height: 200px; }
+
+/* ── Top Tags card ──────────────────────────────────────────────────────────── */
+
+.top-tags-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color-light);
+    font-size: 0.9em;
+}
+
+.top-tags-item:last-child { border-bottom: none; }
+
+.top-tags-name {
+    color: var(--text-color);
+    font-weight: 500;
+}
+
+.top-tags-count {
+    color: var(--text-secondary);
+}
+
+/* ── What's Next card ───────────────────────────────────────────────────────── */
+
+.whats-next-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color-light);
+    font-size: 0.9em;
+}
+
+.whats-next-item:last-child { border-bottom: none; }
+
+.whats-next-rank {
+    font-weight: 500;
+    color: var(--primary-color);
+    min-width: 60px;
+    text-align: center;
+    font-size: 0.8em;
+    text-shadow: var(--text-shadow-subtle, none);
+}
+
+.whats-next-details { flex: 1; }
+
+.whats-next-title {
+    color: var(--text-color);
+    font-weight: 500;
+    margin-bottom: 2px;
+    text-shadow: var(--text-shadow-subtle, none);
+}
+
+.whats-next-author {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+    text-shadow: var(--text-shadow-subtle, none);
+}

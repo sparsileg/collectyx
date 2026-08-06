@@ -1,13 +1,5 @@
 // Tag management functions
 
-// Registry of collections that support tags. Add an entry here (rather
-// than duplicating rename/delete logic per collection) whenever a new
-// collection gains Tags support.
-const TAGGABLE_COLLECTIONS = [
-    { getItems: () => myLibrary, save: () => saveMyLibraryData() },
-    { getItems: () => books, save: () => saveData() }
-];
-
 function parseTagsFromString(tagString) {
     if (!tagString || typeof tagString !== 'string') return [];
     
@@ -60,6 +52,10 @@ function initTagChipInput(ids) {
     const hidden = document.getElementById(ids.hidden);
     if (!input || !suggestions || !chipRow || !hidden) return null;
 
+    // Optional — a field lacking a matching '<inputId>Error' element still
+    // works, just falls back to the message bar (showError() below).
+    const errorEl = document.getElementById(ids.input + 'Error');
+
     let tags = [];
 
     // Fire-and-forget — initTagChipInput() itself isn't async (core.js
@@ -87,6 +83,25 @@ function initTagChipInput(ids) {
         suggestions.innerHTML = '';
     }
 
+    // Inline, next to the field that rejected the tag — falls back to the
+    // message bar for any chip input whose markup has no matching error
+    // element yet.
+    function showError(msg) {
+        if (errorEl) {
+            errorEl.textContent = msg;
+            errorEl.style.display = 'block';
+        } else {
+            showMessage(msg, CONSTANTS.MESSAGE_TYPES.ERROR);
+        }
+    }
+
+    function clearError() {
+        if (errorEl) {
+            errorEl.textContent = '';
+            errorEl.style.display = 'none';
+        }
+    }
+
     function showSuggestions() {
         const val = input.value.trim().toLowerCase();
         if (!val) { hideSuggestions(); return; }
@@ -109,13 +124,14 @@ function initTagChipInput(ids) {
 
         if (!validation.valid) {
             if (!validation.isDuplicate && rawTag && rawTag.trim()) {
-                showMessage(validation.message, CONSTANTS.MESSAGE_TYPES.ERROR);
+                showError(validation.message);
             }
             input.value = '';
             hideSuggestions();
             return;
         }
 
+        clearError();
         tags.push(validation.cleanTag);
         renderChips();
         input.value = '';
@@ -127,7 +143,11 @@ function initTagChipInput(ids) {
         renderChips();
     }
 
-    input.addEventListener('input', showSuggestions);
+    input.addEventListener('input', () => {
+        const liveError = tagLiveFormatError(input.value);
+        if (liveError) showError(liveError); else clearError();
+        showSuggestions();
+    });
     input.addEventListener('keydown', event => {
         if (event.key === 'Enter' || event.key === ',') {
             event.preventDefault();
@@ -152,6 +172,7 @@ function initTagChipInput(ids) {
     return {
         setTags(newTags) {
             tags = Array.isArray(newTags) ? [...newTags] : [];
+            clearError();
             renderChips();
         },
         getTags() {
@@ -184,140 +205,247 @@ function validateTagName(tagName, existingTags, originalTag = null) {
     return { valid: true, cleanTag };
 }
 
-async function renameTagInLibrary(oldTag, newTag) {
-    const validation = validateTagName(newTag, getAllLibraryTags(), oldTag);
-    
-    if (!validation.valid) {
-        if (validation.isDuplicate) {
-            const confirmed = await confirmDialog(`Tag "${newTag}" already exists. Merge "${oldTag}" into "${newTag}"? This will combine their usage.`);
-            if (!confirmed) return false;
-            // Proceed with merge by treating as rename to existing tag
-        } else {
+// Per-keystroke check, separate from validateTagName's commit-time check
+// (which trims before validating, so a stray leading/trailing space isn't
+// an error there). This flags a space the instant it's typed, anywhere in
+// the field — that's the one a user can't otherwise tell caused the
+// rejection. Returns the message to show, or null if there's nothing to
+// flag yet.
+function tagLiveFormatError(rawValue) {
+    if (!rawValue) return null;
+    if (/\s/.test(rawValue)) {
+        return 'Tags can only contain letters, numbers, hyphens, and underscores — no spaces';
+    }
+    return null;
+}
+
+// ── Tags CRUD view (Phase 7, design doc §4.6) ───────────────────────────────
+// Real DBManager-backed list — getAllTags()/saveTag()/deleteTag() already
+// work; this is UI only. Delete-from-a-single-book stays in each
+// collection's own Edit modal (existing, untouched); this view deletes a
+// tag from the system entirely.
+
+const TagsView = {
+    CONTAINER_ID: 'tagsView',
+    _tags: [],
+    _sortKey: 'Name',
+    _sortDir: 'asc',
+
+    async load(containerId) {
+        try {
+            this._tags = await DBManager.getAllTags();
+        } catch (e) {
+            console.error('TagsView.load: could not load tags', e);
+            if (typeof showMessage === 'function') {
+                showMessage('Could not load tags — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
+            }
+            this._tags = [];
+        }
+        this.render();
+    },
+
+    setSort(key) {
+        this._sortKey = key;
+        this.render();
+    },
+
+    toggleSortDir() {
+        this._sortDir = this._sortDir === 'asc' ? 'desc' : 'asc';
+        const btn = document.getElementById('tagsSortDirBtn');
+        if (btn) btn.textContent = this._sortDir === 'asc' ? '▲' : '▼';
+        this.render();
+    },
+
+    getTag(tagId) {
+        return this._tags.find(t => t.id === tagId) || null;
+    },
+
+    _sorted() {
+        const key = this._sortKey;
+        const dir = this._sortDir === 'asc' ? 1 : -1;
+        const list = this._tags.slice();
+        list.sort((a, b) => {
+            if (key === 'Count') {
+                return ((a.Count || 0) - (b.Count || 0)) * dir;
+            }
+            const av = String(a[key] || '').toLowerCase();
+            const bv = String(b[key] || '').toLowerCase();
+            if (av < bv) return -1 * dir;
+            if (av > bv) return 1 * dir;
+            return 0;
+        });
+        return list;
+    },
+
+    render() {
+        const container = document.getElementById('tagsList');
+        if (!container) return;
+        const sorted = this._sorted();
+
+        if (sorted.length === 0) {
+            container.innerHTML = '<p class="placeholder-content">No tags found in library</p>';
+            return;
+        }
+
+        container.innerHTML = sorted.map(tag => `
+            <div class="tag-item">
+                <span class="tag-name">${escapeHtml(tag.Name)}</span>
+                <span class="tag-count">${tag.Count || 0}</span>
+                <div class="tag-actions">
+                    <button type="button" class="btn btn-small btn-secondary" onclick="TagFormModal.openRename('${tag.id}')">Rename</button>
+                    <button type="button" class="btn btn-small btn-danger" onclick="TagDeleteModal.open('${tag.id}')">Delete</button>
+                </div>
+            </div>
+        `).join('');
+    },
+
+    // Called after any Add/Rename/Delete. Refreshes this view, the chip-
+    // input autocomplete cache, and any collection view currently loaded —
+    // a rename/delete changes Tags on the shared item, visible from all
+    // three. Same guarded pattern as OwnedView.refreshAll().
+    async refreshAll() {
+        await this.load(this.CONTAINER_ID);
+        refreshLibraryTagCache();
+        if (typeof ConsumedView !== 'undefined') ConsumedView.load('consumedView');
+        if (typeof QueuedView !== 'undefined') QueuedView.load('queuedView');
+        if (typeof OwnedView !== 'undefined') OwnedView.load('ownedView');
+    }
+};
+
+// One modal, two modes — Add (blank) and Rename (prefilled). Reuses
+// validateTagName so standalone-created tags follow the same format rule
+// as chip-input-created ones (lowercase, a-z0-9_- only).
+const TagFormModal = {
+    _mode: 'add',
+    _tagId: null,
+    _wired: false,
+
+    // Attached once, lazily — 'tagFormName' exists in the DOM from page
+    // load, no need to re-wire it per open() call.
+    _wireLiveCheck() {
+        if (this._wired) return;
+        this._wired = true;
+        document.getElementById('tagFormName').addEventListener('input', (event) => {
+            const liveError = tagLiveFormatError(event.target.value);
+            if (liveError) this._showError(liveError); else this._clearError();
+        });
+    },
+
+    _showError(msg) {
+        const errorEl = document.getElementById('tagFormNameError');
+        if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
+    },
+
+    _clearError() {
+        const errorEl = document.getElementById('tagFormNameError');
+        if (errorEl) { errorEl.textContent = ''; errorEl.style.display = 'none'; }
+    },
+
+    openAdd() {
+        this._wireLiveCheck();
+        this._mode = 'add';
+        this._tagId = null;
+        document.getElementById('tagFormModalTitle').textContent = 'Add Tag';
+        document.getElementById('tagFormName').value = '';
+        this._clearError();
+        document.getElementById('tagFormModal').classList.add('open');
+    },
+
+    openRename(tagId) {
+        this._wireLiveCheck();
+        const tag = TagsView.getTag(tagId);
+        if (!tag) return;
+        this._mode = 'rename';
+        this._tagId = tagId;
+        document.getElementById('tagFormModalTitle').textContent = 'Rename Tag';
+        document.getElementById('tagFormName').value = tag.Name;
+        this._clearError();
+        document.getElementById('tagFormModal').classList.add('open');
+    },
+
+    close() {
+        document.getElementById('tagFormModal').classList.remove('open');
+    },
+
+    async save(event) {
+        event.preventDefault();
+
+        const originalName = this._mode === 'rename'
+            ? ((TagsView.getTag(this._tagId) || {}).Name || null)
+            : null;
+
+        const existingMap = {};
+        TagsView._tags.forEach(t => {
+            if (this._mode === 'rename' && t.id === this._tagId) return;
+            existingMap[t.Name] = true;
+        });
+
+        const validation = validateTagName(document.getElementById('tagFormName').value, existingMap, originalName);
+        if (!validation.valid) {
             showMessage(validation.message, CONSTANTS.MESSAGE_TYPES.ERROR);
-            return false;
+            this._showError(validation.message);
+            return;
+        }
+
+        const payload = { Name: validation.cleanTag };
+        if (this._mode === 'rename' && this._tagId) payload.id = this._tagId;
+
+        try {
+            await DBManager.saveTag(payload);
+            this.close();
+            showMessage(this._mode === 'rename' ? 'Tag renamed' : 'Tag added', CONSTANTS.MESSAGE_TYPES.SUCCESS);
+            await TagsView.refreshAll();
+        } catch (e) {
+            console.error('TagFormModal.save failed', e);
+            showMessage(e && e.message ? e.message : 'Could not save tag — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
         }
     }
-    
-    const targetTag = validation.cleanTag || newTag.toLowerCase();
-    let updatedCount = 0;
+};
 
-    TAGGABLE_COLLECTIONS.forEach(collection => {
-        collection.getItems().forEach(book => {
-            if (book.Tags && Array.isArray(book.Tags)) {
-                const tagIndex = book.Tags.indexOf(oldTag);
-                if (tagIndex !== -1) {
-                    book.Tags[tagIndex] = targetTag;
-                    // Remove duplicates that might result from merge
-                    book.Tags = book.Tags.filter((tag, index, arr) => arr.indexOf(tag) === index);
-                    updatedCount++;
-                }
-            }
-        });
-        collection.save();
-    });
+// Delete-from-the-system, with an optional substitute tag (design doc
+// §4.6). Deleting a single book's tag stays in that collection's own Edit
+// modal — this always removes the tag entirely.
+const TagDeleteModal = {
+    _tagId: null,
 
-    return updatedCount;
-}
+    open(tagId) {
+        const tag = TagsView.getTag(tagId);
+        if (!tag) return;
+        this._tagId = tagId;
 
-function deleteTagFromLibrary(tagToDelete) {
-    let updatedCount = 0;
+        document.getElementById('tagDeleteName').textContent = tag.Name;
+        document.getElementById('tagDeleteCount').textContent = tag.Count || 0;
 
-    TAGGABLE_COLLECTIONS.forEach(collection => {
-        collection.getItems().forEach(book => {
-            if (book.Tags && Array.isArray(book.Tags)) {
-                const originalLength = book.Tags.length;
-                book.Tags = book.Tags.filter(tag => tag !== tagToDelete);
-                if (book.Tags.length < originalLength) {
-                    updatedCount++;
-                }
-            }
-        });
-        collection.save();
-    });
+        const select = document.getElementById('tagDeleteSubstitute');
+        const others = TagsView._tags
+            .filter(t => t.id !== tagId)
+            .slice()
+            .sort((a, b) => a.Name.localeCompare(b.Name));
+        select.innerHTML = '<option value="">No substitute</option>' +
+            others.map(t => `<option value="${t.id}">${escapeHtml(t.Name)}</option>`).join('');
+        select.value = '';
 
-    return updatedCount;
-}
+        document.getElementById('tagDeleteModal').classList.add('open');
+    },
 
+    close() {
+        document.getElementById('tagDeleteModal').classList.remove('open');
+    },
 
-function showTagManagement() {
-    renderTagsList();
-    document.getElementById('tagManagementModal').style.display = 'block';
-}
+    async confirm() {
+        if (!this._tagId) return;
+        const substituteId = document.getElementById('tagDeleteSubstitute').value || null;
 
-function closeTagManagement() {
-    document.getElementById('tagManagementModal').style.display = 'none';
-}
-
-function renderTagsList() {
-    const tagCounts = getAllLibraryTags();
-    const sortedTags = Object.keys(tagCounts).sort();
-    const container = document.getElementById('tagsList');
-
-    if (!container.dataset.delegated) {
-        container.addEventListener('click', handleTagsListClick);
-        container.dataset.delegated = 'true';
+        try {
+            const affected = await DBManager.deleteTag(this._tagId, substituteId);
+            this.close();
+            showMessage(`Tag deleted, removed from ${affected} book(s)`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
+            await TagsView.refreshAll();
+        } catch (e) {
+            console.error('TagDeleteModal.confirm failed', e);
+            showMessage(e && e.message ? e.message : 'Could not delete tag — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
+        }
     }
-
-    if (sortedTags.length === 0) {
-        container.innerHTML = '<p class="placeholder-content">No tags found in library</p>';
-        return;
-    }
-    
-    const html = sortedTags.map(tag => `
-        <div class="tag-item" data-tag="${escapeHtml(tag)}">
-            <span class="tag-name">${escapeHtml(tag)}</span>
-            <span class="tag-count">(${tagCounts[tag]})</span>
-            <div class="tag-actions">
-                <button class="btn btn-small btn-secondary" data-action="rename">Rename</button>
-                <button class="btn btn-small btn-danger" data-action="delete">Delete</button>
-            </div>
-        </div>
-    `).join('');
-    
-    container.innerHTML = html;
-}
-
-// Delegated click handler for tag list action buttons
-function handleTagsListClick(event) {
-    const actionBtn = event.target.closest('[data-action]');
-    if (!actionBtn) return;
-    const itemEl = event.target.closest('[data-tag]');
-    if (!itemEl) return;
-
-    const tag = itemEl.dataset.tag;
-    const action = actionBtn.dataset.action;
-
-    if (action === 'rename') renameTag(tag);
-    else if (action === 'delete') deleteTag(tag);
-}
-
-async function renameTag(oldTag) {
-    const newTag = prompt(`Rename tag "${oldTag}" to:`, oldTag);
-    if (!newTag || newTag.trim() === '' || newTag.toLowerCase() === oldTag) {
-        return;
-    }
-    
-    const updatedCount = await renameTagInLibrary(oldTag, newTag.trim());
-    if (updatedCount > 0) {
-        showMessage(`Tag renamed and updated in ${updatedCount} books`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
-        renderTagsList();
-        renderMyLibrary(); // Refresh library view if open
-        renderReadBooks(); // Refresh books read view if open
-    }
-}
-
-async function deleteTag(tag) {
-    const tagCounts = getAllLibraryTags();
-    const count = tagCounts[tag];
-    
-    const confirmed = await confirmDialog(`Delete tag "${tag}"? This will remove it from ${count} book(s). This cannot be undone.`);
-    if (!confirmed) return;
-    
-    const updatedCount = deleteTagFromLibrary(tag);
-    showMessage(`Tag deleted and removed from ${updatedCount} books`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
-    renderTagsList();
-    renderMyLibrary(); // Refresh library view if open
-    renderReadBooks(); // Refresh books read view if open
-}
+};
 
 

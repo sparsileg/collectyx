@@ -218,12 +218,25 @@ const JoinHelpers = {
      * Given desired tag names for an item and the current tags store, works
      * out which tags need creating and what the item_tags rows should be.
      * Names match within an owner, consistent with UNIQUE(owner, name).
+     *
+     * A reused tag that's newly linked to this item also gets its modified
+     * stamp bumped — otherwise a tag's Last Updated only ever reflects its
+     * own creation or an explicit rename, never actual usage, which is the
+     * opposite of what the Tags view's sort-by-last-updated is for.
+     * existingLinkedTagIds should be the set of tag_ids already linked to
+     * this item *before* this save; a tag already in that set is untouched
+     * even if it's in tagNames again (nothing changed for it). Omit it
+     * (replaceCollection's bulk path) to skip the bump entirely — a
+     * restore reproducing historical state shouldn't look like fresh
+     * activity.
      */
-    reconcileTags(itemId, tagNames, tags, owner, newId, today) {
+    reconcileTags(itemId, tagNames, tags, owner, newId, today, existingLinkedTagIds) {
+        const alreadyLinked = existingLinkedTagIds || null;
         const byName = new Map();
         (tags || []).filter(t => t.owner === owner).forEach(t => byName.set(t.name, t));
 
         const newTags = [];
+        const touchedTags = [];
         const links = [];
 
         tagNames.forEach(name => {
@@ -232,11 +245,14 @@ const JoinHelpers = {
                 tag = { id: newId(), owner: owner, name: name, date_added: today, modified: today };
                 byName.set(name, tag);
                 newTags.push(tag);
+            } else if (alreadyLinked && !alreadyLinked.has(tag.id)) {
+                tag.modified = today;
+                touchedTags.push(tag);
             }
             links.push({ item_id: itemId, tag_id: tag.id });
         });
 
-        return { newTags: newTags, links: links };
+        return { newTags: newTags, touchedTags: touchedTags, links: links };
     },
 
     /**
@@ -583,11 +599,15 @@ const DBManagerWeb = {
         // tagNames === null means the payload said nothing about tags, so
         // leave the existing links alone.
         if (split.tagNames !== null) {
+            const existingLinkedTagIds = new Set(
+                itemTags.filter(l => l.item_id === item.id).map(l => l.tag_id)
+            );
             const rec = JoinHelpers.reconcileTags(
                 item.id, split.tagNames, tags, item.owner,
-                () => this._newId(), defaults.today
+                () => this._newId(), defaults.today, existingLinkedTagIds
             );
             rec.newTags.forEach(t => ops.push({ store: S.TAGS, action: 'put', value: t }));
+            rec.touchedTags.forEach(t => ops.push({ store: S.TAGS, action: 'put', value: t }));
 
             const keep = new Set(rec.links.map(l => l.tag_id));
             itemTags.filter(l => l.item_id === item.id && !keep.has(l.tag_id))

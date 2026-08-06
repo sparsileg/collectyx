@@ -11,6 +11,8 @@
     <link rel="stylesheet" href="css/hamburger-menu.css">
     <link rel="stylesheet" href="css/collection-view.css">
     <link rel="stylesheet" href="css/modal-fields.css">
+    <link rel="stylesheet" href="css/tags.css">
+    <link rel="stylesheet" href="css/dashboard.css">
     <link rel="stylesheet" href="css/themes/nordic.css" id="themeLink">
 
   </head>
@@ -67,6 +69,12 @@
             <!-- Nav items populated in Phase 3 Patch B -->
           </ul>
         </div>
+
+        <!-- Assumes .sidebar is a flex column (matches design doc §4.1's
+             top/bottom two-zone layout) so margin-top:auto pins this to
+             the bottom. Haven't seen sidebar.css to confirm — inline for
+             now, move into sidebar.css once verified. -->
+        <div class="sidebar-version" id="sidebarVersionFooter" style="margin-top: auto; padding: 8px 16px; font-size: 0.75em; opacity: 0.6; text-align: center;"></div>
       </nav>
       <!-- end of Sidebar Navigation -->
 
@@ -76,7 +84,47 @@
       <!-- Dashboard View -->
       <div id="dashboardView" class="view active">
         <h2>Reading Dashboard</h2>
-        <p class="view-placeholder-note">Dashboard cards arrive in Phase 8.</p>
+        <div class="dashboard-grid">
+
+          <div class="dashboard-card" id="quick-stats">
+            <h3>Quick Stats</h3>
+            <div class="stat-row"><span>Total Books</span><span id="dashTotalBooks">0</span></div>
+            <div class="stat-row"><span>Total Pages</span><span id="dashTotalPages">0</span></div>
+            <div class="stat-row"><span>This Year</span><span id="dashThisYear">0</span></div>
+            <div class="stat-row"><span>This Year Pages</span><span id="dashThisYearPages">0</span></div>
+            <div class="stat-row"><span>Avg Pages/Day</span><span id="dashAvgPagesDay">0</span></div>
+          </div>
+
+          <div class="dashboard-card" id="top-tags">
+            <h3>Top Tags</h3>
+            <div id="topTagsContent"></div>
+          </div>
+
+          <div class="dashboard-card" id="recent-books">
+            <h3>Recently Finished</h3>
+            <div id="recentBooks"></div>
+          </div>
+
+          <div class="dashboard-card" id="reading-goals">
+            <h3>Reading Goals</h3>
+            <div id="goalDisplay"></div>
+            <canvas id="readingGoalChart"></canvas>
+          </div>
+
+          <div class="dashboard-card" id="whats-next">
+            <h3>What's Next</h3>
+            <div id="whatsNextContent"></div>
+          </div>
+
+          <div class="dashboard-card" id="library-stats">
+            <h3>My Library Stats</h3>
+            <div class="stat-row"><span>Total Books</span><span id="dashLibraryTotal">0</span></div>
+            <div class="stat-row"><span>No Tags</span><span id="dashLibraryNoTags">0</span></div>
+            <div class="stat-row"><span>No ISBN</span><span id="dashLibraryNoISBN">0</span></div>
+            <div class="stat-row"><span>Checked Out</span><span id="dashLibraryCheckedOut">0</span></div>
+          </div>
+
+        </div>
       </div> <!-- end of Dashboard view -->
 
       <!-- Books Read View (consumed) -->
@@ -88,7 +136,29 @@
       <!-- Statistics View -->
       <div id="statisticsView" class="view">
         <h2>Statistics</h2>
-        <p class="view-placeholder-note">Charts arrive in Phase 8 (top-tags chart replaces the old category chart).</p>
+        <div class="stats-section">
+          <h3>Totals</h3>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-value" id="totalBooks">0</div>
+              <div class="stat-label">Books Read</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value" id="totalPages">0</div>
+              <div class="stat-label">Pages Read</div>
+            </div>
+          </div>
+          <div class="category-stats">
+            <h4>Top Tags</h4>
+            <canvas id="topTagsChart"></canvas>
+          </div>
+        </div>
+        <div class="stats-section">
+          <h3>Yearly Statistics</h3>
+          <div class="yearly-stats">
+            <canvas id="yearlyChart"></canvas>
+          </div>
+        </div>
       </div> <!-- end of Statistics View -->
 
       <!-- To Be Read View (queued) -->
@@ -100,8 +170,58 @@
       <!-- Tags View -->
       <div id="tagsView" class="view">
         <h2>Tags</h2>
-        <p class="view-placeholder-note">Full CRUD view arrives in Phase 7.</p>
+        <div class="tags-toolbar">
+          <div class="tags-sort">
+            <label for="tagsSortSelect">Sort:</label>
+            <select id="tagsSortSelect" onchange="TagsView.setSort(this.value)">
+              <option value="Name">Name</option>
+              <option value="Count">Count</option>
+              <option value="Modified">Last Updated</option>
+            </select>
+            <button type="button" class="btn btn-small" id="tagsSortDirBtn" onclick="TagsView.toggleSortDir()" aria-label="Toggle sort direction">▲</button>
+          </div>
+          <button type="button" class="btn btn-primary" onclick="TagFormModal.openAdd()">Add Tag</button>
+        </div>
+        <div class="tags-list" id="tagsList"></div>
       </div> <!-- end of tagsView -->
+
+      <!-- Tag Add/Rename Modal -->
+      <div id="tagFormModal" class="modal">
+        <div class="modal-content">
+          <h3 id="tagFormModalTitle">Add Tag</h3>
+          <form id="tagFormForm" onsubmit="TagFormModal.save(event)">
+            <div class="form-group">
+              <label for="tagFormName">Name:</label>
+              <input type="text" id="tagFormName" required autocomplete="off">
+            </div>
+            <div class="tag-chip-error" id="tagFormNameError" style="display: none;"></div>
+            <div style="margin-top: 20px;">
+              <button type="submit" class="btn btn-primary">Save</button>
+              <button type="button" class="btn btn-secondary" onclick="TagFormModal.close()">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <!-- end of Tag Add/Rename Modal -->
+
+      <!-- Tag Delete Modal -->
+      <div id="tagDeleteModal" class="modal">
+        <div class="modal-content">
+          <h3>Delete Tag</h3>
+          <p>Delete "<strong id="tagDeleteName"></strong>"? Used by <span id="tagDeleteCount"></span> book(s). This cannot be undone.</p>
+          <div class="form-group">
+            <label for="tagDeleteSubstitute">Substitute:</label>
+            <select id="tagDeleteSubstitute">
+              <option value="">No substitute</option>
+            </select>
+          </div>
+          <div style="margin-top: 20px;">
+            <button type="button" class="btn btn-danger" onclick="TagDeleteModal.confirm()">Delete</button>
+            <button type="button" class="btn btn-secondary" onclick="TagDeleteModal.close()">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <!-- end of Tag Delete Modal -->
 
       <!-- Reading List Edit Modal -->
       <div id="readingListEditModal" class="modal">
@@ -202,9 +322,10 @@
               <label for="cbrTagsInput">Tags:</label>
               <div class="tag-chip-container">
                 <div class="tag-chip-field">
-                  <input type="text" id="cbrTagsInput" placeholder="Type a tag and press Enter" autocomplete="off">
+                  <input type="text" id="cbrTagsInput" placeholder="Type a tag and press Enter" autocomplete="off" size="23">
                   <div class="tag-chip-suggestions" id="cbrTagsSuggestions"></div>
                 </div>
+                <div class="tag-chip-error" id="cbrTagsInputError" style="display: none;"></div>
                 <div class="tag-chip-row" id="cbrTagsChipRow"></div>
                 <input type="hidden" id="cbrTags">
               </div>
@@ -312,9 +433,10 @@
               <label for="mlTagsInput">Tags:</label>
               <div class="tag-chip-container">
                 <div class="tag-chip-field">
-                  <input type="text" id="mlTagsInput" placeholder="Type a tag and press Enter" autocomplete="off">
+                  <input type="text" id="mlTagsInput" placeholder="Type a tag and press Enter" autocomplete="off" size="23">
                   <div class="tag-chip-suggestions" id="mlTagsSuggestions"></div>
                 </div>
+                <div class="tag-chip-error" id="mlTagsInputError" style="display: none;"></div>
                 <div class="tag-chip-row" id="mlTagsChipRow"></div>
                 <input type="hidden" id="mlTags">
               </div>

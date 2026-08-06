@@ -1,0 +1,163 @@
+/*
+  tags.css
+  Tag-related styles: the Tags CRUD view (Phase 7, design doc §4.6) and the
+  tag chip entry control used by every collection's Tags field. Chip entry
+  used to live in base.css; moved here so all tag styling lives in one file.
+*/
+
+/* ── Tags CRUD view ─────────────────────────────────────────────────────────── */
+
+.tags-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.tags-sort {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tags-sort label {
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: var(--label-letter-spacing, 0.5px);
+    color: var(--color-label);
+    text-shadow: var(--text-shadow-subtle, none);
+}
+
+.tags-sort select {
+    padding: 6px 30px 6px 8px;
+}
+
+.tags-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-bottom: 20px;
+}
+
+.tag-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    padding: 12px 16px;
+    box-shadow: var(--shadow-list-item, none);
+}
+
+.tag-name {
+    flex: 1;
+    color: var(--text-color);
+    font-weight: 500;
+    text-shadow: var(--text-shadow-subtle, none);
+}
+
+.tag-count {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+    min-width: 2em;
+    text-align: right;
+    text-shadow: var(--text-shadow-subtle, none);
+}
+
+.tag-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* ── Tag chip entry ─────────────────────────────────────────────────────────── */
+
+.tag-chip-container {
+    flex: 1;
+}
+
+.tag-chip-field {
+    position: relative;
+}
+
+.tag-chip-suggestions {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.tag-chip-suggestion {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.tag-chip-suggestion:hover {
+    background: var(--color-table-row-hover);
+}
+
+.tag-chip-error {
+    color: #ffffff;
+    background: rgba(0, 0, 0, 0.85);
+    font-size: 1em;
+    font-weight: 500;
+    padding: 8px 12px;
+    border-radius: var(--border-radius-sm);
+    margin-top: 6px;
+    text-shadow: none;
+}
+
+.tag-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--color-btn-secondary-bg);
+    color: var(--color-btn-secondary-text);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    padding: 4px 6px 4px 12px;
+    font-size: 0.85em;
+}
+
+.tag-chip-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    font-size: 1em;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 50%;
+}
+
+.tag-chip-remove:hover {
+    background: var(--error-color);
+    color: var(--color-btn-primary-text);
+}
+
+/* ── Tag Delete Modal ──────────────────────────────────────────────────────── */
+/* No h3-to-body spacing rule existed anywhere for either tag modal — the
+   Rename modal's apparent gap comes from .form-group's own padding, not an
+   actual margin. Giving the description text real spacing here, reusing
+   the 30px .form-group already uses for this same kind of separation. */
+
+#tagDeleteModal .modal-content > p {
+    margin-top: 30px;
+    margin-bottom: 20px;
+}

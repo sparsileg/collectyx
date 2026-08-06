@@ -108,10 +108,15 @@ const CONSTANTS = {
         PAUSE_AFTER_SAVE: 3000
     },
 
+    // Fallback used until Settings (Phase 10) lets the user set a real
+    // daily reading goal.
+    DEFAULT_DAILY_READING_GOAL: 30,
+
     // # rows in dashboard cards
     ROW_LIMITS: {
         RECENT_FINISHED: 5,
-        WHATS_NEXT: 4
+        WHATS_NEXT: 4,
+        TOP_TAGS: 5
     }
 };
 
@@ -119,7 +124,7 @@ const DASHBOARD_CONSTANTS = {
     STORAGE_KEY: 'dashboardCardOrder',
     DEFAULT_ORDER: [
         'quick-stats',
-        'quick-actions',
+        'top-tags',
         'recent-books',
         'reading-goals',
         'whats-next',

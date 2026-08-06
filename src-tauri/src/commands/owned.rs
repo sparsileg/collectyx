@@ -103,13 +103,13 @@ pub fn save_owned(state: State<AppState>, record: OwnedRecord) -> Result<String,
     let tx = db.transaction().map_err(|e| e.to_string())?;
     let now = today();
 
-    let id = write_one(&tx, &record, &now).map_err(|e| e.to_string())?;
+    let id = write_one(&tx, &record, &now, true).map_err(|e| e.to_string())?;
 
     tx.commit().map_err(|e| e.to_string())?;
     Ok(id)
 }
 
-fn write_one(tx: &rusqlite::Transaction, record: &OwnedRecord, now: &str) -> Result<String> {
+fn write_one(tx: &rusqlite::Transaction, record: &OwnedRecord, now: &str, bump_modified_on_new_link: bool) -> Result<String> {
     let item_id = upsert_item(tx, &record.item, now)?;
     let owner = owner_or_default(&record.item.owner);
     let id = record.id.clone().unwrap_or_else(common::new_uuid);
@@ -140,7 +140,7 @@ fn write_one(tx: &rusqlite::Transaction, record: &OwnedRecord, now: &str) -> Res
     )?;
 
     if let Some(names) = &record.item.tags {
-        reconcile_tags(tx, &item_id, &owner, names, now)?;
+        reconcile_tags(tx, &item_id, &owner, names, now, bump_modified_on_new_link)?;
     }
 
     Ok(id)
@@ -167,7 +167,7 @@ pub fn replace_all_owned(
         .map_err(|e| e.to_string())?;
 
     for record in &records {
-        write_one(&tx, record, &now).map_err(|e| e.to_string())?;
+        write_one(&tx, record, &now, false).map_err(|e| e.to_string())?;
     }
 
     tx.commit().map_err(|e| e.to_string())?;

@@ -10,26 +10,24 @@ window.onload = async function () {
     // One-time migration from old localStorage blob if present
     await migrateFromLocalStorage();
 
-    // loadTheme() reads settings via data-manager.js's not-yet-rewired
-    // wrapper (Phase 5) and currently throws — caught here so it can't
-    // halt the rest of onload before initSidebarChrome() runs.
+    // loadTheme() now reads settings via DBManager directly; still wrapped
+    // in try/catch so a settings-load failure can't halt the rest of
+    // onload before initSidebarChrome() runs.
     try {
         await loadTheme();
     } catch (e) {
-        console.error('loadTheme failed (settings path broken pending Phase 5 data-manager.js rewrite):', e);
+        console.error('loadTheme failed:', e);
     }
     if (typeof initSidebarChrome === 'function') await initSidebarChrome();
     if (typeof initNavigation === 'function') await initNavigation();
 
     // Load all collections into memory
-    await loadData();
-    await loadReadingListData();
-    await loadMyLibraryData();
-
-    // Assign IDs to any records that predate the id field
-    await migrateExistingBooks();
-    await migrateReadingListItems();
-    await migrateMyLibraryItems();
+    // (Phase 5 rewrite: data-manager.js's loadData()/loadReadingListData()/
+    // loadMyLibraryData() and the migrate*() calls that followed them
+    // targeted the pre-normalization API and are gone. Dashboard is the
+    // default active view and showView() is never called for the initial
+    // load, so it's rendered directly here.)
+    if (typeof renderDashboard === 'function') await renderDashboard();
 
     myLibraryAddTagsChipController = initTagChipInput({
         input: 'myLibraryAddTagsInput', suggestions: 'myLibraryAddTagsSuggestions', chipRow: 'myLibraryAddTagsChipRow', hidden: 'myLibraryAddTags'
@@ -71,6 +69,13 @@ function showView(viewName, buttonElement) {
         QueuedView.load('queuedView');
     } else if (viewName === CONSTANTS.VIEWS.OWNED && typeof OwnedView !== 'undefined') {
         OwnedView.load('ownedView');
+    } else if (viewName === 'tags' && typeof TagsView !== 'undefined') {
+        TagsView.load('tagsView');
+    } else if (viewName === CONSTANTS.VIEWS.DASHBOARD && typeof renderDashboard === 'function') {
+        renderDashboard();
+    } else if (viewName === CONSTANTS.VIEWS.STATISTICS && typeof renderStatistics === 'function') {
+        if (typeof destroyCharts === 'function') destroyCharts();
+        renderStatistics();
     }
 }
 
@@ -291,7 +296,7 @@ function generateBookId() {
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
 async function loadTheme() {
-    const settings = await loadSettingsFromDB() || {};
+    const settings = await DBManager.getSettings() || {};
     const theme = settings.displayTheme
         ? sanitiseThemePath(settings.displayTheme)
         : CONSTANTS.THEMES.NORDIC;
@@ -301,12 +306,12 @@ async function loadTheme() {
 async function changeTheme(themePath) {
     const themeLink = document.getElementById('themeLink');
     themeLink.href = themePath;
-    const current = await loadSettingsFromDB() || {};
-    await saveSettingsToDB({ ...current, displayTheme: themePath });
+    const current = await DBManager.getSettings() || {};
+    await DBManager.saveSettings({ ...current, displayTheme: themePath });
 
     if (document.getElementById('statisticsView').classList.contains('active')) {
         if (typeof destroyCharts === 'function') destroyCharts();
-        renderStatistics();
+        await renderStatistics();
     }
 }
 
