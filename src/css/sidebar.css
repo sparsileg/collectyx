@@ -31,7 +31,11 @@
     flex-direction: column;
     background: var(--sidebar-bg);
     border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
     overflow: hidden;
+    margin-bottom: 20px;
+    border-bottom-left-radius: var(--border-radius-lg);
+    border-bottom-right-radius: var(--border-radius-lg);
 }
 
 .sidebar-header {
@@ -54,11 +58,19 @@
 
 .logo-placeholder {
     position: relative;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: var(--primary-color);
-    box-shadow: var(--shadow-card, none);
+    width: 70px;
+    height: 70px;
+}
+
+.logo-img {
+    display: block;
+    position: absolute;
+    top: -25px;
+    left: -25px;
+    width: 110px;
+    height: 110px;
+    object-fit: contain;
+    pointer-events: none;
 }
 
 .logo-placeholder #app-name {
