@@ -318,29 +318,14 @@ remaining phases can be dogfooded against it rather than synthetic data.
 
 ---
 
-## Phase 9 — Find Duplicates / Merge
+## Phase 9 — Find Duplicates / Merge — DROPPED
 
-**Goal:** per design doc §3.3 and §4.7. Read these sections and discuss. Do we really need/want this capability?
+**Decision:** not building this. Original rationale was a safety net for
+duplicate `items` rows Phase 6's Scriptum import might create. In
+practice, no duplicates have occurred. `merge_items` (Phase 2 Rust
+command) stays in the codebase, unused; no UI, no scan logic.
 
-### Tasks
-
-1. Duplicate-candidate scan: fuzzy title+author matching, starting from
-   Scriptum's `normalizeBookKey()` logic; a matching non-empty ISBN on
-   both sides treated as corroborating, never sole, evidence.
-2. Candidate list + field-by-field comparison/resolution UI, per design
-   doc sketch.
-3. Wire to the `merge_items` command from Phase 2 (and its IndexedDB
-   equivalent).
-4. Reachable from the hamburger's Global section.
-
-### Acceptance criteria
-
-- Running Find Duplicates against a dataset with known duplicates
-  (including any produced by Phase 6's import) correctly surfaces them.
-- Merging reassigns all related rows and removes the loser cleanly.
-- Declining a candidate ("Not a match") leaves both records untouched.
-
----
+ ---
 
 ## Phase 10 — Settings
 
@@ -403,20 +388,20 @@ from Phase 6's one-time Scriptum importer.
 
 ## Dependency summary
 
-| Phase | Depends on                     |
-| ----- | ------------------------------ |
-| 0     | —                              |
-| 1     | 0                              |
-| 2     | 1                              |
-| 3     | 0                              |
-| 4     | 2, 3                           |
-| 5     | 4                              |
-| 6     | 5                              |
-| 7     | 2                              |
-| 8     | 5, 7                           |
-| 9     | 2, 6 (for realistic test data) |
-| 10    | 3                              |
-| 11    | 2, 10 (backup-folder setting)  |
+| Phase | Depends on                    |
+| ----- | ----------------------------- |
+| 0     | —                             |
+| 1     | 0                             |
+| 2     | 1                             |
+| 3     | 0                             |
+| 4     | 2, 3                          |
+| 5     | 4                             |
+| 6     | 5                             |
+| 7     | 2                             |
+| 8     | 5, 7                          |
+| 9     | DROPPED                       |
+| 10    | 3                             |
+| 11    | 2, 10 (backup-folder setting) |
 
 Phases 3 and 1–2 can proceed in parallel (chrome vs. data layer); 7 and
 10 can slot in anytime after their listed dependency without blocking

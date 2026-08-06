@@ -458,11 +458,11 @@ and simulated in JS on IndexedDB; callers cannot tell the difference.
 
 Fields beyond the shared item ones, per collection:
 
-| Collection | Additional fields |
-| ---------- | ----------------------------------------------------- |
-| `consumed` | `Finished`, `Rating`, `Recommend`, `Comments`          |
-| `queued`   | `Rank`, `Source`, `Comments`                           |
-| `owned`    | `Location`, `Patron`, `CheckedOutDate`, `Comments`     |
+| Collection | Additional fields                                  |
+| ---------- | -------------------------------------------------- |
+| `consumed` | `Finished`, `Rating`, `Recommend`, `Comments`      |
+| `queued`   | `Rank`, `Source`, `Comments`                       |
+| `owned`    | `Location`, `Patron`, `CheckedOutDate`, `Comments` |
 
 A membership row whose parent item is missing is omitted from results and
 logged, rather than returned with an undefined `Title`.

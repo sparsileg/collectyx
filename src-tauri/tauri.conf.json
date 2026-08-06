@@ -1,7 +1,7 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
     "productName": "Collectyx",
-    "identifier": "com.collectyx.app",
+    "identifier": "tools.astryx.collectyx",
     "build": {
         "beforeDevCommand": "node src-tauri/scripts/clear-webview-cache.js",
         "frontendDist": "../src"
