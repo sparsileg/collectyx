@@ -28,6 +28,53 @@ const CollectionView = {
     render(containerId, collection, data) {
         this._state[containerId] = { collection, data, filter: '', searchOpen: false };
         this._renderShell(containerId);
+        this._bindEvents(containerId);
+    },
+
+    // Bound once per containerId, on the outer container — _renderShell()
+    // replaces container.innerHTML on every call, which would kill any
+    // listener attached to the list div or its children. The outer
+    // container node itself is never replaced, so binding here survives
+    // toggleSearch()/_renderRows() re-renders. Guarded so repeat render()
+    // calls (e.g. a full reload) don't stack duplicate listeners.
+    _boundContainers: {},
+    _bindEvents(containerId) {
+        if (this._boundContainers[containerId]) return;
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        container.addEventListener('click', (e) => {
+            const actionEl = e.target.closest('[data-action]');
+            if (actionEl && container.contains(actionEl)) {
+                const action = actionEl.dataset.action;
+                if (action === 'toggle-search') { this.toggleSearch(containerId); return; }
+                if (action === 'add') { this.openAdd(containerId); return; }
+                // Row-level action button (e.g. queued's Start Reading /
+                // Finished) — resolved before row-open below, so hitting
+                // a button never also opens the row.
+                const row = actionEl.closest('.collection-list-row');
+                const state = this._state[containerId];
+                const handler = row && this._rowActionHandlers[state.collection];
+                if (handler) handler(action, row.dataset.id, containerId);
+                return;
+            }
+            // No data-action matched — a plain click anywhere else on a
+            // row opens it.
+            const row = e.target.closest('.collection-list-row');
+            if (row && container.contains(row)) {
+                const state = this._state[containerId];
+                const handler = this._rowOpenHandlers[state.collection];
+                if (handler) handler(row.dataset.id, containerId);
+            }
+        });
+
+        container.addEventListener('input', (e) => {
+            if (e.target && e.target.dataset && e.target.dataset.role === 'quick-search-input') {
+                this.filter(containerId, e.target.value);
+            }
+        });
+
+        this._boundContainers[containerId] = true;
     },
 
     _labelFor(collection) {
@@ -50,13 +97,13 @@ const CollectionView = {
         container.innerHTML = `
             <div class="collection-view-header">
                 <h2>${escapeHtml(this._labelFor(state.collection))}
-                    <span class="search-icon" onclick="CollectionView.toggleSearch('${containerId}')">🔍</span>
+                    <span class="search-icon" data-action="toggle-search">🔍</span>
                 </h2>
-                <button type="button" class="btn btn-primary collection-add-btn" onclick="CollectionView.openAdd('${containerId}')">Add</button>
+                <button type="button" class="btn btn-primary collection-add-btn" data-action="add">Add</button>
             </div>
             <div class="quick-search" id="${containerId}-search" style="display: ${state.searchOpen ? 'block' : 'none'};">
                 <input type="text" id="${containerId}-search-input" placeholder="Search title, author, or #tag..." value="${escapeHtml(state.filter)}"
-                       oninput="CollectionView.filter('${containerId}', this.value)">
+                       data-role="quick-search-input">
             </div>
             ${renderer.headerHtml}
             <div class="collection-list" id="${containerId}-list"></div>
@@ -124,6 +171,19 @@ const CollectionView = {
             return;
         }
         handler(containerId);
+    },
+
+    // Row open (plain click on a row) and row action (a data-action
+    // button inside a row, e.g. queued's Start Reading/Finished) differ
+    // per collection the same way Add does — registered here, dispatched
+    // by the delegated listener in _bindEvents().
+    _rowOpenHandlers: {},
+    registerRowOpenHandler(collection, fn) {
+        this._rowOpenHandlers[collection] = fn;
+    },
+    _rowActionHandlers: {},
+    registerRowActionHandler(collection, fn) {
+        this._rowActionHandlers[collection] = fn;
     },
 
     // Called by each modal after save/delete so the list reflects changes.

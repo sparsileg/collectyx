@@ -15,6 +15,26 @@ const OwnedModal = {
                 input: 'mlTagsInput', suggestions: 'mlTagsSuggestions', chipRow: 'mlTagsChipRow', hidden: 'mlTags'
             });
         }
+        this._bindEvents();
+    },
+
+    // #mlModal and its form are static markup, never rebuilt — bind once,
+    // guarded, same pattern as the collection views.
+    _wired: false,
+    _bindEvents() {
+        if (this._wired) return;
+        this._wired = true;
+        const form = document.getElementById('mlForm');
+        if (form) form.addEventListener('submit', (event) => this.save(event));
+        const modal = document.getElementById('mlModal');
+        if (!modal) return;
+        modal.addEventListener('click', (event) => {
+            const btn = event.target.closest('[data-action]');
+            if (!btn || !modal.contains(btn)) return;
+            const action = btn.dataset.action;
+            if (action === 'close') this.close();
+            else if (action === 'delete') this.deleteRecord();
+        });
     },
 
     open(recordId, containerId) {
@@ -53,7 +73,7 @@ const OwnedModal = {
         const { recordId, containerId, itemId } = this._current;
 
         const title = document.getElementById('mlTitle').value.trim();
-        if (!title) { alert('Title is required.'); return; }
+        if (!title) { showMessage('Title is required.', CONSTANTS.MESSAGE_TYPES.ERROR); return; }
 
         const payload = {
             Title: title,
@@ -81,7 +101,7 @@ const OwnedModal = {
     async deleteRecord() {
         const { recordId, containerId } = this._current;
         if (!recordId) return;
-        if (!confirm('Delete this record?')) return;
+        if (!await Confirm.open('Delete this record?', 'Delete')) return;
 
         try {
             await DBManager.deleteCollectionRecord('owned', recordId);

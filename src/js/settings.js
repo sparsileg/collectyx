@@ -6,7 +6,29 @@
 // three fields this modal owns.
 
 const SettingsModal = {
+    // #settingsModal and its form are static markup, never rebuilt — bind
+    // once, guarded, same pattern as the collection views.
+    _wired: false,
+    _bindEvents() {
+        if (this._wired) return;
+        this._wired = true;
+        const form = document.getElementById('settingsForm');
+        if (form) form.addEventListener('submit', (event) => this.save(event));
+        const modal = document.getElementById('settingsModal');
+        if (!modal) return;
+        modal.addEventListener('click', (event) => {
+            const btn = event.target.closest('[data-action]');
+            if (!btn || !modal.contains(btn)) return;
+            const action = btn.dataset.action;
+            if (action === 'browse-folder') this.browseBackupFolder();
+            else if (action === 'clear-folder') this.clearBackupFolder();
+            else if (action === 'open-owner-test') OwnerTestModal.open();
+            else if (action === 'close') this.close();
+        });
+    },
+
     async open() {
+        this._bindEvents();
         let settings = {};
         try {
             settings = await DBManager.getSettings() || {};
@@ -127,7 +149,23 @@ const SettingsModal = {
 // token, API key hash) can reuse it later without a new table.
 
 const OwnerTestModal = {
+    _wired: false,
+    _bindEvents() {
+        if (this._wired) return;
+        this._wired = true;
+        const modal = document.getElementById('ownerTestModal');
+        if (!modal) return;
+        modal.addEventListener('click', (event) => {
+            const btn = event.target.closest('[data-action]');
+            if (!btn || !modal.contains(btn)) return;
+            const action = btn.dataset.action;
+            if (action === 'save') this.save();
+            else if (action === 'close') this.close();
+        });
+    },
+
     async open() {
+        this._bindEvents();
         let current = CONSTANTS.DEFAULT_OWNER;
         try {
             current = (await DBManager.getAppMeta(CONSTANTS.APP_META_KEYS.CURRENT_OWNER)) || CONSTANTS.DEFAULT_OWNER;
@@ -145,7 +183,7 @@ const OwnerTestModal = {
 
     async save() {
         const newOwner = document.getElementById('ownerTestNew').value.trim();
-        if (!newOwner) { alert('Enter an owner key.'); return; }
+        if (!newOwner) { showMessage('Enter an owner key.', CONSTANTS.MESSAGE_TYPES.ERROR); return; }
 
         try {
             await DBManager.setAppMeta(CONSTANTS.APP_META_KEYS.CURRENT_OWNER, newOwner);

@@ -37,14 +37,14 @@ const SIDEBAR_CONSTANTS = {
 // already initialised and the theme link's href already reflects the
 // stored setting.
 //
-// Uses DBManager.getSettings()/saveSettings() directly rather than core.js's
-// loadSettingsFromDB()/saveSettingsToDB(), which still route through
-// data-manager.js's pre-rewrite generic API (Phase 5). DOM wiring runs
-// first and unconditionally, so a settings-load failure can't prevent the
-// dropdown/stepper from being interactive.
+// Settings are read and written through DBManager.getSettings()/
+// saveSettings() — the documented surface (design doc §6.1). DOM wiring
+// runs first and unconditionally, so a settings-load failure can't prevent
+// the dropdown/stepper from being interactive.
 async function initSidebarChrome() {
     syncThemeDropdownLabel();
     wireThemeDropdownItems();
+    wireSidebarChromeEvents();
     renderSidebarVersion();
 
     let settings = {};
@@ -61,6 +61,29 @@ async function initSidebarChrome() {
     if (typeof CollectionView !== 'undefined') {
         CollectionView._dateFormatCache = settings.dateFormat || DateUtils.DEFAULT_FORMAT;
     }
+}
+
+// Replaces the inline onclick attributes these controls used to carry.
+// Tauri injects script hashes into script-src, which per CSP3 nullifies
+// 'unsafe-inline' there, so inline handlers never execute in the release
+// build (issue #15).
+function wireSidebarChromeEvents() {
+    const hamburgerBtn = document.getElementById('hamburger-btn');
+    if (hamburgerBtn) hamburgerBtn.addEventListener('click', toggleHamburgerMenu);
+
+    // One delegated listener covers both the static Global items and the
+    // contextual section, which is re-rendered on every view change.
+    const hamburgerMenu = document.getElementById('hamburgerMenu');
+    if (hamburgerMenu) hamburgerMenu.addEventListener('click', handleHamburgerMenuClick);
+
+    const themeTrigger = document.getElementById('theme-dropdown-trigger');
+    if (themeTrigger) themeTrigger.addEventListener('click', toggleThemeDropdown);
+
+    const fontDown = document.getElementById('font-size-down');
+    if (fontDown) fontDown.addEventListener('click', () => adjustFontSize(-1));
+
+    const fontUp = document.getElementById('font-size-up');
+    if (fontUp) fontUp.addEventListener('click', () => adjustFontSize(1));
 }
 
 function renderSidebarVersion() {
@@ -87,8 +110,8 @@ function wireThemeDropdownItems() {
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 // Called from core.js's window.onload, after initSidebarChrome(). Runs
-// before the (currently broken, pending Phase 5) data-loading calls so nav
-// stays interactive regardless of their outcome.
+// before renderDashboard() so nav stays interactive regardless of its
+// outcome.
 async function initNavigation() {
     let labels = {};
     try {
@@ -151,16 +174,14 @@ function closeThemeDropdown() {
 }
 
 // changeTheme() (core.js) sets the href synchronously before it awaits
-// settings persistence, so the visual switch happens even though that
-// persistence call still goes through the not-yet-rewired data-manager.js
-// wrapper and will throw (Phase 5 fixes this). Caught here so the label
-// and dropdown close regardless — theme choice just won't survive reload
-// until then.
+// settings persistence, so the visual switch happens regardless. Caught
+// here so the label and dropdown still close if persistence fails — the
+// choice just won't survive a reload.
 async function selectTheme(themePath, label) {
     try {
         await changeTheme(themePath);
     } catch (e) {
-        console.error('selectTheme: theme applied but not persisted (data-manager.js settings path is broken pending Phase 5)', e);
+        console.error('selectTheme: theme applied but not persisted', e);
     }
     const labelEl = document.getElementById('theme-dropdown-label');
     if (labelEl) labelEl.textContent = label;
@@ -214,10 +235,33 @@ document.addEventListener('click', (event) => {
     }
 });
 
-// Global section items. Backup/Export/Restore call existing functions
-// (file.js/restore.js) — same calls Quick Actions used before it was
-// retired in favour of this menu (design doc §4.3). Find Duplicates has
-// no implementation yet (Phase 9, deferred).
+// Global section items. Backup/Export/Restore route through
+// BackupRestore (backup-restore.js) — same operations Quick Actions
+// offered before it was retired in favour of this menu (design doc §4.3).
+// Find Duplicates has no implementation (Phase 9, dropped).
+function handleHamburgerMenuClick(event) {
+    const item = event.target.closest('[data-action]');
+    if (!item || !this.contains(item)) return;
+    const action = item.dataset.action;
+    const collection = item.dataset.collection;
+    switch (action) {
+        case 'export-csv':
+            closeHamburgerMenu();
+            CollectionIO.exportCSV(collection);
+            break;
+        case 'export-json':
+            closeHamburgerMenu();
+            CollectionIO.exportJSON(collection);
+            break;
+        case 'import-csv':
+            closeHamburgerMenu();
+            CollectionIO.triggerImportCSV(collection);
+            break;
+        default:
+            hamburgerAction(action);
+    }
+}
+
 function hamburgerAction(action) {
     closeHamburgerMenu();
     switch (action) {
@@ -254,8 +298,8 @@ function updateHamburgerContextualSection(viewName) {
         : viewName === 'queued' ? MediaLabels.QueuedLabel
         : MediaLabels.OwnedLabel;
     section.innerHTML = `
-        <div class="hamburger-menu-item" onclick="closeHamburgerMenu(); CollectionIO.exportCSV('${viewName}')">${escapeHtml(label)} Export CSV</div>
-        <div class="hamburger-menu-item" onclick="closeHamburgerMenu(); CollectionIO.exportJSON('${viewName}')">${escapeHtml(label)} Export JSON</div>
-        <div class="hamburger-menu-item" onclick="closeHamburgerMenu(); CollectionIO.triggerImportCSV('${viewName}')">${escapeHtml(label)} Import CSV</div>
+        <div class="hamburger-menu-item" data-action="export-csv" data-collection="${viewName}">${escapeHtml(label)} Export CSV</div>
+        <div class="hamburger-menu-item" data-action="export-json" data-collection="${viewName}">${escapeHtml(label)} Export JSON</div>
+        <div class="hamburger-menu-item" data-action="import-csv" data-collection="${viewName}">${escapeHtml(label)} Import CSV</div>
     `;
 }

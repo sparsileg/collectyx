@@ -30,29 +30,39 @@
 
         const buttons = [];
         if (showToRead) {
-            buttons.push(`<button type="button" class="btn btn-secondary" onclick="event.stopPropagation(); OwnedView.addToReadingList('${record.id}', '${containerId}')">To Read</button>`);
+            buttons.push(`<button type="button" class="btn btn-secondary" data-action="to-read">To Read</button>`);
         }
         if (!checkedOut) {
-            buttons.push(`<button type="button" class="btn btn-secondary" onclick="event.stopPropagation(); OwnedView.openCheckout('${record.id}', '${containerId}')">C/O</button>`);
+            buttons.push(`<button type="button" class="btn btn-secondary" data-action="checkout">C/O</button>`);
         } else {
-            buttons.push(`<button type="button" class="btn btn-secondary" onclick="event.stopPropagation(); OwnedView.checkIn('${record.id}', '${containerId}')">C/I</button>`);
+            buttons.push(`<button type="button" class="btn btn-secondary" data-action="check-in">C/I</button>`);
         }
 
         return `
-            <div class="collection-list-row owned-columns" onclick="OwnedModal.open('${record.id}', '${containerId}')">
+            <div class="collection-list-row owned-columns" data-id="${escapeHtml(record.id)}">
                 <div class="col-stacked">
                     <div class="stacked-title">${escapeHtml(record.Title || '')}</div>
                     <div class="stacked-author">by ${escapeHtml(record.Author || '')}</div>
                 </div>
                 <span class="col-tags">${escapeHtml((record.Tags || []).join(', '))}</span>
                 <span class="col-status">${statusText}</span>
-                <span class="col-actions" onclick="event.stopPropagation()">${buttons.join('')}</span>
+                <span class="col-actions" data-action="noop">${buttons.join('')}</span>
             </div>
         `;
     }
 
     CollectionView.registerRenderer('owned', headerHtml, rowFn);
     CollectionView.registerAddHandler('owned', (containerId) => OwnedModal.open(null, containerId));
+    CollectionView.registerRowOpenHandler('owned', (id, containerId) => OwnedModal.open(id, containerId));
+    // 'noop' = click landed on the actions column but not on a button
+    // (the gap between them) — original markup stopped propagation on
+    // the whole wrapper, not just the buttons, so this deliberately does
+    // nothing rather than falling through to row-open.
+    CollectionView.registerRowActionHandler('owned', (action, id, containerId) => {
+        if (action === 'to-read') OwnedView.addToReadingList(id, containerId);
+        else if (action === 'checkout') OwnedView.openCheckout(id, containerId);
+        else if (action === 'check-in') OwnedView.checkIn(id, containerId);
+    });
 })();
 
 const OwnedView = {
@@ -121,7 +131,25 @@ const OwnedView = {
 
     // ── Read-only, fully functional ─────────────────────────────────────────
 
+    // #checkoutModal and its form are static markup, never rebuilt — bind
+    // once, guarded, same pattern as the collection views.
+    _checkoutWired: false,
+    _bindCheckoutEvents() {
+        if (this._checkoutWired) return;
+        this._checkoutWired = true;
+        const form = document.getElementById('checkoutForm');
+        if (form) form.addEventListener('submit', (event) => this.confirmCheckout(event));
+        const modal = document.getElementById('checkoutModal');
+        if (!modal) return;
+        modal.addEventListener('click', (event) => {
+            const btn = event.target.closest('[data-action]');
+            if (!btn || !modal.contains(btn)) return;
+            if (btn.dataset.action === 'close') this.closeCheckout();
+        });
+    },
+
     openCheckout(recordId, containerId) {
+        this._bindCheckoutEvents();
         const record = CollectionView.getRecord(containerId, recordId);
         if (!record) return;
         this._checkoutTarget = { recordId, containerId };
@@ -142,7 +170,7 @@ const OwnedView = {
     async confirmCheckout(event) {
         event.preventDefault();
         const patron = document.getElementById('checkoutPatron').value.trim();
-        if (!patron) { alert('Patron name is required.'); return; }
+        if (!patron) { showMessage('Patron name is required.', CONSTANTS.MESSAGE_TYPES.ERROR); return; }
 
         const { recordId, containerId } = this._checkoutTarget;
         const record = CollectionView.getRecord(containerId, recordId);
@@ -167,7 +195,7 @@ const OwnedView = {
     async checkIn(recordId, containerId) {
         const record = CollectionView.getRecord(containerId, recordId);
         if (!record) return;
-        if (!confirm(`Check in "${record.Title}" from ${record.Patron}?`)) return;
+        if (!await Confirm.open(`Check in "${record.Title}" from ${record.Patron}?`, 'Check In')) return;
 
         try {
             await DBManager.saveCollectionRecord('owned', {

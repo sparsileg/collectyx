@@ -232,6 +232,7 @@ const TagsView = {
     _sortDir: 'asc',
 
     async load(containerId) {
+        this._bindEvents();
         try {
             this._tags = await DBManager.getAllTags();
         } catch (e) {
@@ -242,6 +243,33 @@ const TagsView = {
             this._tags = [];
         }
         this.render();
+    },
+
+    // #tagsView survives every re-render — render() only replaces
+    // #tagsList's innerHTML, and the toolbar above it is never rebuilt —
+    // so one listener here covers both the toolbar controls and the
+    // per-row buttons. Guarded so repeat load() calls (e.g. revisiting
+    // the Tags nav item) don't stack duplicate listeners.
+    _bound: false,
+    _bindEvents() {
+        if (this._bound) return;
+        const container = document.getElementById('tagsView');
+        if (!container) return;
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn || !container.contains(btn)) return;
+            const action = btn.dataset.action;
+            if (action === 'add-tag') { TagFormModal.openAdd(); return; }
+            if (action === 'toggle-sort-dir') { this.toggleSortDir(); return; }
+            const item = btn.closest('.tag-item');
+            const tagId = item && item.dataset.id;
+            if (!tagId) return;
+            if (action === 'rename') TagFormModal.openRename(tagId);
+            else if (action === 'delete') TagDeleteModal.open(tagId);
+        });
+        const sortSelect = document.getElementById('tagsSortSelect');
+        if (sortSelect) sortSelect.addEventListener('change', (e) => this.setSort(e.target.value));
+        this._bound = true;
     },
 
     setSort(key) {
@@ -288,12 +316,12 @@ const TagsView = {
         }
 
         container.innerHTML = sorted.map(tag => `
-            <div class="tag-item">
+            <div class="tag-item" data-id="${escapeHtml(tag.id)}">
                 <span class="tag-name">${escapeHtml(tag.Name)}</span>
                 <span class="tag-count">${tag.Count || 0}</span>
                 <div class="tag-actions">
-                    <button type="button" class="btn btn-small btn-secondary" onclick="TagFormModal.openRename('${tag.id}')">Rename</button>
-                    <button type="button" class="btn btn-small btn-danger" onclick="TagDeleteModal.open('${tag.id}')">Delete</button>
+                    <button type="button" class="btn btn-small btn-secondary" data-action="rename">Rename</button>
+                    <button type="button" class="btn btn-small btn-danger" data-action="delete">Delete</button>
                 </div>
             </div>
         `).join('');
@@ -320,15 +348,29 @@ const TagFormModal = {
     _tagId: null,
     _wired: false,
 
-    // Attached once, lazily — 'tagFormName' exists in the DOM from page
-    // load, no need to re-wire it per open() call.
-    _wireLiveCheck() {
+    // Attached once, lazily — every element here exists in the DOM from
+    // page load and is never rebuilt, so there's nothing to re-wire per
+    // open() call.
+    _bindEvents() {
         if (this._wired) return;
         this._wired = true;
-        document.getElementById('tagFormName').addEventListener('input', (event) => {
-            const liveError = tagLiveFormatError(event.target.value);
-            if (liveError) this._showError(liveError); else this._clearError();
-        });
+        const nameInput = document.getElementById('tagFormName');
+        if (nameInput) {
+            nameInput.addEventListener('input', (event) => {
+                const liveError = tagLiveFormatError(event.target.value);
+                if (liveError) this._showError(liveError); else this._clearError();
+            });
+        }
+        const form = document.getElementById('tagFormForm');
+        if (form) form.addEventListener('submit', (event) => this.save(event));
+        const modal = document.getElementById('tagFormModal');
+        if (modal) {
+            modal.addEventListener('click', (event) => {
+                const btn = event.target.closest('[data-action]');
+                if (!btn || !modal.contains(btn)) return;
+                if (btn.dataset.action === 'close') this.close();
+            });
+        }
     },
 
     _showError(msg) {
@@ -342,7 +384,7 @@ const TagFormModal = {
     },
 
     openAdd() {
-        this._wireLiveCheck();
+        this._bindEvents();
         this._mode = 'add';
         this._tagId = null;
         document.getElementById('tagFormModalTitle').textContent = 'Add Tag';
@@ -352,7 +394,7 @@ const TagFormModal = {
     },
 
     openRename(tagId) {
-        this._wireLiveCheck();
+        this._bindEvents();
         const tag = TagsView.getTag(tagId);
         if (!tag) return;
         this._mode = 'rename';
@@ -407,8 +449,24 @@ const TagFormModal = {
 // modal — this always removes the tag entirely.
 const TagDeleteModal = {
     _tagId: null,
+    _wired: false,
+
+    _bindEvents() {
+        if (this._wired) return;
+        this._wired = true;
+        const modal = document.getElementById('tagDeleteModal');
+        if (!modal) return;
+        modal.addEventListener('click', (event) => {
+            const btn = event.target.closest('[data-action]');
+            if (!btn || !modal.contains(btn)) return;
+            const action = btn.dataset.action;
+            if (action === 'confirm') this.confirm();
+            else if (action === 'close') this.close();
+        });
+    },
 
     open(tagId) {
+        this._bindEvents();
         const tag = TagsView.getTag(tagId);
         if (!tag) return;
         this._tagId = tagId;

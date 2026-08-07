@@ -125,7 +125,18 @@ const CollectionIO = {
         downloadFile(`collectyx-${collection}-${this._timestamp()}.json`, JSON.stringify(data, null, 2), 'application/json');
     },
 
+    // #csvImportInput is static markup shared by all three collections and
+    // never rebuilt — bind once, guarded, same pattern as the modals.
+    _wired: false,
+    _bindEvents() {
+        if (this._wired) return;
+        this._wired = true;
+        const input = document.getElementById('csvImportInput');
+        if (input) input.addEventListener('change', (event) => this.handleImportFileSelected(event));
+    },
+
     triggerImportCSV(collection) {
+        this._bindEvents();
         this._importTarget = collection;
         const input = document.getElementById('csvImportInput');
         input.value = '';

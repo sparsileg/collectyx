@@ -22,6 +22,26 @@ const ConsumedModal = {
                 input: 'cbrTagsInput', suggestions: 'cbrTagsSuggestions', chipRow: 'cbrTagsChipRow', hidden: 'cbrTags'
             });
         }
+        this._bindEvents();
+    },
+
+    // #cbrModal and its form are static markup, never rebuilt — bind once,
+    // guarded, same pattern as the collection views.
+    _wired: false,
+    _bindEvents() {
+        if (this._wired) return;
+        this._wired = true;
+        const form = document.getElementById('cbrForm');
+        if (form) form.addEventListener('submit', (event) => this.save(event));
+        const modal = document.getElementById('cbrModal');
+        if (!modal) return;
+        modal.addEventListener('click', (event) => {
+            const btn = event.target.closest('[data-action]');
+            if (!btn || !modal.contains(btn)) return;
+            const action = btn.dataset.action;
+            if (action === 'close') this.close();
+            else if (action === 'delete') this.deleteRecord();
+        });
     },
 
     // prefill: optional { Title, Author, ItemId } — used by the To Be Read
@@ -88,12 +108,12 @@ const ConsumedModal = {
         const format = CollectionView._dateFormat();
 
         const title = document.getElementById('cbrTitle').value.trim();
-        if (!title) { alert('Title is required.'); return; }
+        if (!title) { showMessage('Title is required.', CONSTANTS.MESSAGE_TYPES.ERROR); return; }
 
         const finishedInput = document.getElementById('cbrFinished').value;
         const finished = DateUtils.parseDateInput(finishedInput, format);
         if (finishedInput && !finished) {
-            alert(`Invalid date — please use ${DateUtils.placeholderFor(format)}`);
+            showMessage(`Invalid date — please use ${DateUtils.placeholderFor(format)}`, CONSTANTS.MESSAGE_TYPES.ERROR);
             return;
         }
 
@@ -126,7 +146,7 @@ const ConsumedModal = {
     async deleteRecord() {
         const { recordId, containerId } = this._current;
         if (!recordId) return;
-        if (!confirm('Delete this record?')) return;
+        if (!await Confirm.open('Delete this record?', 'Delete')) return;
 
         try {
             await DBManager.deleteCollectionRecord('consumed', recordId);

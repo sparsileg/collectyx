@@ -1,14 +1,8 @@
 // ── App initialisation ────────────────────────────────────────────────────────
 
-let myLibraryAddTagsChipController = null;
-let myLibraryEditTagsChipController = null;
-
 window.onload = async function () {
     // Initialise the database backend first so loadTheme can read from IndexedDB
     await DBManager.init();
-
-    // One-time migration from old localStorage blob if present
-    await migrateFromLocalStorage();
 
     // loadTheme() now reads settings via DBManager directly; still wrapped
     // in try/catch so a settings-load failure can't halt the rest of
@@ -21,20 +15,9 @@ window.onload = async function () {
     if (typeof initSidebarChrome === 'function') await initSidebarChrome();
     if (typeof initNavigation === 'function') await initNavigation();
 
-    // Load all collections into memory
-    // (Phase 5 rewrite: data-manager.js's loadData()/loadReadingListData()/
-    // loadMyLibraryData() and the migrate*() calls that followed them
-    // targeted the pre-normalization API and are gone. Dashboard is the
-    // default active view and showView() is never called for the initial
-    // load, so it's rendered directly here.)
+    // Dashboard is the default active view and showView() is never called
+    // for the initial load, so it's rendered directly here.
     if (typeof renderDashboard === 'function') await renderDashboard();
-
-    myLibraryAddTagsChipController = initTagChipInput({
-        input: 'myLibraryAddTagsInput', suggestions: 'myLibraryAddTagsSuggestions', chipRow: 'myLibraryAddTagsChipRow', hidden: 'myLibraryAddTags'
-    });
-    myLibraryEditTagsChipController = initTagChipInput({
-        input: 'myLibraryEditTagsInput', suggestions: 'myLibraryEditTagsSuggestions', chipRow: 'myLibraryEditTagsChipRow', hidden: 'myLibraryEditTags'
-    });
 
     const versionDisplay = document.getElementById('appVersionDisplay');
     if (versionDisplay) {

@@ -13,7 +13,7 @@
     function rowFn(record, containerId) {
         const reading = !!record.CurrentlyReading;
         return `
-            <div class="collection-list-row queued-columns${reading ? ' currently-reading' : ''}" onclick="QueuedModal.open('${record.id}', '${containerId}')">
+            <div class="collection-list-row queued-columns${reading ? ' currently-reading' : ''}" data-id="${escapeHtml(record.id)}">
                 <span class="col-extra">${record.Rank != null ? escapeHtml(String(record.Rank)) : 'Unranked'}</span>
                 <div class="col-stacked">
                     <div class="stacked-title">${escapeHtml(record.Title || '')}</div>
@@ -23,9 +23,9 @@
                 <span class="col-tags">${escapeHtml((record.Tags || []).join(', '))}</span>
                 <div class="col-actions">
                     <button type="button" class="btn btn-secondary queued-reading-btn"
-                            onclick="event.stopPropagation(); QueuedView.toggleCurrentlyReading('${record.id}', '${containerId}', ${!reading})">${reading ? 'Stop Reading' : 'Start Reading'}</button>
+                            data-action="toggle-reading">${reading ? 'Stop Reading' : 'Start Reading'}</button>
                     <button type="button" class="btn btn-secondary queued-finished-btn"
-                            onclick="event.stopPropagation(); QueuedView.markFinished('${record.id}', '${containerId}')">Finished</button>
+                            data-action="mark-finished">Finished</button>
                 </div>
             </div>
         `;
@@ -33,6 +33,15 @@
 
     CollectionView.registerRenderer('queued', headerHtml, rowFn);
     CollectionView.registerAddHandler('queued', (containerId) => QueuedModal.open(null, containerId));
+    CollectionView.registerRowOpenHandler('queued', (id, containerId) => QueuedModal.open(id, containerId));
+    CollectionView.registerRowActionHandler('queued', (action, id, containerId) => {
+        if (action === 'toggle-reading') {
+            const record = CollectionView.getRecord(containerId, id);
+            QueuedView.toggleCurrentlyReading(id, containerId, !(record && record.CurrentlyReading));
+        } else if (action === 'mark-finished') {
+            QueuedView.markFinished(id, containerId);
+        }
+    });
 })();
 
 const QueuedView = {

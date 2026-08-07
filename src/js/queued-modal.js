@@ -22,7 +22,27 @@
 const QueuedModal = {
     _current: { recordId: null, containerId: null, itemId: null, oldRank: null },
 
+    // #tbrModal and its form are static markup, never rebuilt — bind once,
+    // guarded, same pattern as the collection views.
+    _wired: false,
+    _bindEvents() {
+        if (this._wired) return;
+        this._wired = true;
+        const form = document.getElementById('tbrForm');
+        if (form) form.addEventListener('submit', (event) => this.save(event));
+        const modal = document.getElementById('tbrModal');
+        if (!modal) return;
+        modal.addEventListener('click', (event) => {
+            const btn = event.target.closest('[data-action]');
+            if (!btn || !modal.contains(btn)) return;
+            const action = btn.dataset.action;
+            if (action === 'close') this.close();
+            else if (action === 'delete') this.deleteRecord();
+        });
+    },
+
     open(recordId, containerId) {
+        this._bindEvents();
         const record = recordId ? CollectionView.getRecord(containerId, recordId) : null;
         this._current = {
             recordId,
@@ -59,7 +79,7 @@ const QueuedModal = {
         const { recordId, containerId, itemId, oldRank } = this._current;
 
         const title = document.getElementById('tbrTitle').value.trim();
-        if (!title) { alert('Title is required.'); return; }
+        if (!title) { showMessage('Title is required.', CONSTANTS.MESSAGE_TYPES.ERROR); return; }
 
         let allQueued;
         try {
@@ -142,7 +162,7 @@ const QueuedModal = {
     async deleteRecord() {
         const { recordId, containerId } = this._current;
         if (!recordId) return;
-        if (!confirm('Remove this record?')) return;
+        if (!await Confirm.open('Remove this record?', 'Remove')) return;
 
         // Needed before deleting: if this queued entry came from My
         // Library's "To Read" button, that row's button must reappear;

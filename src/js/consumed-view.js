@@ -13,7 +13,7 @@
     function rowFn(record, containerId) {
         const format = CollectionView._dateFormat();
         return `
-            <div class="collection-list-row consumed-columns" onclick="ConsumedModal.open('${record.id}', '${containerId}')">
+            <div class="collection-list-row consumed-columns" data-id="${escapeHtml(record.id)}">
                 <span class="col-extra">${escapeHtml(DateUtils.formatDate(record.Finished, format))}</span>
                 <div class="col-stacked">
                     <div class="stacked-title">${escapeHtml(record.Title || '')}</div>
@@ -27,6 +27,7 @@
 
     CollectionView.registerRenderer('consumed', headerHtml, rowFn);
     CollectionView.registerAddHandler('consumed', (containerId) => ConsumedModal.open(null, containerId));
+    CollectionView.registerRowOpenHandler('consumed', (id, containerId) => ConsumedModal.open(id, containerId));
 })();
 
 const ConsumedView = {

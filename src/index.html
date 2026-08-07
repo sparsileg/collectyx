@@ -27,16 +27,16 @@
               <span id="app-name">Collectyx</span>
             </div>
             <div class="hamburger-container">
-              <button id="hamburger-btn" class="hamburger-btn" aria-label="Menu" onclick="toggleHamburgerMenu()">
+              <button id="hamburger-btn" class="hamburger-btn" aria-label="Menu">
                 <span></span><span></span><span></span>
               </button>
               <div id="hamburgerMenu" class="hamburger-menu">
                 <div class="hamburger-menu-section">
-                  <div class="hamburger-menu-item" onclick="hamburgerAction('settings')">Settings</div>
-                  <div class="hamburger-menu-item" onclick="hamburgerAction('backup')">Backup Database</div>
-                  <div class="hamburger-menu-item" onclick="hamburgerAction('export')">Export All Data</div>
-                  <div class="hamburger-menu-item" onclick="hamburgerAction('restore')">Restore from Backup</div>
-                  <div class="hamburger-menu-item" onclick="hamburgerAction('duplicates')">Find Duplicates</div>
+                  <div class="hamburger-menu-item" data-action="settings">Settings</div>
+                  <div class="hamburger-menu-item" data-action="backup">Backup Database</div>
+                  <div class="hamburger-menu-item" data-action="export">Export All Data</div>
+                  <div class="hamburger-menu-item" data-action="restore">Restore from Backup</div>
+                  <div class="hamburger-menu-item" data-action="duplicates">Find Duplicates</div>
                 </div>
                 <div class="hamburger-menu-section" id="hamburgerContextualSection"></div>
               </div>
@@ -44,7 +44,7 @@
           </div>
 
           <div class="theme-dropdown" id="theme-dropdown">
-            <div class="theme-dropdown-trigger" id="theme-dropdown-trigger" onclick="toggleThemeDropdown()">
+            <div class="theme-dropdown-trigger" id="theme-dropdown-trigger">
               <span id="theme-dropdown-label">Dark</span>
               <span class="theme-dropdown-arrow">▾</span>
             </div>
@@ -58,9 +58,9 @@
           </div>
 
           <div class="font-size-stepper">
-            <button type="button" class="font-size-btn" onclick="adjustFontSize(-1)" aria-label="Decrease font size">−</button>
+            <button type="button" class="font-size-btn" id="font-size-down" aria-label="Decrease font size">−</button>
             <span id="font-size-value">100%</span>
-            <button type="button" class="font-size-btn" onclick="adjustFontSize(1)" aria-label="Increase font size">+</button>
+            <button type="button" class="font-size-btn" id="font-size-up" aria-label="Increase font size">+</button>
           </div>
         </div>
 
@@ -175,14 +175,14 @@
         <div class="tags-toolbar">
           <div class="tags-sort">
             <label for="tagsSortSelect">Sort:</label>
-            <select id="tagsSortSelect" onchange="TagsView.setSort(this.value)">
+            <select id="tagsSortSelect">
               <option value="Name">Name</option>
               <option value="Count">Count</option>
               <option value="Modified">Last Updated</option>
             </select>
-            <button type="button" class="btn btn-small" id="tagsSortDirBtn" onclick="TagsView.toggleSortDir()" aria-label="Toggle sort direction">▲</button>
+            <button type="button" class="btn btn-small" id="tagsSortDirBtn" data-action="toggle-sort-dir" aria-label="Toggle sort direction">▲</button>
           </div>
-          <button type="button" class="btn btn-primary" onclick="TagFormModal.openAdd()">Add Tag</button>
+          <button type="button" class="btn btn-primary" data-action="add-tag">Add Tag</button>
         </div>
         <div class="tags-list" id="tagsList"></div>
       </div> <!-- end of tagsView -->
@@ -191,7 +191,7 @@
       <div id="tagFormModal" class="modal">
         <div class="modal-content">
           <h3 id="tagFormModalTitle">Add Tag</h3>
-          <form id="tagFormForm" onsubmit="TagFormModal.save(event)">
+          <form id="tagFormForm">
             <div class="form-group">
               <label for="tagFormName">Name:</label>
               <input type="text" id="tagFormName" required autocomplete="off">
@@ -200,7 +200,7 @@
             <div class="modal-actions">
               <div class="modal-actions-left">
                 <button type="submit" class="btn btn-primary">Save</button>
-                <button type="button" class="btn btn-secondary" onclick="TagFormModal.close()">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-action="close">Cancel</button>
               </div>
             </div>
           </form>
@@ -221,60 +221,13 @@
           </div>
           <div class="modal-actions">
             <div class="modal-actions-left">
-              <button type="button" class="btn btn-danger" onclick="TagDeleteModal.confirm()">Delete</button>
-              <button type="button" class="btn btn-secondary" onclick="TagDeleteModal.close()">Cancel</button>
+              <button type="button" class="btn btn-danger" data-action="confirm">Delete</button>
+              <button type="button" class="btn btn-secondary" data-action="close">Cancel</button>
             </div>
           </div>
         </div>
       </div>
       <!-- end of Tag Delete Modal -->
-
-      <!-- Reading List Edit Modal -->
-      <div id="readingListEditModal" class="modal">
-        <div class="modal-content">
-          <h3>Edit Reading List Item</h3>
-          <form id="readingListEditForm">
-            <input type="hidden" id="editReadingListId">
-            <div class="form-group">
-              <label for="editReadingListTitle">Title:</label>
-              <input type="text" id="editReadingListTitle" required>
-            </div>
-            <div class="form-group">
-              <label for="editReadingListAuthorGiven">Given Name(s):</label>
-              <input type="text" id="editReadingListAuthorGiven">
-            </div>
-            <div class="form-group">
-              <label for="editReadingListAuthorSurname">Surname:</label>
-              <input type="text" id="editReadingListAuthorSurname">
-            </div>
-            <div class="form-group">
-              <label for="editReadingListAuthor2Given">Second Author — Given Name(s):</label>
-              <input type="text" id="editReadingListAuthor2Given">
-            </div>
-            <div class="form-group">
-              <label for="editReadingListAuthor2Surname">Second Author — Surname:</label>
-              <input type="text" id="editReadingListAuthor2Surname">
-            </div>
-            <div class="form-group">
-              <label for="editReadingListSource">Source:</label>
-              <input type="text" id="editReadingListSource"
-                     placeholder="e.g. a friend, a website, a podcast">
-            </div>
-            <div class="form-group">
-              <label for="editReadingListRank">Rank:</label>
-              <input type="number" id="editReadingListRank" min="1" placeholder="Optional">
-              <button type="button" class="btn btn-small" onclick="clearRank()" style="margin-left: 5px;">Unrank</button>
-            </div>
-            <div class="modal-actions">
-              <div class="modal-actions-left">
-                <button type="submit" class="btn btn-primary">Save Changes</button>
-                <button type="button" class="btn btn-secondary" onclick="cancelReadingListEdit()">Cancel</button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
-      <!-- end of Reading List Edit Modal -->
 
       <!-- My Library View (owned) -->
       <div id="ownedView" class="view view-scroll-locked">
@@ -288,7 +241,7 @@
       <div id="cbrModal" class="modal">
         <div class="modal-content modal-content-wide">
           <h3 id="cbrModalTitle">Add</h3>
-          <form id="cbrForm" onsubmit="ConsumedModal.save(event)">
+          <form id="cbrForm">
             <div class="form-group">
               <label for="cbrFinished">Finished:</label>
               <input type="text" id="cbrFinished" maxlength="10">
@@ -347,9 +300,9 @@
             <div class="modal-actions">
               <div class="modal-actions-left">
                 <button type="submit" class="btn btn-primary">Save</button>
-                <button type="button" class="btn btn-secondary" onclick="ConsumedModal.close()">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-action="close">Cancel</button>
               </div>
-              <button type="button" id="cbrDeleteBtn" class="btn btn-danger" onclick="ConsumedModal.deleteRecord()">Delete</button>
+              <button type="button" id="cbrDeleteBtn" class="btn btn-danger" data-action="delete">Delete</button>
             </div>
           </form>
         </div>
@@ -360,7 +313,7 @@
       <div id="tbrModal" class="modal">
         <div class="modal-content modal-content-wide">
           <h3 id="tbrModalTitle">Add</h3>
-          <form id="tbrForm" onsubmit="QueuedModal.save(event)">
+          <form id="tbrForm">
             <div class="form-group">
               <label for="tbrTitle">Title:</label>
               <input type="text" id="tbrTitle" required>
@@ -390,9 +343,9 @@
             <div class="modal-actions">
               <div class="modal-actions-left">
                 <button type="submit" class="btn btn-primary" id="tbrSaveBtn">Add to Reading List</button>
-                <button type="button" class="btn btn-secondary" onclick="QueuedModal.close()">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-action="close">Cancel</button>
               </div>
-              <button type="button" id="tbrDeleteBtn" class="btn btn-danger" onclick="QueuedModal.deleteRecord()">Remove</button>
+              <button type="button" id="tbrDeleteBtn" class="btn btn-danger" data-action="delete">Remove</button>
             </div>
           </form>
         </div>
@@ -403,7 +356,7 @@
       <div id="mlModal" class="modal">
         <div class="modal-content modal-content-wide">
           <h3 id="mlModalTitle">Add</h3>
-          <form id="mlForm" onsubmit="OwnedModal.save(event)">
+          <form id="mlForm">
             <div class="form-group">
               <label for="mlTitle">Title:</label>
               <input type="text" id="mlTitle" required>
@@ -453,9 +406,9 @@
             <div class="modal-actions">
               <div class="modal-actions-left">
                 <button type="submit" class="btn btn-primary">Save</button>
-                <button type="button" class="btn btn-secondary" onclick="OwnedModal.close()">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-action="close">Cancel</button>
               </div>
-              <button type="button" id="mlDeleteBtn" class="btn btn-danger" onclick="OwnedModal.deleteRecord()">Delete</button>
+              <button type="button" id="mlDeleteBtn" class="btn btn-danger" data-action="delete">Delete</button>
             </div>
           </form>
         </div>
@@ -467,7 +420,7 @@
         <div class="modal-content">
           <h3>Check Out Book</h3>
           <p id="checkoutBookTitle" style="margin-bottom: 16px; font-weight: 500;"></p>
-          <form id="checkoutForm" onsubmit="OwnedView.confirmCheckout(event)">
+          <form id="checkoutForm">
             <div class="form-group">
               <label for="checkoutPatron">Patron:</label>
               <input type="text" id="checkoutPatron" required>
@@ -475,7 +428,7 @@
             <div class="modal-actions">
               <div class="modal-actions-left">
                 <button type="submit" class="btn btn-primary">Check Out</button>
-                <button type="button" class="btn btn-secondary" onclick="OwnedView.closeCheckout()">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-action="close">Cancel</button>
               </div>
             </div>
           </form>
@@ -483,186 +436,31 @@
       </div>
       <!-- end of Checkout modal -->
 
+      <!-- Shared confirmation modal — replaces native confirm() -->
+      <div id="confirmModal" class="modal">
+        <div class="modal-content">
+          <h3>Confirm</h3>
+          <p id="confirmMessage" style="margin-bottom: 16px;"></p>
+          <div class="modal-actions">
+            <div class="modal-actions-left">
+              <button type="button" id="confirmOkBtn" class="btn btn-danger" data-action="confirm">Confirm</button>
+              <button type="button" class="btn btn-secondary" data-action="cancel">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- end of Shared confirmation modal -->
+
       <!-- Shared CSV import file picker — one input, reused across all
            three collections. CollectionIO tracks which collection
            triggered it. -->
-      <input type="file" id="csvImportInput" accept=".csv" style="display: none;" onchange="CollectionIO.handleImportFileSelected(event)">
-
-      <!-- My Library Add Modal -->
-      <div id="myLibraryAddModal" class="modal">
-        <div class="modal-content">
-          <h3>Add Book to Library</h3>
-          <form id="myLibraryAddForm">
-            <div class="form-group">
-              <label for="myLibraryAddTitle">Title:</label>
-              <input type="text" id="myLibraryAddTitle" required>
-            </div>
-            <div class="form-group">
-              <label for="myLibraryAddAuthorGiven">Given Name(s):</label>
-              <input type="text" id="myLibraryAddAuthorGiven">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryAddAuthorSurname">Surname:</label>
-              <input type="text" id="myLibraryAddAuthorSurname">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryAddAuthor2Given">Second Author — Given Name(s):</label>
-              <input type="text" id="myLibraryAddAuthor2Given">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryAddAuthor2Surname">Second Author — Surname:</label>
-              <input type="text" id="myLibraryAddAuthor2Surname">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryAddISBN">ISBN:</label>
-              <input type="text" id="myLibraryAddISBN">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryAddPages">Pages:</label>
-              <input type="number" id="myLibraryAddPages" min="1">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryAddTagsInput">Tags:</label>
-              <div class="tag-chip-container">
-                <div class="tag-chip-field">
-                  <input type="text" id="myLibraryAddTagsInput" placeholder="Type a tag and press Enter" autocomplete="off">
-                  <div class="tag-chip-suggestions" id="myLibraryAddTagsSuggestions"></div>
-                </div>
-                <div class="tag-chip-row" id="myLibraryAddTagsChipRow"></div>
-                <input type="hidden" id="myLibraryAddTags">
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="myLibraryAddLocationType">Location Type:</label>
-              <select id="myLibraryAddLocationType" onchange="updateMyLibraryLocationFields('Add')">
-                <option value="Bookshelf">Bookshelf</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <div class="form-group" id="myLibraryAddBookshelfGroup">
-              <label for="myLibraryAddBookshelf">Bookshelf:</label>
-              <select id="myLibraryAddBookshelf">
-                <!-- Will be populated by script -->
-              </select>
-            </div>
-            <div class="form-group" id="myLibraryAddOtherGroup" style="display: none;">
-              <label for="myLibraryAddOther">Location:</label>
-              <input type="text" id="myLibraryAddOther">
-            </div>
-            <div style="margin-top: 20px;">
-              <button type="submit" class="btn btn-primary">Add Book</button>
-              <button type="button" class="btn btn-secondary" onclick="cancelMyLibraryAdd()">Cancel</button>
-            </div>
-          </form>
-        </div>
-      </div>
-      <!-- end of My Library Add modal -->
-
-      <!-- My Library Edit Modal -->
-      <div id="myLibraryEditModal" class="modal">
-        <div class="modal-content">
-          <h3>Edit Library Book</h3>
-          <form id="myLibraryEditForm">
-            <input type="hidden" id="myLibraryEditId">
-            <div class="form-group">
-              <label for="myLibraryEditTitle">Title:</label>
-              <input type="text" id="myLibraryEditTitle" required>
-            </div>
-            <div class="form-group">
-              <label for="myLibraryEditAuthorGiven">Given Name(s):</label>
-              <input type="text" id="myLibraryEditAuthorGiven">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryEditAuthorSurname">Surname:</label>
-              <input type="text" id="myLibraryEditAuthorSurname">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryEditAuthor2Given">Second Author — Given Name(s):</label>
-              <input type="text" id="myLibraryEditAuthor2Given">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryEditAuthor2Surname">Second Author — Surname:</label>
-              <input type="text" id="myLibraryEditAuthor2Surname">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryEditISBN">ISBN:</label>
-              <input type="text" id="myLibraryEditISBN">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryEditPages">Pages:</label>
-              <input type="number" id="myLibraryEditPages" min="1">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryEditTagsInput">Tags:</label>
-              <div class="tag-chip-container">
-                <div class="tag-chip-field">
-                  <input type="text" id="myLibraryEditTagsInput" placeholder="Type a tag and press Enter" autocomplete="off">
-                  <div class="tag-chip-suggestions" id="myLibraryEditTagsSuggestions"></div>
-                </div>
-                <div class="tag-chip-row" id="myLibraryEditTagsChipRow"></div>
-                <input type="hidden" id="myLibraryEditTags">
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="myLibraryEditLocationType">Location Type:</label>
-              <select id="myLibraryEditLocationType" onchange="updateMyLibraryLocationFields('Edit')">
-                <option value="Bookshelf">Bookshelf</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <div class="form-group" id="myLibraryEditBookshelfGroup">
-              <label for="myLibraryEditBookshelf">Bookshelf:</label>
-              <select id="myLibraryEditBookshelf">
-                <!-- Will be populated by script -->
-              </select>
-            </div>
-            <div class="form-group" id="myLibraryEditOtherGroup" style="display: none;">
-              <label for="myLibraryEditOther">Location:</label>
-              <input type="text" id="myLibraryEditOther">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryEditPatron">Patron:</label>
-              <input type="text" id="myLibraryEditPatron" placeholder="Leave empty if not checked out">
-            </div>
-            <div class="form-group">
-              <label for="myLibraryEditCheckedOutDate">Checked Out Date:</label>
-              <input type="text" id="myLibraryEditCheckedOutDate" placeholder="MM/DD/YYYY" maxlength="10" onblur="validateDateInput(this)" oninput="clearMessage()">
-            </div>
-            <div style="margin-top: 20px;">
-              <button type="submit" class="btn btn-primary">Save Changes</button>
-              <button type="button" class="btn btn-secondary" onclick="cancelMyLibraryEdit()">Cancel</button>
-              <button type="button" class="btn btn-danger" onclick="deleteMyLibraryBook()">Delete Book</button>
-            </div>
-          </form>
-        </div>
-      </div>
-      <!-- end of My Library Edit Modal -->
-
-      <!-- My Library Checkout Modal -->
-      <div id="myLibraryCheckoutModal" class="modal">
-        <div class="modal-content">
-          <h3>Check Out Book</h3>
-          <div id="myLibraryCheckoutBookInfo"></div>
-          <form id="myLibraryCheckoutForm">
-            <input type="hidden" id="myLibraryCheckoutId">
-            <div class="form-group">
-              <label for="myLibraryCheckoutPatron">Patron Name:</label>
-              <input type="text" id="myLibraryCheckoutPatron" required>
-            </div>
-            <div style="margin-top: 20px;">
-              <button type="submit" class="btn btn-primary">Check Out</button>
-              <button type="button" class="btn btn-secondary" onclick="cancelMyLibraryCheckout()">Cancel</button>
-            </div>
-          </form>
-        </div>
-      </div>
-      <!-- end of My Library Checkout Modal -->
+      <input type="file" id="csvImportInput" accept=".csv" style="display: none;">
 
       <!-- Settings Modal -->
       <div id="settingsModal" class="modal">
         <div class="modal-content">
           <h3>Settings</h3>
-          <form id="settingsForm" onsubmit="SettingsModal.save(event)">
+          <form id="settingsForm">
             <div class="form-group">
               <label for="settingsDailyGoal">Daily Reading Goal:</label>
               <input type="number" id="settingsDailyGoal" min="1" placeholder="Pages per day">
@@ -680,16 +478,16 @@
               <input type="text" id="settingsBackupFolder" readonly>
             </div>
             <div class="settings-backup-actions" id="settingsBackupActions" style="display: none;">
-              <button type="button" class="btn btn-secondary btn-small" onclick="SettingsModal.browseBackupFolder()">Browse</button>
-              <button type="button" class="btn btn-secondary btn-small" onclick="SettingsModal.clearBackupFolder()">Clear</button>
+              <button type="button" class="btn btn-secondary btn-small" data-action="browse-folder">Browse</button>
+              <button type="button" class="btn btn-secondary btn-small" data-action="clear-folder">Clear</button>
             </div>
 
             <div class="settings-section-divider"></div>
-            <button type="button" class="btn btn-secondary" onclick="OwnerTestModal.open()">Owner (Testing)&hellip;</button>
+            <button type="button" class="btn btn-secondary" data-action="open-owner-test">Owner (Testing)&hellip;</button>
 
             <div style="margin-top: 20px;">
               <button type="submit" class="btn btn-primary">Save</button>
-              <button type="button" class="btn btn-secondary" onclick="SettingsModal.close()">Cancel</button>
+              <button type="button" class="btn btn-secondary" data-action="close">Cancel</button>
             </div>
           </form>
         </div>
@@ -714,8 +512,8 @@
             <input type="text" id="ownerTestNew" placeholder="e.g. test-owner-2" autocomplete="off">
           </div>
           <div style="margin-top: 20px;">
-            <button type="button" class="btn btn-primary" onclick="OwnerTestModal.save()">Switch</button>
-            <button type="button" class="btn btn-secondary" onclick="OwnerTestModal.close()">Cancel</button>
+            <button type="button" class="btn btn-primary" data-action="save">Switch</button>
+            <button type="button" class="btn btn-secondary" data-action="close">Cancel</button>
           </div>
         </div>
       </div>
@@ -727,14 +525,14 @@
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h3 style="margin: 0;">Select Backup File</h3>
             <div style="display: flex; gap: 8px;">
-              <button class="btn btn-secondary" onclick="closeRestore()">Close</button>
-              <button class="btn btn-primary" id="restoreContinueBtn" onclick="restoreContinue()" disabled>Continue</button>
+              <button type="button" class="btn btn-secondary" data-action="close">Close</button>
+              <button type="button" class="btn btn-primary" id="restoreContinueBtn" data-action="continue" disabled>Continue</button>
             </div>
           </div>
           <div style="text-align: center; padding: 30px 0;">
             <p>Select a backup file to restore:</p>
-            <button class="btn btn-primary" onclick="restoreBrowseFiles()" style="margin: 15px 0;">Browse Files</button>
-            <input type="file" id="restoreFileInput" class="file-input" accept=".json,.json.gz,.gz" onchange="restoreFileSelected()">
+            <button type="button" class="btn btn-primary" data-action="browse" style="margin: 15px 0;">Browse Files</button>
+            <input type="file" id="restoreFileInput" class="file-input" accept=".json,.json.gz,.gz">
             <div id="restoreFileInfo" style="margin-top: 10px; color: var(--primary-color);"></div>
           </div>
         </div>
@@ -746,8 +544,8 @@
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h3 style="margin: 0;">Restore Backup?</h3>
             <div style="display: flex; gap: 8px;">
-              <button class="btn btn-secondary" onclick="closeRestore()">Close</button>
-              <button class="btn btn-primary" id="restoreConfirmBtn" onclick="executeRestore()" disabled>Restore</button>
+              <button type="button" class="btn btn-secondary" data-action="close">Close</button>
+              <button type="button" class="btn btn-primary" id="restoreConfirmBtn" data-action="execute" disabled>Restore</button>
             </div>
           </div>
 
@@ -780,7 +578,7 @@
           <div id="restoreCheckboxRow" style="display: none; background: var(--card-bg);
                border-radius: 6px; padding: 15px;">
             <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
-              <input type="checkbox" id="restoreConfirmCheckbox" onchange="restoreCheckboxChanged()"
+              <input type="checkbox" id="restoreConfirmCheckbox"
                      style="margin-top: 3px; flex-shrink: 0;">
               <span>I have backed up my current data and understand this will permanently replace all data stores</span>
             </label>
@@ -802,6 +600,7 @@
     <script src="js/db-manager-tauri.js"></script>
     <script src="js/db-manager.js"></script>
     <script src="js/date-utils.js"></script>
+    <script src="js/confirm.js"></script>
     <script src="js/settings.js"></script>
     <script src="js/rating-utils.js"></script>
     <script src="js/csv-utils.js"></script>
@@ -814,13 +613,8 @@
     <script src="js/queued-view.js"></script>
     <script src="js/owned-modal.js"></script>
     <script src="js/owned-view.js"></script>
-    <script src="js/data-manager.js"></script>
-    <script src="js/file.js"></script>
     <script src="js/dashboard.js"></script>
-    <script src="js/read-books.js"></script>
     <script src="js/statistics.js"></script>
-    <script src="js/reading-list.js"></script>
-    <script src="js/my-library.js"></script>
     <script src="js/tags.js"></script>
 
   </body>

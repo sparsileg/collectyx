@@ -82,7 +82,39 @@ const BackupRestore = {
 
     // ── Restore: Screen 1 — select file ─────────────────────────────────────
 
+    // Both restore modals are static markup, never rebuilt. Screen 2 is
+    // only ever reached through screen 1, so binding both here covers the
+    // whole flow with one guarded call.
+    _wired: false,
+    _bindEvents() {
+        if (this._wired) return;
+        this._wired = true;
+
+        const fileInput = document.getElementById('restoreFileInput');
+        if (fileInput) fileInput.addEventListener('change', () => this.fileSelected());
+
+        const checkbox = document.getElementById('restoreConfirmCheckbox');
+        if (checkbox) checkbox.addEventListener('change', () => this.checkboxChanged());
+
+        const bind = (modalId) => {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+            modal.addEventListener('click', (event) => {
+                const btn = event.target.closest('[data-action]');
+                if (!btn || !modal.contains(btn)) return;
+                const action = btn.dataset.action;
+                if (action === 'close') this.close();
+                else if (action === 'browse') this.browseFiles();
+                else if (action === 'continue') this.continueToScreen2();
+                else if (action === 'execute') this.executeRestore();
+            });
+        };
+        bind('restoreScreen1Modal');
+        bind('restoreScreen2Modal');
+    },
+
     showScreen1() {
+        this._bindEvents();
         this._parsedData = null;
         this._fileName = null;
         this._fileSize = null;
@@ -282,10 +314,8 @@ const BackupRestore = {
     }
 };
 
-// Bridge functions matching the existing modal markup's onclick attributes
-// (restoreContinue(), restoreFileSelected(), etc. — same names the
-// original Scriptum-era restore.js used, so the untouched HTML needs no
-// changes at all).
+// Bridge functions retained for any caller outside index.html (the modal
+// markup no longer uses them — its handlers are delegated, above).
 function restoreBrowseFiles() { BackupRestore.browseFiles(); }
 function restoreFileSelected() { BackupRestore.fileSelected(); }
 function restoreContinue() { BackupRestore.continueToScreen2(); }
