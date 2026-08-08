@@ -79,6 +79,8 @@ pub fn run() {
             // settings
             commands::settings::get_settings,
             commands::settings::save_settings,
+            // backup (Tauri-only, writes to the user-configured backup folder)
+            commands::backup::save_backup_file,
             // app_meta (not owner-scoped — current_owner testing switch)
             commands::app_meta::get_app_meta,
             commands::app_meta::set_app_meta,

@@ -129,14 +129,41 @@ const BackupRestore = {
     // ── Export ───────────────────────────────────────────────────────────────
 
     async backupDatabase() {
+        const isTauri = typeof window.__TAURI__ !== 'undefined';
+
         try {
             const data = await this._gatherAllData();
             const json = JSON.stringify(data);
-            if (typeof pako !== 'undefined') {
-                downloadFile(`collectyx-backup-${this._timestamp()}.json.gz`, pako.gzip(json), 'application/gzip');
+            const useGzip = typeof pako !== 'undefined';
+            const filename = useGzip
+                ? `collectyx-backup-${this._timestamp()}.json.gz`
+                : `collectyx-backup-${this._timestamp()}.json`;
+
+            if (isTauri) {
+                const folder = ((data.Settings || {}).backupFolder || '').trim();
+                if (!folder) {
+                    showMessage('Backup folder is not set — set it in Settings before backing up.', CONSTANTS.MESSAGE_TYPES.ERROR);
+                    return;
+                }
+
+                const contents = useGzip
+                    ? Array.from(pako.gzip(json))
+                    : Array.from(new TextEncoder().encode(json));
+                const path = `${folder}/${filename}`;
+
+                try {
+                    await window.__TAURI__.core.invoke('save_backup_file', { path: path, contents: contents });
+                } catch (writeErr) {
+                    console.error('BackupRestore.backupDatabase: write to backup folder failed', writeErr);
+                    showMessage('Backup folder is missing or inaccessible — set it again in Settings.', CONSTANTS.MESSAGE_TYPES.ERROR);
+                    return;
+                }
+            } else if (useGzip) {
+                downloadFile(filename, pako.gzip(json), 'application/gzip');
             } else {
-                downloadFile(`collectyx-backup-${this._timestamp()}.json`, json, 'application/json');
+                downloadFile(filename, json, 'application/json');
             }
+
             showMessage('Backup complete', CONSTANTS.MESSAGE_TYPES.SUCCESS);
         } catch (e) {
             console.error('BackupRestore.backupDatabase failed', e);

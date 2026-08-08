@@ -123,6 +123,7 @@ Every finding below was verified by reading the code and, where marked
 **Severity:** Critical (web build) / High (Tauri build) · **Confidence:** High · **Verified**
 
 **Location**
+
 - `src/js/dashboard.js` — `renderTopTags()` line 283; `renderRecentBooks()` lines 310–311;
   `renderWhatsNext()` lines 472, 474–475; `renderReadingGoals()` line 324.
 - `src/index.html` — no `<meta http-equiv="Content-Security-Policy">` anywhere.
@@ -425,6 +426,7 @@ async executeRestore() {
 **Severity:** High · **Confidence:** High · **Verified**
 
 **Location:**
+
 - `src-tauri/src/commands/consumed.rs:178`, `queued.rs:196`, `owned.rs:165`
 - `src/js/db-manager-web.js:671` — `{ store: collection, action: 'clear' }`
 - Contrast: `src-tauri/src/commands/tags.rs:158`
@@ -520,6 +522,7 @@ const ops = existingMemberships
 **Severity:** High · **Confidence:** High · **Verified**
 
 **Location:**
+
 - `src-tauri/src/commands/items.rs:109` `delete_item`, `:117` `attach_tag`,
   `:128` `detach_tag`, `:148` `merge_items`, `:310` `save_item`
 - `consumed.rs:159` `delete_consumed`; `queued.rs:162` `delete_queued`,
@@ -1932,6 +1935,7 @@ The name is escaped; the id is not. Tag ids are backend-generated today
 file-supplied id — `replaceAllTags` — has no caller (§M8), so this is **not
 currently reachable**. *Requires Verification* if a future importer preserves tag
 ids from a file. Fix regardless:
+
 ```js
 others.map(t => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.Name)}</option>`).join('');
 ```
@@ -1943,6 +1947,7 @@ others.map(t => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.Name)}</opti
 `<base href>` to repoint relative URLs or a `<form action>` posting off-origin.
 `script-src 'self'` limits the damage since 'self' is evaluated against the document
 origin rather than the base, but both directives are free:
+
 ```json
 "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'"
 ```
@@ -1953,6 +1958,7 @@ origin rather than the base, but both directives are free:
 nothing surfaces advisories and there is no upgrade signal. No specific CVE is
 asserted here — the finding is the absence of a mechanism, not a known vulnerability.
 Record them with pinned versions and checksums:
+
 ```
 sha256  fbc45926e6b46845a0f905552a0e0b1331049bff1115ecf94dbe0904d895e710  chart.min.js
 sha256  ede2693a4a6a5126b9d35669062b358ecab6ae7b9b86a1cf302feb45a8514907  pako.min.js
@@ -1963,6 +1969,7 @@ sha256  ede2693a4a6a5126b9d35669062b358ecab6ae7b9b86a1cf302feb45a8514907  pako.m
 binary at schema v2 opening a database written by a future v3 build proceeds
 silently against a schema it does not understand — the exact shape that corrupts
 data during a downgrade or a sync rollback:
+
 ```rust
 if version > CURRENT_SCHEMA_VERSION {
     return Err(rusqlite::Error::InvalidParameterName(format!(
@@ -1972,6 +1979,7 @@ if version > CURRENT_SCHEMA_VERSION {
     )));
 }
 ```
+
 Also note `get_schema_version` reads `PRAGMA user_version` as `u32` while SQLite
 stores it as a signed 32-bit integer; a negative value produces a conversion error
 rather than a clear message.
@@ -1995,6 +2003,7 @@ commands only if a planned feature needs them, and unregister them from
 panicking is the right call, but once any panic poisons the lock, every subsequent
 command fails for the life of the process. Recovering the guard makes this
 self-healing:
+
 ```rust
 let db = state.db.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 ```
@@ -2003,6 +2012,7 @@ let db = state.db.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 `collection-io.js:475` `await file.text()` and `backup-restore.js:145`
 `await file.arrayBuffer()` read the whole selected file into memory with no size
 check, and `pako.ungzip` will happily inflate a zip bomb. Cap before reading:
+
 ```js
 const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
 if (file.size > MAX_IMPORT_BYTES) {
@@ -2333,44 +2343,44 @@ findings above are not worse.
 
 Listed for completeness, with the reason.
 
-| Category | Status |
-|---|---|
-| Authentication / session handling / brute force | N/A — no authentication exists |
-| API key management, leakage, enumeration | N/A — no API keys exist |
-| CSRF, CORS, replay attacks | N/A — no HTTP server; Tauri IPC is same-process |
-| Pagination safety, mass assignment via HTTP | N/A — no REST endpoints (mass assignment *does* exist over IPC: §H2) |
-| Tokio async, blocking-in-async, deadlocks, Send/Sync | N/A — synchronous `rusqlite`; the only concurrency primitive is one `Mutex` |
-| Command injection | N/A — no process spawning; `shell` is registered but never called (§H3) |
-| Path traversal, unsafe file access | N/A — no path is built from user input; the DB path is `dirs_next::data_dir()` + two constants |
-| Unsafe deserialization | N/A — `serde_json` into typed structs; no arbitrary type resolution |
-| Template injection | N/A — no template engine |
-| Timing attacks | N/A — nothing compares a secret |
-| Encryption / key management | N/A — no cryptography, and the SQLite file is unencrypted by design |
-| Unsafe regex (ReDoS) | Reviewed — all patterns are anchored and linear (`/^[a-z0-9_-]+$/i`, `/^\d{4}-\d{2}-\d{2}$/`, `/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/`). No nested quantifiers, no catastrophic backtracking. |
-| Memory safety | Reviewed — no `unsafe`, no `unwrap()` on request paths, no arithmetic that can overflow at realistic scale |
+| Category                                             | Status                                                                                                                                                                                   |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Authentication / session handling / brute force      | N/A — no authentication exists                                                                                                                                                           |
+| API key management, leakage, enumeration             | N/A — no API keys exist                                                                                                                                                                  |
+| CSRF, CORS, replay attacks                           | N/A — no HTTP server; Tauri IPC is same-process                                                                                                                                          |
+| Pagination safety, mass assignment via HTTP          | N/A — no REST endpoints (mass assignment *does* exist over IPC: §H2)                                                                                                                     |
+| Tokio async, blocking-in-async, deadlocks, Send/Sync | N/A — synchronous `rusqlite`; the only concurrency primitive is one `Mutex`                                                                                                              |
+| Command injection                                    | N/A — no process spawning; `shell` is registered but never called (§H3)                                                                                                                  |
+| Path traversal, unsafe file access                   | N/A — no path is built from user input; the DB path is `dirs_next::data_dir()` + two constants                                                                                           |
+| Unsafe deserialization                               | N/A — `serde_json` into typed structs; no arbitrary type resolution                                                                                                                      |
+| Template injection                                   | N/A — no template engine                                                                                                                                                                 |
+| Timing attacks                                       | N/A — nothing compares a secret                                                                                                                                                          |
+| Encryption / key management                          | N/A — no cryptography, and the SQLite file is unencrypted by design                                                                                                                      |
+| Unsafe regex (ReDoS)                                 | Reviewed — all patterns are anchored and linear (`/^[a-z0-9_-]+$/i`, `/^\d{4}-\d{2}-\d{2}$/`, `/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/`). No nested quantifiers, no catastrophic backtracking. |
+| Memory safety                                        | Reviewed — no `unsafe`, no `unwrap()` on request paths, no arithmetic that can overflow at realistic scale                                                                               |
 
 ---
 
 ## OWASP mapping
 
-| OWASP Top 10 (2021) | Findings |
-|---|---|
-| A01 Broken Access Control | H1, H2, M10, SP4 |
-| A02 Cryptographic Failures | M1 |
-| A03 Injection | C1, M4 |
-| A04 Insecure Design | C2, M5, M7, M10 |
-| A05 Security Misconfiguration | C1 (no CSP in web build), H3, L3(b) |
-| A06 Vulnerable & Outdated Components | L3(c) |
-| A08 Software & Data Integrity Failures | C2, M5, M8, M9, SP1 |
-| A09 Logging & Monitoring Failures | M6 (broken test suite), L3(h) |
+| OWASP Top 10 (2021)                    | Findings                            |
+| -------------------------------------- | ----------------------------------- |
+| A01 Broken Access Control              | H1, H2, M10, SP4                    |
+| A02 Cryptographic Failures             | M1                                  |
+| A03 Injection                          | C1, M4                              |
+| A04 Insecure Design                    | C2, M5, M7, M10                     |
+| A05 Security Misconfiguration          | C1 (no CSP in web build), H3, L3(b) |
+| A06 Vulnerable & Outdated Components   | L3(c)                               |
+| A08 Software & Data Integrity Failures | C2, M5, M8, M9, SP1                 |
+| A09 Logging & Monitoring Failures      | M6 (broken test suite), L3(h)       |
 
-| OWASP API Top 10 (2023) | Findings |
-|---|---|
-| API1 Broken Object Level Authorization | H2, SP4 (IPC boundary) |
-| API3 Broken Object Property Level Authorization | H2 (`owner = excluded.owner`), M5 |
-| API4 Unrestricted Resource Consumption | M3, M7, L3(g) |
-| API6 Unrestricted Access to Sensitive Business Flows | C2, H1 |
-| API8 Security Misconfiguration | H3, L3(b) |
+| OWASP API Top 10 (2023)                              | Findings                          |
+| ---------------------------------------------------- | --------------------------------- |
+| API1 Broken Object Level Authorization               | H2, SP4 (IPC boundary)            |
+| API3 Broken Object Property Level Authorization      | H2 (`owner = excluded.owner`), M5 |
+| API4 Unrestricted Resource Consumption               | M3, M7, L3(g)                     |
+| API6 Unrestricted Access to Sensitive Business Flows | C2, H1                            |
+| API8 Security Misconfiguration                       | H3, L3(b)                         |
 
 ---
 

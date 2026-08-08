@@ -43,10 +43,12 @@ const SettingsModal = {
 
         // Same pattern as Scriptum's Settings view: folder picker only
         // means anything in Tauri; the web build has no filesystem access
-        // and falls back to the browser's own download prompt.
+        // and always saves to the system Downloads folder (issue 43).
         const isTauri = typeof window.__TAURI__ !== 'undefined';
         document.getElementById('settingsBackupActions').style.display = isTauri ? '' : 'none';
-        document.getElementById('settingsBackupFolder').placeholder = isTauri ? '' : 'User downloads folder';
+        const folderField = document.getElementById('settingsBackupFolder');
+        folderField.disabled = !isTauri;
+        if (!isTauri) folderField.value = 'Your Downloads folder';
 
         document.getElementById('settingsModal').classList.add('open');
     },
