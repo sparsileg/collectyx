@@ -11,9 +11,9 @@ const tests = [
     ['web-backend-test.js', 'DBManagerWeb end-to-end against IndexedDB'],
     ['parity-test.js',      'backend interfaces + Rust command wiring'],
     ['rust-sql-test.js',    'SQL from the Rust modules, incl. merge_items'],
-    ['dashboard-xss-test.js', 'dashboard.js escapes hostile record data (COLLECTYX-SEC-01)'],
-    ['csp-test.js',           'CSP present in both builds and in sync (COLLECTYX-SEC-02)'],
-    ['backup-restore-test.js', 'restore validation + snapshot/rollback (COLLECTYX-SEC-03)'],
+    ['dashboard-xss-test.js', 'dashboard.js escapes hostile record data (issue #20)'],
+    ['csp-test.js',           'CSP present in both builds and in sync (issue #21)'],
+    ['backup-restore-test.js', 'restore validation + snapshot/rollback (issue #22)'],
 ];
 
 let failed = 0;

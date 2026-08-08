@@ -1,5 +1,5 @@
 /**
- * Regression test for COLLECTYX-SEC-02. Cannot verify real enforcement —
+ * Regression test for issue #21. Cannot verify real enforcement —
  * that a browser actually blocks a violating request needs a real
  * browser/webview and is manual (see the issue's own acceptance
  * criteria: load both builds with the console open and watch for CSP

@@ -1,5 +1,5 @@
 /**
- * Regression test for COLLECTYX-SEC-03. Loads the real backup-restore.js
+ * Regression test for issue #22. Loads the real backup-restore.js
  * and exercises it two ways:
  *
  *   1. _validate() against the malformed-file corpus from the issue —

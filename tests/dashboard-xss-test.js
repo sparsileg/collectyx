@@ -1,5 +1,5 @@
 /**
- * Regression test for COLLECTYX-SEC-01. Loads the real dashboard.js and
+ * Regression test for issue #20. Loads the real dashboard.js and
  * feeds its renderers hostile record data — the kind a CSV import or a
  * restored backup can deliver — and checks that no markup survives into
  * innerHTML unescaped. Does not touch a real DOM or a real browser; that
