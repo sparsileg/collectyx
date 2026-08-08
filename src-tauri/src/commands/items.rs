@@ -132,7 +132,7 @@ pub fn save_item(state: State<AppState>, item: ItemRecord) -> Result<String, Str
     let now = today();
     let id = if item.id.is_empty() { new_uuid() } else { item.id.clone() };
     if !item.id.is_empty() {
-        common::assert_item_owned(&db, &item.id)?;
+        common::assert_item_id_writable(&db, &item.id)?;
     }
 
     db.execute(

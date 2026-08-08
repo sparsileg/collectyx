@@ -14,6 +14,11 @@ const CONSTANTS = {
     // future multi-user sync doesn't need a migration, but v1 has no auth.
     DEFAULT_OWNER: 'local',
 
+    // Gates the Settings → "Owner (Testing)" switch (COLLECTYX-SEC-35).
+    // Default false so the control does not ship in a normal build; flip
+    // to true locally to exercise owner-scoping.
+    ENABLE_OWNER_TEST_SWITCH: false,
+
     // Object stores (web) / tables (Tauri). Names match the SQL tables
     // exactly so both backends refer to the same thing.
     STORES: {

@@ -111,13 +111,20 @@ pub fn save_queued(state: State<AppState>, record: QueuedRecord) -> Result<Strin
     let tx = db.transaction().map_err(|e| e.to_string())?;
     let now = today();
 
-    let id = write_one(&tx, &record, &now, true).map_err(|e| e.to_string())?;
+    let id = write_one(&tx, &record, &now, true, false).map_err(|e| e.to_string())?;
 
     tx.commit().map_err(|e| e.to_string())?;
     Ok(id)
 }
 
-fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_modified_on_new_link: bool) -> Result<String> {
+/// apply_rank controls whether record.rank is written to the "rank" column
+/// at all. Normal saves (save_queued) ignore incoming rank entirely —
+/// reorder_queued is the only path that changes rank thereafter, so a
+/// brand-new row is inserted unranked and an edit never touches its rank.
+/// Restore (replace_all_queued) is the one caller that must honor the
+/// incoming rank verbatim, since it is reproducing exact prior state, not
+/// performing a live reorder.
+fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_modified_on_new_link: bool, apply_rank: bool) -> Result<String> {
     if let Err(msg) = common::validate_short_text(&record.source, "Source") {
         return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
     }
@@ -136,19 +143,25 @@ fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_
     let owner = owner_or_default(&record.item.owner, &common::current_owner(tx));
     let id = record.id.clone().unwrap_or_else(common::new_uuid);
     let date_added = record.date_added.clone().unwrap_or_else(|| now.to_string());
+    let rank_param: Option<i64> = if apply_rank { record.rank } else { None };
 
     // currently_reading is bound once (?8) and reused: COALESCE(?8, 0) for
     // a brand-new row (the column is NOT NULL), COALESCE(?8, queued.currently_reading)
     // on conflict — record.currently_reading is None on every normal
     // Add/Edit save, so an existing row's flag survives an unrelated edit.
     // toggle_currently_reading() is the only path that sends Some(value).
+    //
+    // "rank" on conflict is gated by ?9 (apply_rank): a normal save leaves
+    // the stored rank untouched — COLLECTYX-SEC-32's reorder_queued is the
+    // only thing that changes rank after insertion. On insert, rank_param
+    // is NULL unless apply_rank (restore), so a new row starts unranked.
     tx.execute(
         "INSERT INTO queued
            (id, item_id, \"rank\", source, comments, date_added, modified, currently_reading)
          VALUES (?1,?2,?3,?4,?5,?6,?7,COALESCE(?8, 0))
          ON CONFLICT(id) DO UPDATE SET
             item_id  = excluded.item_id,
-            \"rank\"   = excluded.\"rank\",
+            \"rank\"   = CASE WHEN ?9 THEN excluded.\"rank\" ELSE queued.\"rank\" END,
             source   = excluded.source,
             comments = excluded.comments,
             modified = excluded.modified,
@@ -156,12 +169,13 @@ fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_
         params![
             id,
             item_id,
-            record.rank,
+            rank_param,
             record.source,
             record.comments,
             date_added,
             now,
-            record.currently_reading
+            record.currently_reading,
+            apply_rank
         ],
     )?;
 
@@ -174,9 +188,21 @@ fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_
 
 #[tauri::command]
 pub fn delete_queued(state: State<AppState>, id: String) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut db = state.db.lock().map_err(|e| e.to_string())?;
     let owner = common::current_owner(&db);
-    let affected = db
+    let tx = db.transaction().map_err(|e| e.to_string())?;
+
+    let deleted_rank: Option<i64> = tx
+        .query_row(
+            "SELECT q.\"rank\" FROM queued q
+               JOIN items i ON i.id = q.item_id
+              WHERE q.id = ?1 AND i.owner = ?2",
+            params![id, owner],
+            |row| row.get(0),
+        )
+        .map_err(|_| "Record not found".to_string())?;
+
+    let affected = tx
         .execute(
             "DELETE FROM queued
               WHERE id = ?1 AND item_id IN (SELECT id FROM items WHERE owner = ?2)",
@@ -186,6 +212,95 @@ pub fn delete_queued(state: State<AppState>, id: String) -> Result<(), String> {
     if affected == 0 {
         return Err("Record not found".to_string());
     }
+
+    // Close the gap in the same transaction as the delete — a crash
+    // between the two used to leave a permanent hole (COLLECTYX-SEC-32).
+    if let Some(rank) = deleted_rank {
+        tx.execute(
+            "UPDATE queued SET \"rank\" = \"rank\" - 1
+               WHERE \"rank\" > ?1
+                 AND item_id IN (SELECT id FROM items WHERE owner = ?2)",
+            params![rank, owner],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Atomically moves one queued row to new_rank, shifting every affected
+/// row in the same transaction via a single set-based UPDATE — replaces
+/// the old row-at-a-time JS loop (COLLECTYX-SEC-32). Idempotent: if
+/// new_rank matches the row's current stored rank, this is a no-op, so
+/// callers (QueuedModal.save()) can invoke it unconditionally.
+#[tauri::command]
+pub fn reorder_queued(
+    state: State<AppState>,
+    id: String,
+    new_rank: Option<i64>,
+) -> Result<(), String> {
+    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let owner = common::current_owner(&db);
+    let tx = db.transaction().map_err(|e| e.to_string())?;
+
+    let old_rank: Option<i64> = tx
+        .query_row(
+            "SELECT q.\"rank\" FROM queued q
+               JOIN items i ON i.id = q.item_id
+              WHERE q.id = ?1 AND i.owner = ?2",
+            params![id, owner],
+            |row| row.get(0),
+        )
+        .map_err(|_| "Record not found".to_string())?;
+
+    if old_rank == new_rank {
+        tx.commit().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    match (old_rank, new_rank) {
+        (None, Some(nr)) => tx.execute(
+            "UPDATE queued SET \"rank\" = \"rank\" + 1
+               WHERE id <> ?1 AND \"rank\" >= ?2
+                 AND item_id IN (SELECT id FROM items WHERE owner = ?3)",
+            params![id, nr, owner],
+        ),
+        (Some(or_), None) => tx.execute(
+            "UPDATE queued SET \"rank\" = \"rank\" - 1
+               WHERE id <> ?1 AND \"rank\" > ?2
+                 AND item_id IN (SELECT id FROM items WHERE owner = ?3)",
+            params![id, or_, owner],
+        ),
+        (Some(or_), Some(nr)) if nr > or_ => tx.execute(
+            "UPDATE queued SET \"rank\" = \"rank\" - 1
+               WHERE id <> ?1 AND \"rank\" > ?2 AND \"rank\" <= ?3
+                 AND item_id IN (SELECT id FROM items WHERE owner = ?4)",
+            params![id, or_, nr, owner],
+        ),
+        (Some(or_), Some(nr)) => tx.execute(
+            "UPDATE queued SET \"rank\" = \"rank\" + 1
+               WHERE id <> ?1 AND \"rank\" >= ?2 AND \"rank\" < ?3
+                 AND item_id IN (SELECT id FROM items WHERE owner = ?4)",
+            params![id, nr, or_, owner],
+        ),
+        _ => Ok(0),
+    }
+    .map_err(|e| e.to_string())?;
+
+    let now = today();
+    let affected = tx
+        .execute(
+            "UPDATE queued SET \"rank\" = ?1, modified = ?2
+               WHERE id = ?3 AND item_id IN (SELECT id FROM items WHERE owner = ?4)",
+            params![new_rank, now, id, owner],
+        )
+        .map_err(|e| e.to_string())?;
+    if affected == 0 {
+        return Err("Record not found".to_string());
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -230,7 +345,7 @@ pub fn replace_all_queued(
     .map_err(|e| e.to_string())?;
 
     for record in &records {
-        write_one(&tx, record, &now, false).map_err(|e| e.to_string())?;
+        write_one(&tx, record, &now, false, true).map_err(|e| e.to_string())?;
     }
 
     tx.commit().map_err(|e| e.to_string())?;

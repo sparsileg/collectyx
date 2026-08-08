@@ -358,17 +358,29 @@ const JoinHelpers = {
         const touchedTags = [];
         const links = [];
 
+        // Pure function, no mutation of anything passed in (COLLECTYX-
+        // SEC-34) — `tags` may be the live cache, and mutating an object
+        // still inside it makes stale state visible before any write
+        // commits. A tag whose modified stamp needs bumping is replaced
+        // with a copy; byName is updated locally so a name repeated later
+        // in tagNames sees the copy, not the original.
         tagNames.forEach(name => {
-            let tag = byName.get(name);
-            if (!tag) {
-                tag = { id: newId(), owner: owner, name: name, date_added: today, modified: today };
+            const existingTag = byName.get(name);
+            let tagId;
+            if (!existingTag) {
+                const tag = { id: newId(), owner: owner, name: name, date_added: today, modified: today };
                 byName.set(name, tag);
                 newTags.push(tag);
-            } else if (alreadyLinked && !alreadyLinked.has(tag.id)) {
-                tag.modified = today;
-                touchedTags.push(tag);
+                tagId = tag.id;
+            } else if (alreadyLinked && !alreadyLinked.has(existingTag.id)) {
+                const touched = Object.assign({}, existingTag, { modified: today });
+                byName.set(name, touched);
+                touchedTags.push(touched);
+                tagId = touched.id;
+            } else {
+                tagId = existingTag.id;
             }
-            links.push({ item_id: itemId, tag_id: tag.id });
+            links.push({ item_id: itemId, tag_id: tagId });
         });
 
         return { newTags: newTags, touchedTags: touchedTags, links: links };
@@ -381,6 +393,11 @@ const JoinHelpers = {
 const DBManagerWeb = {
     db: null,
     _cache: {},
+    // Serializes saveCollectionRecord calls so overlapping reads-then-
+    // writes can't interleave and clobber each other (COLLECTYX-SEC-34).
+    // Always resolves, win or lose, so one failed save doesn't jam the
+    // queue for the next call.
+    _writeQueue: Promise.resolve(),
 
     get _storeNames() {
         return Object.keys(CONSTANTS.STORES).map(k => CONSTANTS.STORES[k]);
@@ -635,8 +652,22 @@ const DBManagerWeb = {
      * Upserts one joined record: its items row, its membership row, and its
      * tag links. Passing an existing ItemId is how the same physical book
      * joins a second collection without re-typing title/author.
+     *
+     * Queued behind _writeQueue (COLLECTYX-SEC-34) — the read-then-write
+     * shape below spans several `await`s, so two overlapping calls could
+     * otherwise both read the pre-write state and the second would
+     * clobber the first. Chaining onto the queue's settled state (not its
+     * value) means this call always runs, whether the previous one
+     * succeeded or failed.
      */
     async saveCollectionRecord(collection, record) {
+        const task = () => this._saveCollectionRecordImpl(collection, record);
+        const result = this._writeQueue.then(task, task);
+        this._writeQueue = result.then(() => {}, () => {});
+        return result;
+    },
+
+    async _saveCollectionRecordImpl(collection, record) {
         const isNewItem = !record.ItemId;
         Validation.itemFields(record, isNewItem);
         Validation.collectionFields(collection, record);
@@ -699,8 +730,16 @@ const DBManagerWeb = {
             rec.links.forEach(l => ops.push({ store: S.ITEM_TAGS, action: 'put', value: l }));
         }
 
-        await this._rawWrite([S.ITEMS, collection, S.TAGS, S.ITEM_TAGS], ops);
-        this._invalidate(S.ITEMS, collection, S.TAGS, S.ITEM_TAGS);
+        try {
+            await this._rawWrite([S.ITEMS, collection, S.TAGS, S.ITEM_TAGS], ops);
+        } finally {
+            // Runs whether the write succeeded or failed — with
+            // reconcileTags now pure, nothing in `ops` was ever visible
+            // through the cache before this point, but a stale cache
+            // entry from *before* this call started is still possible
+            // (COLLECTYX-SEC-34), so invalidate unconditionally.
+            this._invalidate(S.ITEMS, collection, S.TAGS, S.ITEM_TAGS);
+        }
 
         return { id: prepared.id, ItemId: prepared.ItemId };
     },
@@ -714,7 +753,24 @@ const DBManagerWeb = {
         const membership = await this._rawGet(collection, id);
         if (!membership) throw new Error('Record not found');
         await this._assertItemOwned(membership.item_id);
-        await this._rawWrite([collection], [{ store: collection, action: 'delete', key: id }]);
+
+        const ops = [{ store: collection, action: 'delete', key: id }];
+
+        // Close the rank gap in the same transaction as the delete
+        // (COLLECTYX-SEC-32) — mirrors Rust's delete_queued.
+        if (collection === CONSTANTS.COLLECTIONS.QUEUED && membership.rank != null) {
+            const owner = this._owner();
+            const loaded = await Promise.all([this._load(collection), this._load(CONSTANTS.STORES.ITEMS)]);
+            const itemsById = JoinHelpers.indexById(loaded[1]);
+            loaded[0]
+                .filter(r => r.id !== id && r.rank != null && r.rank > membership.rank)
+                .filter(r => { const item = itemsById.get(r.item_id); return item && item.owner === owner; })
+                .forEach(r => ops.push({
+                    store: collection, action: 'put', value: Object.assign({}, r, { rank: r.rank - 1 }),
+                }));
+        }
+
+        await this._rawWrite([collection], ops);
         this._invalidate(collection);
     },
 
@@ -1013,17 +1069,23 @@ const DBManagerWeb = {
         return affected.length;
     },
 
-    /** Bulk tag replace, scoped to one owner. */
+    /**
+     * Bulk tag replace, scoped to one owner. Only deletes tags genuinely
+     * absent from the incoming list (matched by id) and hand-cascades
+     * their item_tags rows — a surviving tag is upserted in place and
+     * never deleted, so its links are never touched. The previous
+     * delete-everything-then-reinsert approach left dangling item_tags
+     * rows behind for every survivor (COLLECTYX-SEC-33).
+     */
     async replaceAllTags(tagList) {
         const S = CONSTANTS.STORES;
         const today = this._today();
         const owner = this._owner();
-        const existing = await this._load(S.TAGS);
+        const loaded = await Promise.all([this._load(S.TAGS), this._load(S.ITEM_TAGS)]);
+        const existing = loaded[0];
+        const itemTags = loaded[1];
 
-        const ops = [];
-        existing.filter(t => t.owner === owner)
-                .forEach(t => ops.push({ store: S.TAGS, action: 'delete', key: t.id }));
-
+        const prepared = [];
         const seen = new Set();
         (tagList || []).forEach(tag => {
             const name = String(tag.Name || '').trim().toLowerCase();
@@ -1033,20 +1095,31 @@ const DBManagerWeb = {
             Validation.tagName(name);
             if (seen.has(name)) return;
             seen.add(name);
-            ops.push({
-                store: S.TAGS, action: 'put',
-                value: {
-                    id: tag.id || this._newId(),
-                    owner: tag.Owner || owner,
-                    name: name,
-                    date_added: tag.DateAdded || today,
-                    modified: today,
-                },
+            prepared.push({
+                id: tag.id || this._newId(),
+                owner: tag.Owner || owner,
+                name: name,
+                date_added: tag.DateAdded || today,
+                modified: today,
             });
         });
 
-        await this._rawWrite([S.TAGS], ops);
-        this._invalidate(S.TAGS);
+        const incomingIds = new Set(prepared.map(p => p.id));
+        const ops = [];
+
+        existing.filter(t => t.owner === owner && !incomingIds.has(t.id))
+                .forEach(t => {
+                    ops.push({ store: S.TAGS, action: 'delete', key: t.id });
+                    itemTags.filter(l => l.tag_id === t.id)
+                            .forEach(l => ops.push({
+                                store: S.ITEM_TAGS, action: 'delete', key: [l.item_id, l.tag_id],
+                            }));
+                });
+
+        prepared.forEach(p => ops.push({ store: S.TAGS, action: 'put', value: p }));
+
+        await this._rawWrite([S.TAGS, S.ITEM_TAGS], ops);
+        this._invalidate(S.TAGS, S.ITEM_TAGS);
     },
 
     // ── Settings ──────────────────────────────────────────────────────────────
@@ -1086,12 +1159,27 @@ const DBManagerWeb = {
     // Kept generic so a real auth mechanism (session token, API key hash)
     // can reuse it later without another migration.
 
+    // Only current_owner exists today. Allow-listing both read and write
+    // now, while there is one key, avoids an unrestricted read becoming a
+    // bigger problem than the unrestricted write once real auth state
+    // lives here (COLLECTYX-SEC-35) — mirrors app_meta.rs.
+    _APP_META_ALLOWED_KEYS: [CONSTANTS.APP_META_KEYS.CURRENT_OWNER],
+
     async getAppMeta(key) {
+        if (this._APP_META_ALLOWED_KEYS.indexOf(key) === -1) {
+            throw new Error('Unknown app_meta key "' + key + '"');
+        }
         const row = await this._rawGet(CONSTANTS.STORES.APP_META, key);
         return row ? row.value : null;
     },
 
     async setAppMeta(key, value) {
+        if (this._APP_META_ALLOWED_KEYS.indexOf(key) === -1) {
+            throw new Error('Unknown app_meta key "' + key + '"');
+        }
+        if (String(value).length > CONSTANTS.VALIDATION.SHORT_TEXT_MAX) {
+            throw new Error('Value exceeds ' + CONSTANTS.VALIDATION.SHORT_TEXT_MAX + ' characters');
+        }
         await this._rawWrite([CONSTANTS.STORES.APP_META], [{
             store: CONSTANTS.STORES.APP_META,
             action: 'put',
@@ -1118,6 +1206,59 @@ const DBManagerWeb = {
         row.currently_reading = value ? 1 : 0;
         row.modified = this._today();
         await this._rawWrite([S.QUEUED], [{ store: S.QUEUED, action: 'put', value: row }]);
+        this._invalidate(S.QUEUED);
+    },
+
+    /**
+     * Atomically moves one queued row to newRank, shifting every affected
+     * row in one IndexedDB transaction (COLLECTYX-SEC-32) — mirrors the
+     * Rust reorder_queued command's case-by-case shift logic. Idempotent:
+     * a no-op if newRank matches the row's current stored rank.
+     */
+    async reorderQueued(id, newRank) {
+        const S = CONSTANTS.STORES;
+        const owner = this._owner();
+        const loaded = await Promise.all([this._load(S.QUEUED), this._load(S.ITEMS)]);
+        const itemsById = JoinHelpers.indexById(loaded[1]);
+        const target = loaded[0].find(r => r.id === id);
+        const targetItem = target && itemsById.get(target.item_id);
+        if (!target || !targetItem || targetItem.owner !== owner) {
+            throw new Error('Record not found');
+        }
+
+        const oldRank = target.rank != null ? target.rank : null;
+        newRank = newRank != null ? newRank : null;
+        if (oldRank === newRank) return;
+
+        const ownedRows = loaded[0].filter(r => {
+            const item = itemsById.get(r.item_id);
+            return item && item.owner === owner;
+        });
+
+        const ops = [];
+        const shift = (predicate, delta) => {
+            ownedRows.forEach(r => {
+                if (r.id === id || r.rank == null || !predicate(r.rank)) return;
+                ops.push({ store: S.QUEUED, action: 'put', value: Object.assign({}, r, { rank: r.rank + delta }) });
+            });
+        };
+
+        if (oldRank == null && newRank != null) {
+            shift(rank => rank >= newRank, 1);
+        } else if (oldRank != null && newRank == null) {
+            shift(rank => rank > oldRank, -1);
+        } else if (oldRank != null && newRank != null && newRank > oldRank) {
+            shift(rank => rank > oldRank && rank <= newRank, -1);
+        } else if (oldRank != null && newRank != null && newRank < oldRank) {
+            shift(rank => rank >= newRank && rank < oldRank, 1);
+        }
+
+        ops.push({
+            store: S.QUEUED, action: 'put',
+            value: Object.assign({}, target, { rank: newRank, modified: this._today() }),
+        });
+
+        await this._rawWrite([S.QUEUED], ops);
         this._invalidate(S.QUEUED);
     },
 };

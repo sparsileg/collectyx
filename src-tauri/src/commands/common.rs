@@ -280,7 +280,7 @@ pub fn upsert_item(tx: &Transaction, fields: &ItemFields, now: &str) -> Result<S
     }
     let item_id = match &fields.item_id {
         Some(id) => {
-            if let Err(msg) = assert_item_owned(tx, id) {
+            if let Err(msg) = assert_item_id_writable(tx, id) {
                 return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
             }
             id.clone()
@@ -352,6 +352,31 @@ pub fn assert_item_owned(conn: &rusqlite::Connection, item_id: &str) -> std::res
     match found {
         Some(item_owner) if item_owner == owner => Ok(()),
         _ => Err("Item not found".to_string()),
+    }
+}
+
+/// Whether `item_id` can legitimately be written to: either it doesn't
+/// exist yet (a create — e.g. restore recreating an item under its
+/// original, now-deleted, ID) or it exists and belongs to the current
+/// owner (an update). Only an ID that belongs to a *different* owner is
+/// blocked. Deliberately looser than assert_item_owned, which requires
+/// existence — that stricter check stays correct for delete/attach/detach,
+/// where the row must already be there. COLLECTYX-SEC-05's ownership check
+/// on write paths didn't anticipate restore needing to recreate items
+/// under their original IDs after a wipe; this is the fix (COLLECTYX-SEC-41).
+pub fn assert_item_id_writable(conn: &rusqlite::Connection, item_id: &str) -> std::result::Result<(), String> {
+    let owner = current_owner(conn);
+    let found: Option<String> = conn
+        .query_row(
+            "SELECT owner FROM items WHERE id = ?1",
+            params![item_id],
+            |row| row.get(0),
+        )
+        .ok();
+    match found {
+        None => Ok(()),
+        Some(item_owner) if item_owner == owner => Ok(()),
+        Some(_) => Err("Item not found".to_string()),
     }
 }
 

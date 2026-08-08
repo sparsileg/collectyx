@@ -22,7 +22,9 @@ const SettingsModal = {
             const action = btn.dataset.action;
             if (action === 'browse-folder') this.browseBackupFolder();
             else if (action === 'clear-folder') this.clearBackupFolder();
-            else if (action === 'open-owner-test') OwnerTestModal.open();
+            else if (action === 'open-owner-test') {
+                if (CONSTANTS.ENABLE_OWNER_TEST_SWITCH) OwnerTestModal.open();
+            }
             else if (action === 'close') this.close();
         });
     },
@@ -49,6 +51,15 @@ const SettingsModal = {
         const folderField = document.getElementById('settingsBackupFolder');
         folderField.disabled = !isTauri;
         if (!isTauri) folderField.value = 'Your Downloads folder';
+
+        // Owner (Testing) row is gated behind a build flag (COLLECTYX-
+        // SEC-35) — hidden entirely, not just disabled, so it doesn't
+        // ship in a normal build.
+        const showOwnerTest = !!CONSTANTS.ENABLE_OWNER_TEST_SWITCH;
+        const ownerTestBtn = document.getElementById('settingsOwnerTestBtn');
+        const ownerTestDivider = document.getElementById('settingsOwnerTestDivider');
+        if (ownerTestBtn) ownerTestBtn.style.display = showOwnerTest ? '' : 'none';
+        if (ownerTestDivider) ownerTestDivider.style.display = showOwnerTest ? '' : 'none';
 
         document.getElementById('settingsModal').classList.add('open');
     },

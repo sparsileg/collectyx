@@ -20,7 +20,7 @@
 // (Order left blank) never participate in shifting.
 
 const QueuedModal = {
-    _current: { recordId: null, containerId: null, itemId: null, oldRank: null },
+    _current: { recordId: null, containerId: null, itemId: null },
 
     // #tbrModal and its form are static markup, never rebuilt — bind once,
     // guarded, same pattern as the collection views.
@@ -47,8 +47,7 @@ const QueuedModal = {
         this._current = {
             recordId,
             containerId,
-            itemId: record ? record.ItemId : null,
-            oldRank: record ? record.Rank : null
+            itemId: record ? record.ItemId : null
         };
 
         document.getElementById('tbrModalTitle').textContent = record
@@ -76,7 +75,7 @@ const QueuedModal = {
 
     async save(event) {
         event.preventDefault();
-        const { recordId, containerId, itemId, oldRank } = this._current;
+        const { recordId, containerId, itemId } = this._current;
 
         const title = document.getElementById('tbrTitle').value.trim();
         if (!title) { showMessage('Title is required.', CONSTANTS.MESSAGE_TYPES.ERROR); return; }
@@ -99,9 +98,11 @@ const QueuedModal = {
             if (newRank < 1) newRank = 1;
         }
 
+        // No Rank here — save_queued/saveCollectionRecord never writes
+        // rank; reorderQueued below is the only thing that moves it
+        // (COLLECTYX-SEC-32), atomically and in one backend call.
         const payload = {
             Title: title,
-            Rank: newRank,
             Author: formatAuthorName(document.getElementById('tbrAuthorSurname').value, document.getElementById('tbrAuthorGiven').value),
             Author2: formatAuthorName(document.getElementById('tbrAuthor2Surname').value, document.getElementById('tbrAuthor2Given').value),
             Source: document.getElementById('tbrSource').value.trim()
@@ -111,7 +112,9 @@ const QueuedModal = {
 
         try {
             const result = await DBManager.saveCollectionRecord('queued', payload);
-            await this._shiftRanksAfterSave(allQueued, result.id, oldRank, newRank);
+            // Idempotent — safe to call unconditionally whether or not the
+            // rank actually changed.
+            await DBManager.reorderQueued(result.id, newRank);
             this.close();
             showMessage(`Saved to ${MediaLabels.QueuedLabel}`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
             if (typeof QueuedView !== 'undefined') QueuedView.load(containerId);
@@ -121,72 +124,21 @@ const QueuedModal = {
         }
     },
 
-    // allBefore: the queued collection as it was BEFORE this save (fetched
-    // in save(), used here to know every other record's rank without a
-    // second fetch). savedRecordId/oldRank/newRank describe the just-saved
-    // record's move. Always sends id + ItemId on every shift write — same
-    // rule as everywhere else, a partial payload missing ItemId would
-    // orphan that record's item.
-    async _shiftRanksAfterSave(allBefore, savedRecordId, oldRank, newRank) {
-        if (newRank == null) return;
-        const shifts = [];
-
-        if (oldRank == null) {
-            // New insertion at newRank: make room by pushing newRank+ down.
-            allBefore.forEach(r => {
-                if (r.id !== savedRecordId && r.Rank != null && r.Rank >= newRank) {
-                    shifts.push({ id: r.id, ItemId: r.ItemId, Rank: r.Rank + 1 });
-                }
-            });
-        } else if (newRank > oldRank) {
-            // Moved down the list: close the gap it left, shift (old, new] up.
-            allBefore.forEach(r => {
-                if (r.id !== savedRecordId && r.Rank != null && r.Rank > oldRank && r.Rank <= newRank) {
-                    shifts.push({ id: r.id, ItemId: r.ItemId, Rank: r.Rank - 1 });
-                }
-            });
-        } else if (newRank < oldRank) {
-            // Moved up the list: make room, shift [new, old) down.
-            allBefore.forEach(r => {
-                if (r.id !== savedRecordId && r.Rank != null && r.Rank >= newRank && r.Rank < oldRank) {
-                    shifts.push({ id: r.id, ItemId: r.ItemId, Rank: r.Rank + 1 });
-                }
-            });
-        }
-
-        for (const s of shifts) {
-            await DBManager.saveCollectionRecord('queued', { id: s.id, ItemId: s.ItemId, Rank: s.Rank });
-        }
-    },
-
     async deleteRecord() {
         const { recordId, containerId } = this._current;
         if (!recordId) return;
         if (!await Confirm.open('Remove this record?', 'Remove')) return;
 
-        // Needed before deleting: if this queued entry came from My
-        // Library's "To Read" button, that row's button must reappear;
-        // and if it was ranked, everything below needs to shift up.
+        // If this queued entry came from My Library's "To Read" button,
+        // that row's button must reappear once it's gone.
         const record = CollectionView.getRecord(containerId, recordId);
         const wasFromLibrary = record && record.Source === 'My Library';
-        const deletedRank = record ? record.Rank : null;
 
         try {
-            let allBefore = [];
-            if (deletedRank != null) {
-                allBefore = await DBManager.getCollection('queued');
-            }
-
+            // deleteCollectionRecord closes the rank gap atomically as
+            // part of the same delete (COLLECTYX-SEC-32) — no separate
+            // fetch-then-shift needed here anymore.
             await DBManager.deleteCollectionRecord('queued', recordId);
-
-            if (deletedRank != null) {
-                const shifts = allBefore
-                    .filter(r => r.id !== recordId && r.Rank != null && r.Rank > deletedRank)
-                    .map(r => ({ id: r.id, ItemId: r.ItemId, Rank: r.Rank - 1 }));
-                for (const s of shifts) {
-                    await DBManager.saveCollectionRecord('queued', { id: s.id, ItemId: s.ItemId, Rank: s.Rank });
-                }
-            }
 
             this.close();
             showMessage('Removed', CONSTANTS.MESSAGE_TYPES.SUCCESS);

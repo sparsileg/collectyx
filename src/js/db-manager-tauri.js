@@ -180,4 +180,15 @@ const DBManagerTauri = {
     async setCurrentlyReading(id, value) {
         return invoke('toggle_currently_reading', { id: id, value: !!value });
     },
+
+    /**
+     * Atomically moves one queued row to newRank; the backend computes the
+     * old rank itself and shifts every affected row in one transaction
+     * (COLLECTYX-SEC-32). Idempotent — a no-op if newRank matches the
+     * row's current stored rank — so callers can invoke it unconditionally
+     * after every save.
+     */
+    async reorderQueued(id, newRank) {
+        return invoke('reorder_queued', { id: id, newRank: newRank });
+    },
 };

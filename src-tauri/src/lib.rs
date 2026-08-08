@@ -65,6 +65,7 @@ pub fn run() {
             commands::queued::delete_queued,
             commands::queued::replace_all_queued,
             commands::queued::toggle_currently_reading,
+            commands::queued::reorder_queued,
             // owned (My Library)
             commands::owned::get_all_owned,
             commands::owned::save_owned,

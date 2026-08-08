@@ -155,6 +155,21 @@ pub fn delete_tag(
     Ok(affected)
 }
 
+struct PreparedTag {
+    id: String,
+    owner: String,
+    name: String,
+    date_added: String,
+}
+
+/// Replaces the full tag set for the active owner. Only deletes tags
+/// genuinely absent from the incoming list — a surviving tag (matched by
+/// id) is upserted in place and never deleted, so its item_tags rows never
+/// see the ON DELETE CASCADE fire. The previous delete-then-reinsert
+/// approach cascaded every link away before the reinsert ran
+/// (COLLECTYX-SEC-33). Identity is by id, not name: a backup entry that
+/// reuses an existing name under a new id is rejected by UNIQUE(owner,
+/// name), same as any other tag creation.
 #[tauri::command]
 pub fn replace_all_tags(state: State<AppState>, tags: Vec<TagRecord>) -> Result<(), String> {
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
@@ -162,9 +177,7 @@ pub fn replace_all_tags(state: State<AppState>, tags: Vec<TagRecord>) -> Result<
     let tx = db.transaction().map_err(|e| e.to_string())?;
     let now = today();
 
-    tx.execute("DELETE FROM tags WHERE owner = ?1", params![owner])
-        .map_err(|e| e.to_string())?;
-
+    let mut prepared: Vec<PreparedTag> = Vec::new();
     for tag in &tags {
         let name = tag.name.trim().to_lowercase();
         if name.is_empty() {
@@ -177,16 +190,44 @@ pub fn replace_all_tags(state: State<AppState>, tags: Vec<TagRecord>) -> Result<
         if let Err(msg) = common::validate_tag_name(&name) {
             return Err(msg);
         }
+        prepared.push(PreparedTag {
+            id: tag.id.clone().unwrap_or_else(new_uuid),
+            owner: tag.owner.clone().unwrap_or_else(|| owner.clone()),
+            name,
+            date_added: tag.date_added.clone().unwrap_or_else(|| now.clone()),
+        });
+    }
+
+    let incoming_ids: std::collections::HashSet<&str> =
+        prepared.iter().map(|p| p.id.as_str()).collect();
+
+    let existing_ids: Vec<String> = {
+        let mut stmt = tx
+            .prepare("SELECT id FROM tags WHERE owner = ?1")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![owner], |row| row.get(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>>>()
+            .map_err(|e| e.to_string())?;
+        rows
+    };
+
+    for existing_id in &existing_ids {
+        if !incoming_ids.contains(existing_id.as_str()) {
+            tx.execute("DELETE FROM tags WHERE id = ?1", params![existing_id])
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    for p in &prepared {
         tx.execute(
-            "INSERT OR IGNORE INTO tags (id, owner, name, date_added, modified)
-             VALUES (?1,?2,?3,?4,?5)",
-            params![
-                tag.id.clone().unwrap_or_else(new_uuid),
-                tag.owner.clone().unwrap_or_else(|| owner.clone()),
-                name,
-                tag.date_added.clone().unwrap_or_else(|| now.clone()),
-                now
-            ],
+            "INSERT INTO tags (id, owner, name, date_added, modified)
+             VALUES (?1,?2,?3,?4,?5)
+             ON CONFLICT(id) DO UPDATE SET
+                name     = excluded.name,
+                modified = excluded.modified",
+            params![p.id, p.owner, p.name, p.date_added, now],
         )
         .map_err(|e| e.to_string())?;
     }

@@ -113,13 +113,15 @@ const OwnedView = {
             const queuedData = await DBManager.getCollection('queued');
             const maxRank = queuedData.reduce((max, r) => (r.Rank != null && r.Rank > max ? r.Rank : max), 0);
 
-            await DBManager.saveCollectionRecord('queued', {
+            // saveCollectionRecord no longer writes Rank — reorderQueued
+            // is the only path that sets it (COLLECTYX-SEC-32).
+            const result = await DBManager.saveCollectionRecord('queued', {
                 ItemId: record.ItemId,
                 Title: record.Title,
                 Author: record.Author,
-                Rank: maxRank + 1,
                 Source: 'My Library'
             });
+            await DBManager.reorderQueued(result.id, maxRank + 1);
 
             showMessage(`Added to ${MediaLabels.QueuedLabel}`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
             await this.refreshAll();
