@@ -341,42 +341,9 @@ pub fn tags_by_item(
     Ok(map)
 }
 
-/// UUID v4, generated without pulling in the uuid crate for one call site.
+/// UUID v4, sourced from the OS CSPRNG via the `uuid` crate.
+/// See COLLECTYX-SEC-26 — the prior clock-seeded xorshift generator was
+/// deterministic and same-tick-collidable.
 pub fn new_uuid() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-
-    // Mix the clock with the address of a local allocation so that two calls
-    // in the same nanosecond still differ.
-    let boxed = Box::new(0u8);
-    let addr = &*boxed as *const u8 as usize as u128;
-    let mut state = nanos ^ (addr << 32) ^ 0x9E37_79B9_7F4A_7C15;
-
-    let mut next = || {
-        state ^= state << 13;
-        state ^= state >> 7;
-        state ^= state << 17;
-        state
-    };
-
-    let mut bytes = [0u8; 16];
-    for chunk in bytes.chunks_mut(8) {
-        let v = next() as u64;
-        for (i, b) in chunk.iter_mut().enumerate() {
-            *b = (v >> (8 * i)) as u8;
-        }
-    }
-
-    bytes[6] = (bytes[6] & 0x0F) | 0x40; // version 4
-    bytes[8] = (bytes[8] & 0x3F) | 0x80; // variant
-
-    format!(
-        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-        bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
-    )
+    uuid::Uuid::new_v4().to_string()
 }
