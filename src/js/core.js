@@ -192,19 +192,6 @@ function dateToStorage(userDate) {
     return '';
 }
 
-// ── Confirmation dialog ──────────────────────────────────────────────────────
-
-// Tauri's global confirm() wrapper calls a command that no longer exists in
-// this plugin version (see Issue 44); message() with OkCancel buttons is
-// the working equivalent. Falls back to native confirm() in the web build.
-async function confirmDialog(msg) {
-    if (typeof window.__TAURI__ !== 'undefined') {
-        const result = await window.__TAURI__.dialog.message(msg, { title: CONSTANTS.APP_NAME, buttons: 'OkCancel' });
-        return result === 'Ok';
-    }
-    return confirm(msg);
-}
-
 // ── HTML escaping ─────────────────────────────────────────────────────────────
 
 // Escapes user/imported data before interpolation into innerHTML. Does not
