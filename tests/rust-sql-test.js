@@ -19,8 +19,13 @@ function ok(label, cond, detail) {
     else { console.log('  FAIL ' + label + (detail ? '\n         ' + detail : '')); failures++; }
 }
 
-// Build the schema from schema.rs, same as the migration does.
+// Build the schema from schema.rs, same as the migration does. Every
+// pub const is applied in file order (media_types before items before
+// consumed, etc. — the same order schema.rs itself is written in, and the
+// order migrate_v1 applies them), so a new table added there is picked up
+// here automatically instead of needing this list hand-maintained.
 const schemaSrc = fs.readFileSync(R + '/src-tauri/src/db/schema.rs', 'utf8');
+const migSrc = fs.readFileSync(R + '/src-tauri/src/db/migrations.rs', 'utf8');
 const consts = {};
 let m;
 const re = /pub const (\w+): &str = "([\s\S]*?)";\n/g;
@@ -28,9 +33,16 @@ while ((m = re.exec(schemaSrc)) !== null) consts[m[1]] = m[2].replace(/\\"/g, '"
 
 const db = new DatabaseSync(':memory:');
 db.exec('PRAGMA foreign_keys = ON;');
-['CREATE_MEDIA_TYPES','CREATE_ITEMS','CREATE_CONSUMED','CREATE_QUEUED','CREATE_OWNED',
- 'CREATE_TAGS','CREATE_ITEM_TAGS','CREATE_SETTINGS','CREATE_INDEXES','SEED_MEDIA_TYPES']
+[...schemaSrc.matchAll(/pub const (\w+): &str = /g)].map(x => x[1])
     .forEach(k => db.exec(consts[k]));
+
+// migrate_v2 is additive (app_meta table already applied above via the
+// schema.rs loop; queued.currently_reading is an ALTER TABLE that only
+// lives in migrations.rs) — apply it here too so SELECT_JOINED for queued,
+// which reads currently_reading, has a column to find.
+const alterMatch = migSrc.match(/ALTER TABLE queued ADD COLUMN currently_reading[^;]*;/);
+ok('migrate_v2 ALTER TABLE found in migrations.rs', !!alterMatch);
+if (alterMatch) db.exec(alterMatch[0]);
 
 // ── 1. Joined SELECTs parse and column indices line up ────────────────────────
 console.log('\n1. joined SELECT statements');
@@ -62,23 +74,31 @@ Object.keys(selects).forEach(name => {
 
 // row_to_record reads row.get(N); the highest N must be within the SELECT list.
 console.log('\n   column-index alignment (row_to_record vs SELECT list)');
+// Wrapped per-collection so one failure (e.g. a missing column) doesn't
+// skip the alignment check for the other two — each collection's result
+// is independent signal.
 [['consumed.rs', 'consumed'], ['queued.rs', 'queued'], ['owned.rs', 'owned']].forEach(pair => {
-    const src = fs.readFileSync(R + '/src-tauri/src/commands/' + pair[0], 'utf8');
-    const fnStart = src.indexOf('fn row_to_record');
-    const fnEnd = src.indexOf('\n}', fnStart);
-    const body = src.slice(fnStart, fnEnd);
-    const indices = [...body.matchAll(/row\.get\((\d+)\)/g)].map(x => parseInt(x[1], 10));
-    const maxIdx = Math.max(...indices);
+    try {
+        const src = fs.readFileSync(R + '/src-tauri/src/commands/' + pair[0], 'utf8');
+        const fnStart = src.indexOf('fn row_to_record');
+        const fnEnd = src.indexOf('\n}', fnStart);
+        const body = src.slice(fnStart, fnEnd);
+        const indices = [...body.matchAll(/row\.get\((\d+)\)/g)].map(x => parseInt(x[1], 10));
+        const maxIdx = Math.max(...indices);
 
-    // Count the columns the SELECT actually returns.
-    const cols = db.prepare(selects[pair[1]]).columns().length;
+        // Count the columns the SELECT actually returns.
+        const cols = db.prepare(selects[pair[1]]).columns().length;
 
-    ok(pair[1] + ': highest row.get index (' + maxIdx + ') < column count (' + cols + ')',
-       maxIdx < cols);
-    const missing = [];
-    for (let i = 0; i < cols; i++) if (!indices.includes(i)) missing.push(i);
-    ok(pair[1] + ': every selected column is read', missing.length === 0,
-       'unread indices: ' + missing.join(', '));
+        ok(pair[1] + ': highest row.get index (' + maxIdx + ') < column count (' + cols + ')',
+           maxIdx < cols);
+        const missing = [];
+        for (let i = 0; i < cols; i++) if (!indices.includes(i)) missing.push(i);
+        ok(pair[1] + ': every selected column is read', missing.length === 0,
+           'unread indices: ' + missing.join(', '));
+    } catch (e) {
+        console.log('  FAIL ' + pair[1] + ': ' + e.message);
+        failures++;
+    }
 });
 
 // ── 2. Seed data ──────────────────────────────────────────────────────────────

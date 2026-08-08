@@ -48,8 +48,11 @@ function ok(label, cond) {
     console.log('\n1. init & object stores');
     await DB.init();
     const stores = Array.from(DB.db.objectStoreNames).sort();
-    check('all eight stores created', stores,
-          ['consumed', 'item_tags', 'items', 'media_types', 'owned', 'queued', 'settings', 'tags']);
+    // Derived from CONSTANTS.STORES rather than a hard-coded array, so
+    // adding a store there doesn't also require editing this assertion.
+    const expectedStores = Object.values(CONSTANTS.STORES).sort();
+    check('all stores in CONSTANTS.STORES are created', stores, expectedStores);
+    ok('app_meta store present', stores.includes('app_meta'));
 
     const mt = await DB.getAllMediaTypes();
     check('media_types seeded on init', mt.length, 1);
@@ -63,6 +66,18 @@ function ok(label, cond) {
           itTx.objectStore('item_tags').keyPath, ['item_id', 'tag_id']);
     check('settings keyed on owner',
           DB.db.transaction(['settings'], 'readonly').objectStore('settings').keyPath, 'owner');
+
+    // ── 1b. app_meta store ────────────────────────────────────────────────────
+    // app_meta is deliberately not owner-scoped (schema.rs doc comment on
+    // CREATE_APP_META); exercised here via the raw primitives only, since
+    // that's the layer this suite can verify without assuming a specific
+    // higher-level API shape.
+    console.log('\n1b. app_meta store');
+    await DB._rawWrite(['app_meta'], [
+        { store: 'app_meta', action: 'put', value: { key: 'test_key', value: 'test_value' } },
+    ]);
+    const metaRow = await DB._rawGet('app_meta', 'test_key');
+    check('app_meta round-trips via raw primitives', metaRow && metaRow.value, 'test_value');
 
     // ── 2. save a record ──────────────────────────────────────────────────────
     console.log('\n2. saveCollectionRecord');

@@ -9,6 +9,7 @@ const vm = require('vm');
 
 const src = fs.readFileSync((process.env.COLLECTYX_ROOT || '../') + '/src/js/db-manager-web.js', 'utf8');
 const constantsSrc = fs.readFileSync((process.env.COLLECTYX_ROOT || '../') + '/src/js/constants.js', 'utf8');
+const schemaSrc = fs.readFileSync((process.env.COLLECTYX_ROOT || '../') + '/src-tauri/src/db/schema.rs', 'utf8');
 
 // Evaluate both files in a sandbox with the browser globals they expect.
 const sandbox = {
@@ -285,7 +286,13 @@ Object.keys(COLLECTION_FIELD_MAPS).forEach(c => {
 });
 check('three collections mapped', Object.keys(COLLECTION_FIELD_MAPS).sort(),
       ['consumed', 'owned', 'queued']);
-check('CONSTANTS.STORES has eight entries', Object.keys(CONSTANTS.STORES).length, 8);
+
+// Derived from schema.rs rather than hard-coded, so a new table (and its
+// paired STORES entry) doesn't require an edit here to keep passing —
+// STORES is meant to name exactly the tables schema.rs creates.
+const schemaTables = [...schemaSrc.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g)].map(x => x[1]).sort();
+const storeValues = Object.values(CONSTANTS.STORES).sort();
+check('CONSTANTS.STORES matches the table set in schema.rs', storeValues, schemaTables);
 
 // ── Result ───────────────────────────────────────────────────────────────────
 console.log('\n' + (failures === 0

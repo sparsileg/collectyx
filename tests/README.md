@@ -22,12 +22,12 @@ Or individually, from the repo root:
 
 | Suite | Covers |
 |---|---|
-| `schema-test.js` | Extracts the DDL from `schema.rs` and runs it: all 8 tables create, foreign keys enforce, `ON DELETE CASCADE` fires, `UNIQUE(owner,name)` holds, the quoted `"rank"` column round-trips, no `category` column exists anywhere |
-| `migration-test.js` | Rebuilds the exact batch `migrate_v1()` assembles, checks `format!` placeholder count matches its arguments, confirms `PRAGMA user_version = 1`, re-run safety, and that no Scriptum flat tables get created |
-| `join-test.js` | The Phase 1 join-simulation spike — `JoinHelpers` against a hand-seeded dataset covering re-reads, cross-collection identity, orphan rows, dangling tag links, round-trip fidelity, merge planning and conflict resolution |
-| `web-backend-test.js` | `DBManagerWeb` end-to-end on a real IndexedDB: store creation, the join, cache invalidation, partial-payload preservation, tag substitution, merge, transaction atomicity |
+| `schema-test.js` | Extracts the DDL from `schema.rs` and runs it: every table in `schema.rs` creates, foreign keys enforce, `ON DELETE CASCADE` fires, `UNIQUE(owner,name)` holds, the quoted `"rank"` column round-trips, no `category` column exists anywhere |
+| `migration-test.js` | Rebuilds the exact batches `migrate_v1()` and `migrate_v2()` each assemble — from that function's body alone, not a file-wide scan — checks each `format!`'s placeholder count matches its own arguments, confirms `PRAGMA user_version` reaches 1 then 2, re-run safety, `queued.currently_reading` lands, and that no Scriptum flat tables get created |
+| `join-test.js` | The Phase 1 join-simulation spike — `JoinHelpers` against a hand-seeded dataset covering re-reads, cross-collection identity, orphan rows, dangling tag links, round-trip fidelity, merge planning and conflict resolution. `CONSTANTS.STORES` is checked against the table set `schema.rs` actually creates, not a hard-coded count |
+| `web-backend-test.js` | `DBManagerWeb` end-to-end on a real IndexedDB: store creation (checked against `CONSTANTS.STORES`, including `app_meta`), the join, cache invalidation, partial-payload preservation, tag substitution, merge, transaction atomicity |
 | `parity-test.js` | Both backends expose the same methods with the same arity; every command the JS invokes is defined *and* registered; `mod.rs` matches the files on disk |
-| `rust-sql-test.js` | Executes the SQL embedded in the Rust modules, verifies every `row.get(N)` index lines up with its `SELECT` list, and runs the `merge_items` statement sequence to check the end state |
+| `rust-sql-test.js` | Executes the SQL embedded in the Rust modules against a fixture built from every `schema.rs` table plus migration v2's `queued.currently_reading`, verifies every `row.get(N)` index lines up with its `SELECT` list for all three collections independently, and runs the `merge_items` statement sequence to check the end state |
 
 ## Limitation
 
