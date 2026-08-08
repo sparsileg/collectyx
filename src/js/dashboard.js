@@ -66,8 +66,8 @@ function renderTopTags(tags) {
 
     const html = sorted.map(tag => `
         <div class="top-tags-item">
-            <span class="top-tags-name">${tag.Name}</span>
-            <span class="top-tags-count">${tag.Count}</span>
+            <span class="top-tags-name">${escapeHtml(String(tag.Name || ''))}</span>
+            <span class="top-tags-count">${escapeHtml(String(tag.Count))}</span>
         </div>
     `).join('');
 
@@ -93,8 +93,8 @@ function renderRecentBooks(consumed) {
 
     const html = recentBooks.map(book => `
         <div class="recent-book-item">
-            <div class="recent-book-title">${book.Title}</div>
-            <div class="recent-book-author">by ${book.Author}</div>
+            <div class="recent-book-title">${escapeHtml(String(book.Title || ''))}</div>
+            <div class="recent-book-author">by ${escapeHtml(String(book.Author || ''))}</div>
         </div>
     `).join('');
 
@@ -105,9 +105,17 @@ function renderRecentBooks(consumed) {
 async function renderReadingGoals(consumed) {
     const goalDisplay = document.getElementById('goalDisplay');
     const settings = await DBManager.getSettings() || {};
-    const dailyGoal = settings.dailyReadingGoal || CONSTANTS.DEFAULT_DAILY_READING_GOAL;
+    const dailyGoal = Number(settings.dailyReadingGoal) || CONSTANTS.DEFAULT_DAILY_READING_GOAL;
 
-    goalDisplay.innerHTML = `<p class="goal-current">Daily Goal: ${dailyGoal} pages</p>`;
+    // Single line of text, no markup to preserve — textContent rather than
+    // innerHTML so a hostile dailyReadingGoal from a restored backup can't
+    // inject markup here.
+    goalDisplay.innerHTML = '';
+    const goalLine = document.createElement('p');
+    goalLine.className = 'goal-current';
+    goalLine.textContent = `Daily Goal: ${dailyGoal} pages`;
+    goalDisplay.appendChild(goalLine);
+
     renderReadingGoalChart(dailyGoal, consumed);
 }
 
@@ -255,10 +263,10 @@ function renderWhatsNext(queued) {
         const rankDisplay = book.Rank || 'Unranked';
         return `
             <div class="whats-next-item">
-                <div class="whats-next-rank">${rankDisplay}</div>
+                <div class="whats-next-rank">${escapeHtml(String(rankDisplay))}</div>
                 <div class="whats-next-details">
-                    <div class="whats-next-title">${book.Title}</div>
-                    <div class="whats-next-author">by ${book.Author}</div>
+                    <div class="whats-next-title">${escapeHtml(String(book.Title || ''))}</div>
+                    <div class="whats-next-author">by ${escapeHtml(String(book.Author || ''))}</div>
                 </div>
             </div>
         `;

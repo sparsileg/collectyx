@@ -51,6 +51,81 @@ const BackupRestore = {
         return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
     },
 
+    // ── Validation ───────────────────────────────────────────────────────────
+    // A backup file is rejected in full rather than imported with warnings —
+    // by the time a per-record warning could be shown, the wipe in
+    // executeRestore() has already happened. Every check here runs before
+    // the confirmation checkbox becomes reachable (showScreen2's error path
+    // hides restoreCheckboxRow), so a file that fails validation cannot
+    // reach the wipe at all.
+
+    _typeName(v) {
+        if (Array.isArray(v)) return 'array';
+        if (v === null) return 'null';
+        return typeof v;
+    },
+
+    _validateRecord(record, label, index) {
+        if (this._typeName(record) !== 'object') {
+            return `${label}[${index}] must be an object, got ${this._typeName(record)}`;
+        }
+        if (typeof record.Title !== 'string' || record.Title.trim() === '') {
+            return `${label}[${index}] is missing Title`;
+        }
+        return null;
+    },
+
+    // Returns an error string naming the specific problem, or null if the
+    // file is structurally sound enough to restore from.
+    _validate(data) {
+        if (this._typeName(data) !== 'object') {
+            return `Backup file must contain a JSON object, got ${this._typeName(data)}`;
+        }
+
+        if (this._typeName(data.Items) !== 'array') {
+            return `Items must be an array, got ${this._typeName(data.Items)}`;
+        }
+        for (let i = 0; i < data.Items.length; i++) {
+            const err = this._validateRecord(data.Items[i], 'Items', i);
+            if (err) return err;
+        }
+
+        // Consumed/Queued/Owned: absent is treated the same as today's
+        // `data.Consumed || []` fallback — restores as empty. Present but
+        // wrongly-typed, or containing a malformed record, is rejected.
+        for (const key of ['Consumed', 'Queued', 'Owned']) {
+            if (data[key] === undefined) continue;
+            if (this._typeName(data[key]) !== 'array') {
+                return `${key} must be an array, got ${this._typeName(data[key])}`;
+            }
+            for (let i = 0; i < data[key].length; i++) {
+                const err = this._validateRecord(data[key][i], key, i);
+                if (err) return err;
+            }
+        }
+
+        if (data.Tags !== undefined) {
+            if (this._typeName(data.Tags) !== 'array') {
+                return `Tags must be an array, got ${this._typeName(data.Tags)}`;
+            }
+            for (let i = 0; i < data.Tags.length; i++) {
+                const tag = data.Tags[i];
+                if (this._typeName(tag) !== 'object') {
+                    return `Tags[${i}] must be an object, got ${this._typeName(tag)}`;
+                }
+                if (typeof tag.Name !== 'string' || tag.Name.trim() === '') {
+                    return `Tags[${i}] is missing Name`;
+                }
+            }
+        }
+
+        if (data.Settings !== undefined && this._typeName(data.Settings) !== 'object') {
+            return `Settings must be an object, got ${this._typeName(data.Settings)}`;
+        }
+
+        return null;
+    },
+
     // ── Export ───────────────────────────────────────────────────────────────
 
     async backupDatabase() {
@@ -152,6 +227,14 @@ const BackupRestore = {
             await this.showScreen2(null, e.message);
             return;
         }
+
+        const validationError = this._validate(this._parsedData);
+        if (validationError) {
+            this._parsedData = null;
+            await this.showScreen2(null, validationError);
+            return;
+        }
+
         await this.showScreen2(this._parsedData, null);
     },
 
@@ -237,47 +320,82 @@ const BackupRestore = {
     },
 
     // ── Execute ──────────────────────────────────────────────────────────────
+    // Not a real transaction (see COLLECTYX-SEC-21, filed to move this into
+    // one Rust/IndexedDB transaction) — this is a JS-level snapshot-and-
+    // rollback simulation. It closes the practical data-loss risk today;
+    // it does not make the wipe-then-write sequence atomic at the database
+    // level. _validate() above is what actually keeps garbage out — a
+    // rollback that can itself fail is not a substitute for not writing
+    // garbage in the first place.
+
+    // Deletes every item (cascades memberships + item_tags via the
+    // documented deleteItem() contract) and every tag row. Shared by the
+    // real restore and by rollback, which wipes back to empty before
+    // replaying the snapshot.
+    async _wipeAll() {
+        const currentItems = await DBManager.getAllItems();
+        for (const item of currentItems) {
+            await DBManager.deleteItem(item.id);
+        }
+        const currentTags = await DBManager.getAllTags();
+        for (const tag of currentTags) {
+            await DBManager.deleteTag(tag.id);
+        }
+    },
+
+    // Writes a full data set (a parsed backup, or a snapshot taken for
+    // rollback) into an already-wiped database. Shared by the real restore
+    // and by rollback.
+    async _writeAll(data) {
+        // Items first — memberships reference them by ItemId. IDs are
+        // preserved verbatim from the source, so those references resolve
+        // correctly with no remapping step. No bulk endpoint exists for
+        // items, so this stays one call per item.
+        for (const item of (data.Items || [])) {
+            await DBManager.saveItem(item);
+        }
+
+        // One call per collection instead of one call per record —
+        // replaceCollection wraps the whole thing in a single transaction
+        // on the backend (replace_all_consumed etc.), rather than each
+        // record crossing the Tauri IPC boundary (or hitting IndexedDB)
+        // separately. Tags get created/attached automatically by the same
+        // per-record Tags handling saveCollectionRecord already uses — no
+        // separate pass needed.
+        await DBManager.replaceCollection('consumed', data.Consumed || []);
+        await DBManager.replaceCollection('queued', data.Queued || []);
+        await DBManager.replaceCollection('owned', data.Owned || []);
+
+        if (data.Settings) {
+            await DBManager.saveSettings(data.Settings);
+        }
+    },
+
+    _showRestoreError(message) {
+        document.getElementById('restoreError').textContent = message;
+        document.getElementById('restoreError').style.display = 'block';
+        document.getElementById('restoreConfirmBtn').disabled = true;
+        document.getElementById('restoreConfirmCheckbox').checked = false;
+    },
 
     async executeRestore() {
         if (!this._parsedData) return;
         const data = this._parsedData;
 
+        // Snapshot the current library before touching anything, so a
+        // failure partway through the write has something to roll back to.
+        let snapshot = null;
         try {
-            // Wipe: delete every item (cascades memberships + item_tags
-            // associations via the documented, already-tested deleteItem()
-            // contract) and every tag row.
-            const currentItems = await DBManager.getAllItems();
-            for (const item of currentItems) {
-                await DBManager.deleteItem(item.id);
-            }
-            const currentTags = await DBManager.getAllTags();
-            for (const tag of currentTags) {
-                await DBManager.deleteTag(tag.id);
-            }
+            snapshot = await this._gatherAllData();
+        } catch (e) {
+            console.error('BackupRestore.executeRestore: could not snapshot current data, aborting before any wipe', e);
+            this._showRestoreError('Restore aborted before making any changes — could not read the current library: ' + e.message);
+            return;
+        }
 
-            // Items first — memberships reference them by ItemId. IDs are
-            // preserved verbatim from the backup, so those references
-            // resolve correctly with no remapping step. No bulk endpoint
-            // exists for items, so this stays one call per item — the
-            // remaining unavoidable cost in a large restore.
-            for (const item of (data.Items || [])) {
-                await DBManager.saveItem(item);
-            }
-
-            // One call per collection instead of one call per record —
-            // replaceCollection wraps the whole thing in a single
-            // transaction on the backend (replace_all_consumed etc.),
-            // rather than each record crossing the Tauri IPC boundary (or
-            // hitting IndexedDB) separately. Tags get created/attached
-            // automatically by the same per-record Tags handling
-            // saveCollectionRecord already uses — no separate pass needed.
-            await DBManager.replaceCollection('consumed', data.Consumed || []);
-            await DBManager.replaceCollection('queued', data.Queued || []);
-            await DBManager.replaceCollection('owned', data.Owned || []);
-
-            if (data.Settings) {
-                await DBManager.saveSettings(data.Settings);
-            }
+        try {
+            await this._wipeAll();
+            await this._writeAll(data);
 
             this.close();
             showMessage(
@@ -297,11 +415,21 @@ const BackupRestore = {
                 if (el && el.classList.contains('active') && view) view.load(containerId);
             });
         } catch (e) {
-            console.error('BackupRestore.executeRestore failed', e);
-            document.getElementById('restoreError').textContent = 'Restore failed: ' + e.message;
-            document.getElementById('restoreError').style.display = 'block';
-            document.getElementById('restoreConfirmBtn').disabled = true;
-            document.getElementById('restoreConfirmCheckbox').checked = false;
+            console.error('BackupRestore.executeRestore failed, attempting rollback to the pre-restore snapshot', e);
+            try {
+                await this._wipeAll();
+                await this._writeAll(snapshot);
+                this._showRestoreError(`Restore failed (${e.message}) — your previous data has been restored.`);
+            } catch (rollbackErr) {
+                console.error('BackupRestore.executeRestore: rollback also failed. Your data has NOT been restored.', rollbackErr);
+                console.error('BackupRestore.executeRestore: last-resort snapshot of your pre-restore library follows — save this output:');
+                console.error(JSON.stringify(snapshot));
+                this._showRestoreError(
+                    `Restore failed (${e.message}) and automatic recovery also failed (${rollbackErr.message}). ` +
+                    `Your data has NOT been restored. A snapshot of your library from just before this restore ` +
+                    `has been written to the console — do not close it until you've saved that output.`
+                );
+            }
         }
     },
 

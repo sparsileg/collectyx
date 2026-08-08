@@ -3,6 +3,11 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Web-build backstop: Tauri's CSP (tauri.conf.json) only applies inside
+         the Tauri webview, not to this file served statically. Keep the two
+         policies in lockstep — connect-src drops the Tauri-only ipc: /
+         http://ipc.localhost sources, which are meaningless in a browser. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
     <title>Collectyx</title>
 
     <link rel="stylesheet" href="css/themes/nordic.css" id="themeLink">
