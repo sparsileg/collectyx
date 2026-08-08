@@ -119,13 +119,13 @@ const ConsumedModal = {
 
         const payload = {
             Title: title,
-            Author: formatAuthorName(document.getElementById('cbrAuthorSurname').value, document.getElementById('cbrAuthorGiven').value),
-            Author2: formatAuthorName(document.getElementById('cbrAuthor2Surname').value, document.getElementById('cbrAuthor2Given').value),
+            Author: formatAuthorName(document.getElementById('cbrAuthorSurname').value, document.getElementById('cbrAuthorGiven').value) || null,
+            Author2: formatAuthorName(document.getElementById('cbrAuthor2Surname').value, document.getElementById('cbrAuthor2Given').value) || null,
             Pages: document.getElementById('cbrPages').value ? parseInt(document.getElementById('cbrPages').value, 10) : null,
-            ISBN: document.getElementById('cbrISBN').value.trim(),
+            ISBN: document.getElementById('cbrISBN').value.trim() || null,
             Finished: finished || null,
             Rating: document.getElementById('cbrRating').value ? parseInt(document.getElementById('cbrRating').value, 10) : null,
-            Comments: document.getElementById('cbrComments').value.trim(),
+            Comments: document.getElementById('cbrComments').value.trim() || null,
             Tags: this._tagsController.getTags()
         };
         if (recordId) payload.id = recordId;

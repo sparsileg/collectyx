@@ -8,11 +8,11 @@ Full analysis and evidence: `../SECURITY-AUDIT.md`.
 | ~~COLLECTYX-SEC-01 (#20)~~ | Critical | S    | Escape user data in dashboard.js before interpolating it into innerHTML                  |
 | ~~COLLECTYX-SEC-02 (#21)~~ | Critical | S    | Add a Content-Security-Policy meta tag so the web build has a CSP                        |
 | ~~COLLECTYX-SEC-03 (#22)~~ | Critical | L    | Restore deletes everything before validating the replacement data                        |
-| COLLECTYX-SEC-04           | High     | M    | replace_all_consumed/queued/owned delete every row regardless of owner                   |
-| COLLECTYX-SEC-05           | High     | L    | Mutating IPC commands trust a client-supplied id; upsert_item transfers ownership        |
-| COLLECTYX-SEC-06           | High     | S    | Trim Tauri capabilities and plugins to what the app actually calls                       |
+| ~~COLLECTYX-SEC-04 (#23)~~ | High     | M    | replace_all_consumed/queued/owned delete every row regardless of owner                   |
+| ~~COLLECTYX-SEC-05 (#24)~~ | High     | L    | Mutating IPC commands trust a client-supplied id; upsert_item transfers ownership        |
+| ~~COLLECTYX-SEC-06 (#25)~~ | High     | S    | Trim Tauri capabilities and plugins to what the app actually calls                       |
 | COLLECTYX-SEC-07           | Medium   | S    | Replace the hand-rolled new_uuid() with a real UUID v4                                   |
-| COLLECTYX-SEC-08           | Medium   | M    | Tauri cannot clear Pages, Author, Author2, or ISBN — COALESCE conflates absent with null |
+| ~~COLLECTYX-SEC-08 (#27)~~ | Medium   | M    | Tauri cannot clear Pages, Author, Author2, or ISBN — COALESCE conflates absent with null |
 | COLLECTYX-SEC-09           | Medium   | S    | Statistics gap-fill loop is unbounded; one bad Finished date freezes the app             |
 | COLLECTYX-SEC-10           | Medium   | S    | CSV export does not neutralise spreadsheet formula triggers                              |
 | COLLECTYX-SEC-11           | Medium   | M    | No validation below the UI: import and restore bypass every input rule                   |
@@ -28,11 +28,11 @@ Full analysis and evidence: `../SECURITY-AUDIT.md`.
 
 ## Suggested order
 
-1. **-12** — test suite. Everything below ships unverified until it is green.
-2. **-01, -02** — dashboard escaping and web CSP. Two small patches, largest risk drop.
-3. **-03** — validate-then-snapshot in restore. Highest data-loss risk.
-4. **-06** — trim capabilities. One file, shrinks the blast radius of everything else.
-5. **-04, -05** — owner scoping. Must land before any D1 work starts.
+1. ~~**-12** — test suite. Everything below ships unverified until it is green.~~
+2. ~~**-01, -02** — dashboard escaping and web CSP. Two small patches, largest risk drop.~~
+3. ~~**-03** — validate-then-snapshot in restore. Highest data-loss risk.~~
+4. ~~**-06** — trim capabilities. One file, shrinks the blast radius of everything else.~~
+5. ~~**-04, -05** — owner scoping. Must land before any D1 work starts.~~
 6. **-11, -09, -10** — backend validation, statistics DoS, CSV export escaping.
 7. **-07, -08, -13, -14, -15, -16**
 8. **-17, -18, -19, -20**

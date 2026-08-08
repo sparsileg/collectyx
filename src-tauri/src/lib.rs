@@ -51,7 +51,9 @@ pub fn run() {
             commands::items::delete_item,
             commands::items::attach_tag,
             commands::items::detach_tag,
-            commands::items::merge_items,
+            // merge_items intentionally unregistered — Phase 9 dropped, no
+            // caller. Function stays in items.rs, unused. Re-add the owner
+            // check (COLLECTYX-SEC-05) if this is ever re-registered.
             // consumed (Books Read)
             commands::consumed::get_all_consumed,
             commands::consumed::save_consumed,

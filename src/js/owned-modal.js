@@ -77,11 +77,11 @@ const OwnedModal = {
 
         const payload = {
             Title: title,
-            Author: formatAuthorName(document.getElementById('mlAuthorSurname').value, document.getElementById('mlAuthorGiven').value),
-            Author2: formatAuthorName(document.getElementById('mlAuthor2Surname').value, document.getElementById('mlAuthor2Given').value),
+            Author: formatAuthorName(document.getElementById('mlAuthorSurname').value, document.getElementById('mlAuthorGiven').value) || null,
+            Author2: formatAuthorName(document.getElementById('mlAuthor2Surname').value, document.getElementById('mlAuthor2Given').value) || null,
             Pages: document.getElementById('mlPages').value ? parseInt(document.getElementById('mlPages').value, 10) : null,
-            ISBN: document.getElementById('mlISBN').value.trim(),
-            Location: document.getElementById('mlLocation').value.trim(),
+            ISBN: document.getElementById('mlISBN').value.trim() || null,
+            Location: document.getElementById('mlLocation').value.trim() || null,
             Tags: this._tagsController.getTags()
         };
         if (recordId) payload.id = recordId;

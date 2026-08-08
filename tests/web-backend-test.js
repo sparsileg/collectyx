@@ -1,7 +1,7 @@
 /**
  * End-to-end test of DBManagerWeb against a real IndexedDB implementation.
  * Exercises store creation, the join layer, writes, cache invalidation,
- * transaction atomicity, tag reconciliation, and merge.
+ * transaction atomicity, and tag reconciliation.
  */
 const fs = require('fs');
 const vm = require('vm');
@@ -30,6 +30,15 @@ vm.runInContext(webSrc + '\nthis.DBManagerWeb = DBManagerWeb;\nthis.JoinHelpers 
 
 const DB = sandbox.DBManagerWeb;
 const CONSTANTS = sandbox.CONSTANTS;
+
+const TEST_MODE = process.env.COLLECTYX_TEST_MODE || 'notional';
+if (TEST_MODE !== 'notional') {
+    console.log(
+        'note: mode "' + TEST_MODE + '" requested, but this suite always runs against ' +
+        'fake-indexeddb — IndexedDB has no BEGIN/ROLLBACK equivalent at this scope yet ' +
+        '(see tests/lib/datasource.js). Nothing real is touched either way.'
+    );
+}
 
 let failures = 0;
 function check(label, actual, expected) {
@@ -205,44 +214,8 @@ function ok(label, cond) {
     const stillTagged = (await DB.getCollection('consumed'))[0];
     check('book kept a tag via substitution', stillTagged.Tags, ['scifi']);
 
-    // ── 8. merge ──────────────────────────────────────────────────────────────
-    console.log('\n8. mergeItems (design doc §3.3)');
-    const dup = await DB.saveCollectionRecord('consumed', {
-        Title: 'Dune', Author: 'Herbert, Frank', Finished: '2018-01-01',
-        Rating: 8, Tags: ['paperback'],
-    });
-    check('two items before merge', (await DB.getAllItems()).length, 2);
-
-    const result = await DB.mergeItems(itemId, dup.ItemId, {});
-    check('one consumed row moved', result.movedConsumed, 1);
-    check('one tag link moved', result.movedTags, 1);
-    check('loser item deleted', (await DB.getAllItems()).length, 1);
-
-    const merged = await DB.getCollection('consumed');
-    check('both consumed rows survive the merge', merged.length, 2);
-    ok('every consumed row now points at the survivor',
-       merged.every(r => r.ItemId === itemId));
-    check('tags unioned onto the survivor',
-          merged[0].Tags.slice().sort(), ['paperback', 'scifi']);
-
-    console.log('\n   conflict handling');
-    const conflict = await DB.saveCollectionRecord('owned', {
-        Title: 'Dune', Author: 'Herbert, Frank', Pages: 999, Location: 'Box',
-    });
-    let mergeErr = null;
-    try { await DB.mergeItems(itemId, conflict.ItemId, {}); }
-    catch (e) { mergeErr = e.message; }
-    ok('unresolved field conflict blocks the merge', mergeErr && mergeErr.includes('pages'));
-    check('nothing merged while unresolved', (await DB.getAllItems()).length, 2);
-
-    const okMerge = await DB.mergeItems(itemId, conflict.ItemId, { pages: 999 });
-    check('explicit resolution lets it through', okMerge.movedOwned, 1);
-    const finalItems = await DB.getAllItems();
-    check('resolution value applied', finalItems[0].Pages, 999);
-    check('back to one item', finalItems.length, 1);
-
-    // ── 9. transaction atomicity ──────────────────────────────────────────────
-    console.log('\n9. transaction atomicity');
+    // ── 8. transaction atomicity ──────────────────────────────────────────────
+    console.log('\n8. transaction atomicity');
     const itemsBefore = (await DB.getAllItems()).length;
     let abortErr = null;
     try {
@@ -255,8 +228,8 @@ function ok(label, cond) {
     check('failed transaction wrote nothing — no half-applied state',
           (await DB._rawGetAll('items')).length, itemsBefore);
 
-    // ── 10. settings ──────────────────────────────────────────────────────────
-    console.log('\n10. settings (keyed on owner)');
+    // ── 9. settings ──────────────────────────────────────────────────────────
+    console.log('\n9. settings (keyed on owner)');
     check('absent settings return null', await DB.getSettings(), null);
     await DB.saveSettings({ dailyReadingPages: 50, displayTheme: 'css/themes/nordic-dark.css' });
     const s = await DB.getSettings();
@@ -266,8 +239,8 @@ function ok(label, cond) {
     ok('stored as a JSON string, matching SQLite TEXT', typeof rawRow.data === 'string');
     check('stored under the default owner', rawRow.owner, 'local');
 
-    // ── 11. orphan handling ───────────────────────────────────────────────────
-    console.log('\n11. orphan membership row');
+    // ── 10. orphan handling ───────────────────────────────────────────────────
+    console.log('\n10. orphan membership row');
     await DB._rawWrite(['consumed'], [{
         store: 'consumed', action: 'put',
         value: { id: 'orphan-1', item_id: 'NOPE', finished: '2000-01-01' },
@@ -278,8 +251,8 @@ function ok(label, cond) {
        !withOrphan.find(r => r.id === 'orphan-1'));
     ok('valid rows still returned', withOrphan.length >= 1);
 
-    // ── 12. replaceCollection ─────────────────────────────────────────────────
-    console.log('\n12. replaceCollection (bulk)');
+    // ── 11. replaceCollection ─────────────────────────────────────────────────
+    console.log('\n11. replaceCollection (bulk)');
     await DB.replaceCollection('queued', [
         { Title: 'Emma', Author: 'Austen, Jane', Rank: 1, Tags: ['classic'] },
         { Title: 'Ulysses', Author: 'Joyce, James', Rank: 2, Tags: ['classic', 'modernist'] },
@@ -291,6 +264,89 @@ function ok(label, cond) {
     ok('shared tag reused across bulk rows, not duplicated', classicTag.Count >= 2);
     check('no duplicate modernist tags',
           (await DB.getAllTags()).filter(t => t.Name === 'modernist').length, 1);
+
+    // ── 12. issue #23 — replaceCollection scoped by owner ─────────────────────
+    console.log('\n12. issue #23 — replaceCollection no longer wipes other owners');
+    const OWNER_KEY = CONSTANTS.APP_META_KEYS.CURRENT_OWNER;
+    const OWNER_A = '__test_owner_a__';
+    const OWNER_B = '__test_owner_b__';
+    const OWNER_DEFAULT = CONSTANTS.DEFAULT_OWNER;
+
+    await DB.setAppMeta(OWNER_KEY, OWNER_A);
+    check('current owner switched to A', DB._owner(), OWNER_A);
+    const aRecord = await DB.saveCollectionRecord('consumed', {
+        Title: 'Owner A Book', Author: 'A. Author', Finished: '2020-01-01',
+    });
+
+    await DB.setAppMeta(OWNER_KEY, OWNER_B);
+    check('current owner switched to B', DB._owner(), OWNER_B);
+    const bRecord = await DB.saveCollectionRecord('consumed', {
+        Title: 'Owner B Book', Author: 'B. Author', Finished: '2020-01-01',
+    });
+
+    await DB.setAppMeta(OWNER_KEY, OWNER_A);
+    ok('owner A sees only their own record before replace',
+       (await DB.getCollection('consumed')).length === 1 &&
+       (await DB.getCollection('consumed'))[0].Title === 'Owner A Book');
+
+    // The bug: replaceCollection used to 'clear' the whole store — this
+    // call, as owner A, must not touch owner B's row.
+    await DB.replaceCollection('consumed', []);
+    check("owner A's consumed collection now empty", (await DB.getCollection('consumed')).length, 0);
+
+    await DB.setAppMeta(OWNER_KEY, OWNER_B);
+    check("owner B's record survives owner A's replaceCollection call — this is the bug issue #23 fixed",
+          (await DB.getCollection('consumed')).length, 1);
+    check("owner B's record is intact", (await DB.getCollection('consumed'))[0].Title, 'Owner B Book');
+
+    // ── 13. issue #24 — cross-owner mutations rejected (COLLECTYX-SEC-05) ─────
+    console.log('\n13. issue #24 — cross-owner mutations rejected');
+
+    await DB.setAppMeta(OWNER_KEY, OWNER_A);
+    const ownerAConsumed = await DB.saveCollectionRecord('consumed', {
+        Title: 'A-Protected Book', Author: 'A. Author', Finished: '2020-01-01', Tags: ['a-tag'],
+    });
+    const ownerAItemId = ownerAConsumed.ItemId;
+    const ownerATag = (await DB.getAllTags()).find(t => t.Name === 'a-tag');
+
+    await DB.setAppMeta(OWNER_KEY, OWNER_B);
+
+    async function expectThrow(label, fn) {
+        let threw = false, msg = null;
+        try { await fn(); } catch (e) { threw = true; msg = e.message; }
+        ok(label, threw, threw ? undefined : 'did not throw');
+        return msg;
+    }
+
+    await expectThrow('deleteItem rejects another owner\'s item', () => DB.deleteItem(ownerAItemId));
+    await expectThrow('attachTag rejects another owner\'s item', () => DB.attachTag(ownerAItemId, ownerATag.id));
+    await expectThrow('detachTag rejects another owner\'s item', () => DB.detachTag(ownerAItemId, ownerATag.id));
+    await expectThrow('saveTag rejects renaming another owner\'s tag', () => DB.saveTag({ id: ownerATag.id, Name: 'hijacked' }));
+    await expectThrow('deleteTag rejects another owner\'s tag', () => DB.deleteTag(ownerATag.id));
+    await expectThrow('deleteCollectionRecord rejects another owner\'s membership row', () => DB.deleteCollectionRecord('consumed', ownerAConsumed.id));
+    await expectThrow('saveCollectionRecord rejects a save against another owner\'s ItemId',
+        () => DB.saveCollectionRecord('consumed', { ItemId: ownerAItemId, Title: 'Hijacked', Finished: '2021-01-01' }));
+    await expectThrow('saveItem rejects updating another owner\'s item', () => DB.saveItem({ id: ownerAItemId, Title: 'Hijacked' }));
+
+    await DB.setAppMeta(OWNER_KEY, OWNER_A);
+    const stillA = await DB.getCollection('consumed');
+    check('owner A\'s data is completely unaffected by the rejected cross-owner calls',
+          stillA.find(r => r.id === ownerAConsumed.id).Title, 'A-Protected Book');
+    check('owner A\'s tag is unaffected', (await DB.getAllTags()).find(t => t.id === ownerATag.id).Name, 'a-tag');
+
+    console.log('\n   ownership is never taken from the payload (SEC-05)');
+    // Fresh record, owner A active, payload claims a different Owner —
+    // must be ignored; the item belongs to whoever was actually active.
+    const spoofed = await DB.saveCollectionRecord('consumed', {
+        Title: 'Spoof Attempt', Author: 'X', Finished: '2020-01-01', Owner: OWNER_B,
+    });
+    const spoofedItem = await DB._rawGet(CONSTANTS.STORES.ITEMS, spoofed.ItemId);
+    check('Owner field in the payload is ignored — item belongs to the actually-active owner',
+          spoofedItem.owner, OWNER_A);
+
+    // restore default owner so nothing downstream is surprised
+    await DB.setAppMeta(OWNER_KEY, OWNER_DEFAULT);
+    check('owner restored to default for any future sections', DB._owner(), OWNER_DEFAULT);
 
     console.log('\n' + (failures === 0
         ? 'ALL WEB BACKEND TESTS PASSED'

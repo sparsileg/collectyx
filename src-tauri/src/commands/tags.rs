@@ -77,6 +77,12 @@ pub fn save_tag(state: State<AppState>, tag: TagRecord) -> Result<String, String
     let owner = tag.owner.clone().unwrap_or_else(|| common::current_owner(&db));
     let id = tag.id.clone().unwrap_or_else(new_uuid);
 
+    // Only relevant when id names an existing row — a fresh id is a create,
+    // nothing to protect yet.
+    if tag.id.is_some() {
+        common::assert_tag_owned(&db, &id)?;
+    }
+
     let clash: Option<String> = db
         .query_row(
             "SELECT id FROM tags WHERE owner = ?1 AND name = ?2 AND id <> ?3",
@@ -119,6 +125,8 @@ pub fn delete_tag(
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
     let tx = db.transaction().map_err(|e| e.to_string())?;
 
+    common::assert_tag_owned(&tx, &id)?;
+
     let affected: i64 = tx
         .query_row(
             "SELECT COUNT(*) FROM item_tags WHERE tag_id = ?1",
@@ -131,6 +139,7 @@ pub fn delete_tag(
         if substitute == &id {
             return Err("Substitute tag cannot be the tag being deleted".to_string());
         }
+        common::assert_tag_owned(&tx, substitute)?;
         // INSERT OR IGNORE handles items that already carry the substitute.
         tx.execute(
             "INSERT OR IGNORE INTO item_tags (item_id, tag_id)

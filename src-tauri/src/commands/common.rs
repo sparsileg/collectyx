@@ -6,10 +6,23 @@
 // here rather than being copy-pasted three times.
 
 use rusqlite::{params, Result, Transaction};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 
 use crate::constants::DEFAULT_OWNER;
+
+/// Distinguishes an absent JSON key (deserializes to None — leave the
+/// stored value alone) from a key explicitly present as null (deserializes
+/// to Some(None) — clear it) from a key present with a value (Some(Some(v))).
+/// A plain `Option<T>` with `#[serde(default)]` cannot tell the first two
+/// apart; both collapse to None. See design doc §6.3.
+fn double_option<'de, T, D>(deserializer: D) -> std::result::Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    Ok(Some(Option::deserialize(deserializer)?))
+}
 
 /// The item half of a joined record. Every collection record carries these.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -26,17 +39,17 @@ pub struct ItemFields {
     #[serde(rename = "Title", default)]
     pub title: Option<String>,
 
-    #[serde(rename = "Author", default)]
-    pub author: Option<String>,
+    #[serde(rename = "Author", default, deserialize_with = "double_option")]
+    pub author: Option<Option<String>>,
 
-    #[serde(rename = "Author2", default)]
-    pub author2: Option<String>,
+    #[serde(rename = "Author2", default, deserialize_with = "double_option")]
+    pub author2: Option<Option<String>>,
 
-    #[serde(rename = "Pages", default)]
-    pub pages: Option<i64>,
+    #[serde(rename = "Pages", default, deserialize_with = "double_option")]
+    pub pages: Option<Option<i64>>,
 
-    #[serde(rename = "ISBN", default)]
-    pub isbn: Option<String>,
+    #[serde(rename = "ISBN", default, deserialize_with = "double_option")]
+    pub isbn: Option<Option<String>>,
 
     /// None means the payload said nothing about tags — leave existing links
     /// alone. Some(list) sets the item's tags to exactly that list.
@@ -94,39 +107,51 @@ pub fn current_owner(conn: &rusqlite::Connection) -> String {
 
 /// Upserts the parent items row for a joined record.
 ///
-/// Unlike db-manager-tauri.js's own "complete a partial payload" step —
-/// which only works when the payload carries the *membership* row's own
-/// id, since that is what it looks up to fill in gaps — there is no
-/// equivalent completion for the *item* half of a payload. A payload that
-/// references an existing item via ItemId without repeating that item's
-/// Title/Author/Author2/Pages/ISBN is a normal, expected case (checkout/
-/// check-in, "To Read", or a bulk import writing several memberships
-/// against one item), not a request to blank those fields. So this
-/// function falls back to the stored value for any column the payload
-/// didn't supply, rather than assuming the caller always sent a complete
-/// row — which was the actual bug: a Scriptum-converted import's Consumed
-/// entries correctly carry only ItemId (no item fields, by design, since
-/// the item was already written first via saveItem()), and the old
-/// unconditional UPDATE wiped Title/Author/Pages/ISBN right back out the
-/// moment the first Consumed row for that item was written.
+/// A payload that references an existing item via ItemId without repeating
+/// that item's Title/Author/Author2/Pages/ISBN is a normal, expected case
+/// (checkout/check-in, "To Read", or a bulk import writing several
+/// memberships against one item), not a request to blank those fields. So
+/// this function falls back to the stored value for any column the payload
+/// didn't supply.
 ///
-/// Absent and explicit-null aren't distinguished here (both fall back to
-/// the stored value) — nothing on the JS side currently tries to
-/// explicitly null Title/Author/Author2/Pages/ISBN, so this is safe for
-/// every real caller today. A fully correct distinction would need
-/// ItemFields' Option types to become double-Options (Some(None) = clear,
-/// None = leave alone) — a larger, separate change than this fix.
+/// Author/Author2/Pages/ISBN now distinguish "key absent" (None — keep the
+/// stored value) from "key present as null" (Some(None) — clear it) via
+/// ItemFields' double-Option fields and a CASE WHEN bound on whether the
+/// caller actually set the key, rather than COALESCE, which could not tell
+/// the two apart (design doc §6.3; COLLECTYX-SEC-08).
+///
+/// If fields.item_id names an existing item, that item must already belong
+/// to the active owner (COLLECTYX-SEC-05) — checked before anything is
+/// written, so a save against another owner's ItemId is rejected outright
+/// rather than silently overwriting their record. Ownership itself is set
+/// once, at insert, from the active owner; it is never taken from the
+/// payload and never changed by a later save — an item cannot change
+/// hands via a normal edit.
 pub fn upsert_item(tx: &Transaction, fields: &ItemFields, now: &str) -> Result<String> {
-    let item_id = fields
-        .item_id
-        .clone()
-        .unwrap_or_else(|| new_uuid());
-    let owner = owner_or_default(&fields.owner, &current_owner(tx));
+    let item_id = match &fields.item_id {
+        Some(id) => {
+            if let Err(msg) = assert_item_owned(tx, id) {
+                return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
+            }
+            id.clone()
+        }
+        None => new_uuid(),
+    };
+    let owner = current_owner(tx);
     let media_type_id = fields.media_type_id.unwrap_or(1);
     let date_added = fields
         .item_date_added
         .clone()
         .unwrap_or_else(|| now.to_string());
+
+    let author_set = fields.author.is_some();
+    let author_val = fields.author.clone().flatten();
+    let author2_set = fields.author2.is_some();
+    let author2_val = fields.author2.clone().flatten();
+    let pages_set = fields.pages.is_some();
+    let pages_val = fields.pages.flatten();
+    let isbn_set = fields.isbn.is_some();
+    let isbn_val = fields.isbn.clone().flatten();
 
     tx.execute(
         "INSERT INTO items
@@ -134,29 +159,66 @@ pub fn upsert_item(tx: &Transaction, fields: &ItemFields, now: &str) -> Result<S
             date_added, modified)
          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)
          ON CONFLICT(id) DO UPDATE SET
-            owner         = excluded.owner,
             media_type_id = excluded.media_type_id,
             title         = CASE WHEN excluded.title != '' THEN excluded.title ELSE items.title END,
-            author        = COALESCE(excluded.author, items.author),
-            author2       = COALESCE(excluded.author2, items.author2),
-            pages         = COALESCE(excluded.pages, items.pages),
-            isbn          = COALESCE(excluded.isbn, items.isbn),
+            author        = CASE WHEN ?11 THEN excluded.author ELSE items.author END,
+            author2       = CASE WHEN ?12 THEN excluded.author2 ELSE items.author2 END,
+            pages         = CASE WHEN ?13 THEN excluded.pages ELSE items.pages END,
+            isbn          = CASE WHEN ?14 THEN excluded.isbn ELSE items.isbn END,
             modified      = excluded.modified",
         params![
             item_id,
             owner,
             media_type_id,
             fields.title.clone().unwrap_or_default(),
-            fields.author,
-            fields.author2,
-            fields.pages,
-            fields.isbn,
+            author_val,
+            author2_val,
+            pages_val,
+            isbn_val,
             date_added,
-            now
+            now,
+            author_set,
+            author2_set,
+            pages_set,
+            isbn_set,
         ],
     )?;
 
     Ok(item_id)
+}
+
+/// Errors identically whether `item_id` doesn't exist or belongs to a
+/// different owner — a mutating command must not confirm the existence of
+/// rows the caller cannot see (COLLECTYX-SEC-05).
+pub fn assert_item_owned(conn: &rusqlite::Connection, item_id: &str) -> std::result::Result<(), String> {
+    let owner = current_owner(conn);
+    let found: Option<String> = conn
+        .query_row(
+            "SELECT owner FROM items WHERE id = ?1",
+            params![item_id],
+            |row| row.get(0),
+        )
+        .ok();
+    match found {
+        Some(item_owner) if item_owner == owner => Ok(()),
+        _ => Err("Item not found".to_string()),
+    }
+}
+
+/// Tag equivalent of assert_item_owned.
+pub fn assert_tag_owned(conn: &rusqlite::Connection, tag_id: &str) -> std::result::Result<(), String> {
+    let owner = current_owner(conn);
+    let found: Option<String> = conn
+        .query_row(
+            "SELECT owner FROM tags WHERE id = ?1",
+            params![tag_id],
+            |row| row.get(0),
+        )
+        .ok();
+    match found {
+        Some(tag_owner) if tag_owner == owner => Ok(()),
+        _ => Err("Tag not found".to_string()),
+    }
 }
 
 /// Sets an item's tags to exactly `names`, creating tag rows as needed and

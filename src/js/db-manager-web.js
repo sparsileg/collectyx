@@ -176,7 +176,10 @@ const JoinHelpers = {
         if (prevItem) Object.keys(prevItem).forEach(k => { item[k] = prevItem[k]; });
 
         item.id = record.ItemId;
-        item.owner = record.Owner || (prevItem && prevItem.owner) || defaults.owner;
+        // Ownership is set once, at creation, from the active owner — never
+        // taken from the payload and never changed by a later save. An
+        // item cannot change hands via a normal edit (COLLECTYX-SEC-05).
+        item.owner = (prevItem && prevItem.owner) || defaults.owner;
         item.media_type_id = record.MediaTypeId ||
                              (prevItem && prevItem.media_type_id) || defaults.mediaTypeId;
         item.date_added = record.ItemDateAdded != null ? record.ItemDateAdded
@@ -259,71 +262,6 @@ const JoinHelpers = {
         return { newTags: newTags, touchedTags: touchedTags, links: links };
     },
 
-    /**
-     * Merge planning (design doc §3.3). Pure — returns the rows to rewrite
-     * and delete; the caller applies them. Reassigns every membership and
-     * junction row from loser to survivor, deduplicating item_tags where
-     * the survivor already carries that tag.
-     */
-    planMerge(survivorId, loserId, memberships, itemTags) {
-        if (survivorId === loserId) throw new Error('Cannot merge an item into itself');
-
-        const reassigned = { consumed: [], queued: [], owned: [] };
-        ['consumed', 'queued', 'owned'].forEach(name => {
-            (memberships[name] || []).forEach(row => {
-                if (row.item_id === loserId) {
-                    const moved = {};
-                    Object.keys(row).forEach(k => { moved[k] = row[k]; });
-                    moved.item_id = survivorId;
-                    reassigned[name].push(moved);
-                }
-            });
-        });
-
-        const survivorTagIds = new Set(
-            (itemTags || []).filter(l => l.item_id === survivorId).map(l => l.tag_id)
-        );
-        const loserLinks = (itemTags || []).filter(l => l.item_id === loserId);
-
-        return {
-            reassigned: reassigned,
-            movedLinks: loserLinks
-                .filter(l => !survivorTagIds.has(l.tag_id))
-                .map(l => ({ item_id: survivorId, tag_id: l.tag_id })),
-            droppedLinks: loserLinks.filter(l => survivorTagIds.has(l.tag_id)),
-            deleteItemId: loserId,
-        };
-    },
-
-    /**
-     * Applies field resolutions to the survivor item. Any field where the
-     * two genuinely disagree must be resolved explicitly — there is no
-     * automatic winner (design doc §3.3 step 3). A field one side simply
-     * lacks is not a conflict; there's nothing to choose between.
-     */
-    resolveMergedItem(survivor, loser, resolutions) {
-        resolutions = resolutions || {};
-        const merged = {};
-        Object.keys(survivor).forEach(k => { merged[k] = survivor[k]; });
-        const unresolved = [];
-
-        const fields = Object.keys(ITEM_FIELD_MAP).map(js => ITEM_FIELD_MAP[js]);
-
-        fields.forEach(col => {
-            const a = survivor[col] != null ? survivor[col] : null;
-            const b = loser[col] != null ? loser[col] : null;
-            if (a === b) return;
-            if (a === null || a === '') { merged[col] = b; return; }
-            if (b === null || b === '') { merged[col] = a; return; }
-            if (Object.prototype.hasOwnProperty.call(resolutions, col)) {
-                merged[col] = resolutions[col];
-            } else {
-                unresolved.push(col);
-            }
-        });
-
-        return { merged: merged, unresolved: unresolved };
-    },
 };
 
 // ── Backend ───────────────────────────────────────────────────────────────────
@@ -610,6 +548,12 @@ const DBManagerWeb = {
             membership: loaded[3].find(m => m.id === prepared.id) || null,
         };
 
+        // Same error whether ItemId is missing or belongs to another owner
+        // — matches Rust's upsert_item (COLLECTYX-SEC-05).
+        if (existing.item && existing.item.owner !== defaults.owner) {
+            throw new Error('Item not found');
+        }
+
         const split = JoinHelpers.splitRecord(collection, prepared, defaults, existing);
         const item = split.item;
 
@@ -651,6 +595,9 @@ const DBManagerWeb = {
      * memberships is still a valid catalogue entry.
      */
     async deleteCollectionRecord(collection, id) {
+        const membership = await this._rawGet(collection, id);
+        if (!membership) throw new Error('Record not found');
+        await this._assertItemOwned(membership.item_id);
         await this._rawWrite([collection], [{ store: collection, action: 'delete', key: id }]);
         this._invalidate(collection);
     },
@@ -767,11 +714,16 @@ const DBManagerWeb = {
         const S = CONSTANTS.STORES;
         const today = this._today();
         const existing = item.id ? await this._rawGet(S.ITEMS, item.id) : null;
+        if (existing && existing.owner !== this._owner()) {
+            throw new Error('Item not found');
+        }
         const row = {};
         if (existing) Object.keys(existing).forEach(k => { row[k] = existing[k]; });
 
         row.id = item.id || this._newId();
-        row.owner = item.Owner || (existing && existing.owner) || this._owner();
+        // Ownership set once at creation; never reassigned by a later save
+        // (COLLECTYX-SEC-05).
+        row.owner = (existing && existing.owner) || this._owner();
         row.media_type_id = item.MediaTypeId || (existing && existing.media_type_id) ||
                             CONSTANTS.MEDIA_TYPE_BOOKS;
         row.date_added = item.DateAdded ||
@@ -791,7 +743,24 @@ const DBManagerWeb = {
         return row.id;
     },
 
+    /**
+     * Same error whether the id is missing or belongs to another owner
+     * (COLLECTYX-SEC-05) — a mutating call must not confirm the existence
+     * of rows the caller cannot see.
+     */
+    async _assertItemOwned(itemId) {
+        const item = await this._rawGet(CONSTANTS.STORES.ITEMS, itemId);
+        if (!item || item.owner !== this._owner()) throw new Error('Item not found');
+    },
+
+    async _assertTagOwned(tagId) {
+        const tag = await this._rawGet(CONSTANTS.STORES.TAGS, tagId);
+        if (!tag || tag.owner !== this._owner()) throw new Error('Tag not found');
+    },
+
     async attachTag(itemId, tagId) {
+        await this._assertItemOwned(itemId);
+        await this._assertTagOwned(tagId);
         const S = CONSTANTS.STORES;
         await this._rawWrite([S.ITEM_TAGS], [{
             store: S.ITEM_TAGS, action: 'put', value: { item_id: itemId, tag_id: tagId },
@@ -800,6 +769,8 @@ const DBManagerWeb = {
     },
 
     async detachTag(itemId, tagId) {
+        await this._assertItemOwned(itemId);
+        await this._assertTagOwned(tagId);
         const S = CONSTANTS.STORES;
         await this._rawWrite([S.ITEM_TAGS], [{
             store: S.ITEM_TAGS, action: 'delete', key: [itemId, tagId],
@@ -813,6 +784,7 @@ const DBManagerWeb = {
      * spelled out here to keep the two backends behaving identically.
      */
     async deleteItem(itemId) {
+        await this._assertItemOwned(itemId);
         const S = CONSTANTS.STORES;
         const loaded = await Promise.all([
             this._load(S.CONSUMED),
@@ -858,6 +830,9 @@ const DBManagerWeb = {
     },
 
     async saveTag(tag) {
+        // Only relevant when id names an existing row — a fresh id is a
+        // create, nothing to protect yet.
+        if (tag.id) await this._assertTagOwned(tag.id);
         const today = this._today();
         const row = {
             id: tag.id || this._newId(),
@@ -885,6 +860,8 @@ const DBManagerWeb = {
      */
     async deleteTag(tagId, substituteTagId) {
         substituteTagId = substituteTagId || null;
+        await this._assertTagOwned(tagId);
+        if (substituteTagId) await this._assertTagOwned(substituteTagId);
         const S = CONSTANTS.STORES;
         const itemTags = await this._load(S.ITEM_TAGS);
         const affected = itemTags.filter(l => l.tag_id === tagId);
@@ -939,67 +916,6 @@ const DBManagerWeb = {
 
         await this._rawWrite([S.TAGS], ops);
         this._invalidate(S.TAGS);
-    },
-
-    // ── Merge (design doc §3.3) ───────────────────────────────────────────────
-
-    /**
-     * Merges loser into survivor: every membership and junction row moves
-     * across and the loser item is deleted, all in one transaction — a
-     * failure partway through leaves nothing half-merged.
-     */
-    async mergeItems(survivorId, loserId, fieldResolutions) {
-        const S = CONSTANTS.STORES;
-        const loaded = await Promise.all([
-            this._load(S.ITEMS),
-            this._load(S.CONSUMED),
-            this._load(S.QUEUED),
-            this._load(S.OWNED),
-            this._load(S.ITEM_TAGS),
-        ]);
-        const items = loaded[0], itemTags = loaded[4];
-
-        const itemsById = JoinHelpers.indexById(items);
-        const survivor = itemsById.get(survivorId);
-        const loser = itemsById.get(loserId);
-        if (!survivor) throw new Error('Survivor item ' + survivorId + ' not found');
-        if (!loser) throw new Error('Loser item ' + loserId + ' not found');
-
-        const resolution = JoinHelpers.resolveMergedItem(survivor, loser, fieldResolutions);
-        if (resolution.unresolved.length) {
-            throw new Error('Merge needs a resolution for: ' + resolution.unresolved.join(', '));
-        }
-        const merged = resolution.merged;
-        merged.modified = this._today();
-
-        const plan = JoinHelpers.planMerge(
-            survivorId, loserId,
-            { consumed: loaded[1], queued: loaded[2], owned: loaded[3] },
-            itemTags
-        );
-
-        const ops = [{ store: S.ITEMS, action: 'put', value: merged }];
-        Object.keys(plan.reassigned).forEach(store => {
-            plan.reassigned[store].forEach(r => ops.push({ store: store, action: 'put', value: r }));
-        });
-        itemTags.filter(l => l.item_id === loserId).forEach(l => ops.push({
-            store: S.ITEM_TAGS, action: 'delete', key: [l.item_id, l.tag_id],
-        }));
-        plan.movedLinks.forEach(l => ops.push({ store: S.ITEM_TAGS, action: 'put', value: l }));
-        ops.push({ store: S.ITEMS, action: 'delete', key: loserId });
-
-        await this._rawWrite(
-            [S.ITEMS, S.CONSUMED, S.QUEUED, S.OWNED, S.ITEM_TAGS], ops
-        );
-        this._invalidate();
-
-        return {
-            movedConsumed: plan.reassigned.consumed.length,
-            movedQueued: plan.reassigned.queued.length,
-            movedOwned: plan.reassigned.owned.length,
-            movedTags: plan.movedLinks.length,
-            droppedDuplicateTags: plan.droppedLinks.length,
-        };
     },
 
     // ── Settings ──────────────────────────────────────────────────────────────

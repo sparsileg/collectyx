@@ -7,12 +7,12 @@
  *
  * On partial payloads: one items row is shared across collections, so
  * saving a queued record that carries only Rank must not blank the Pages
- * the consumed record set. DBManagerWeb handles that internally; here the
- * record is completed against its stored version before crossing the
- * invoke boundary, so Rust receives a full record and both backends end up
- * applying identical rules. A key present as null is still a deliberate
- * clear — Object.assign keeps it — while an absent key inherits the
- * stored value.
+ * the consumed record set. Rust enforces this directly now (COLLECTYX-SEC-08)
+ * — an absent key inherits the stored value, a key present as null clears
+ * it — so the record is sent through as-is, with no JS-side completion
+ * step. The old completion (reading the stored record and merging) is
+ * gone: it depended on the read succeeding, and silently blanked fields
+ * whenever it missed.
  *
  * No client-side cache: SQLite reads are cheap and synchronous in Rust,
  * so there is nothing to invalidate and no staleness to get wrong.
@@ -92,16 +92,8 @@ const DBManagerTauri = {
     // ── Collection writes ─────────────────────────────────────────────────────
 
     async saveCollectionRecord(collection, record) {
-        // Complete a partial payload against what is stored, so an omitted
-        // field keeps its value rather than being written as null.
-        let complete = record;
-        if (record.id) {
-            const existing = await this.getCollectionRecord(collection, record.id);
-            if (existing) complete = Object.assign({}, existing, record);
-        }
-
-        const id = await invoke(this._commands(collection).save, { record: complete });
-        return { id: id, ItemId: complete.ItemId || null };
+        const id = await invoke(this._commands(collection).save, { record: record });
+        return { id: id, ItemId: record.ItemId || null };
     },
 
     async deleteCollectionRecord(collection, id) {
@@ -154,16 +146,6 @@ const DBManagerTauri = {
 
     async replaceAllTags(tags) {
         return invoke('replace_all_tags', { tags: tags || [] });
-    },
-
-    // ── Merge ─────────────────────────────────────────────────────────────────
-
-    async mergeItems(survivorId, loserId, fieldResolutions) {
-        return invoke('merge_items', {
-            survivorId: survivorId,
-            loserId: loserId,
-            fieldResolutions: fieldResolutions || {},
-        });
     },
 
     // ── Settings ──────────────────────────────────────────────────────────────

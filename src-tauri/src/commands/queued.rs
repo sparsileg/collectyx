@@ -65,10 +65,10 @@ fn row_to_record(row: &rusqlite::Row) -> Result<QueuedRecord> {
             owner: Some(row.get(2)?),
             media_type_id: Some(row.get(3)?),
             title: Some(row.get(4)?),
-            author: row.get(5)?,
-            author2: row.get(6)?,
-            pages: row.get(7)?,
-            isbn: row.get(8)?,
+            author: Some(row.get(5)?),
+            author2: Some(row.get(6)?),
+            pages: Some(row.get(7)?),
+            isbn: Some(row.get(8)?),
             tags: Some(Vec::new()),
             item_date_added: row.get(14)?,
             item_modified: row.get(15)?,
@@ -161,8 +161,17 @@ fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_
 #[tauri::command]
 pub fn delete_queued(state: State<AppState>, id: String) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.execute("DELETE FROM queued WHERE id = ?1", params![id])
+    let owner = common::current_owner(&db);
+    let affected = db
+        .execute(
+            "DELETE FROM queued
+              WHERE id = ?1 AND item_id IN (SELECT id FROM items WHERE owner = ?2)",
+            params![id, owner],
+        )
         .map_err(|e| e.to_string())?;
+    if affected == 0 {
+        return Err("Record not found".to_string());
+    }
     Ok(())
 }
 
@@ -175,12 +184,18 @@ pub fn toggle_currently_reading(
     value: bool,
 ) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
+    let owner = common::current_owner(&db);
     let now = today();
-    db.execute(
-        "UPDATE queued SET currently_reading = ?1, modified = ?2 WHERE id = ?3",
-        params![value, now, id],
-    )
-    .map_err(|e| e.to_string())?;
+    let affected = db
+        .execute(
+            "UPDATE queued SET currently_reading = ?1, modified = ?2
+              WHERE id = ?3 AND item_id IN (SELECT id FROM items WHERE owner = ?4)",
+            params![value, now, id, owner],
+        )
+        .map_err(|e| e.to_string())?;
+    if affected == 0 {
+        return Err("Record not found".to_string());
+    }
     Ok(())
 }
 
