@@ -118,6 +118,20 @@ pub fn save_queued(state: State<AppState>, record: QueuedRecord) -> Result<Strin
 }
 
 fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_modified_on_new_link: bool) -> Result<String> {
+    if let Err(msg) = common::validate_short_text(&record.source, "Source") {
+        return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
+    }
+    if let Err(msg) = common::validate_comments(&record.comments) {
+        return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
+    }
+    if let Some(d) = &record.date_added {
+        if !d.is_empty() {
+            if let Err(msg) = common::validate_date(d, "DateAdded") {
+                return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
+            }
+        }
+    }
+
     let item_id = upsert_item(tx, &record.item, now)?;
     let owner = owner_or_default(&record.item.owner, &common::current_owner(tx));
     let id = record.id.clone().unwrap_or_else(common::new_uuid);

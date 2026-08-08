@@ -102,12 +102,22 @@ function clearMessage() {
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
 // Extracts the year from a Finished date string, handling both current
-// (YYYY-MM-DD) and legacy (DD-MMM-YYYY) storage formats.
+// (YYYY-MM-DD) and legacy (DD-MMM-YYYY) storage formats. Returns null for
+// anything that isn't exactly 4 digits or falls outside a plausible range —
+// an unbounded/malformed year here can otherwise drive a fill-loop into
+// billions of iterations (COLLECTYX-SEC-28). Callers already handle a
+// falsy year.
+const MIN_PLAUSIBLE_YEAR = 1000;
+const MAX_PLAUSIBLE_YEAR = 2200;
+
 function getYearFromFinishedDate(finishedDate) {
     if (!finishedDate) return null;
     const parts = finishedDate.split('-');
-    const year = parts[0].length === 4 ? parts[0] : parts[2];
-    return parseInt(year);
+    const yearStr = parts[0].length === 4 ? parts[0] : parts[2];
+    if (!yearStr || !/^\d{4}$/.test(yearStr)) return null;
+    const year = parseInt(yearStr, 10);
+    if (year < MIN_PLAUSIBLE_YEAR || year > MAX_PLAUSIBLE_YEAR) return null;
+    return year;
 }
 
 /**

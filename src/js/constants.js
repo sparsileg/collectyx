@@ -126,6 +126,21 @@ const CONSTANTS = {
         RECENT_FINISHED: 5,
         WHATS_NEXT: 4,
         TOP_TAGS: 7
+    },
+
+    // Backend write-time validation limits (COLLECTYX-SEC-30). Must match
+    // src-tauri/src/commands/common.rs's constants — both backends enforce
+    // the same rules on the same input.
+    VALIDATION: {
+        SHORT_TEXT_MAX: 500,   // Title, Author, Author2, ISBN, Location, Patron, Source
+        COMMENTS_MAX: 10000,
+        TAG_NAME_MAX: 64,
+        PAGES_MIN: 0,
+        PAGES_MAX: 100000,
+        RATING_MIN: 1,
+        RATING_MAX: 5,
+        YEAR_MIN: 1000,
+        YEAR_MAX: 2200
     }
 };
 

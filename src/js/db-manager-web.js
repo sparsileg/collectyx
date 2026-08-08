@@ -51,6 +51,118 @@ const COLLECTION_FIELD_MAPS = {
     },
 };
 
+// ── Validation (COLLECTYX-SEC-30) ───────────────────────────────────────────
+// Mirrors src-tauri/src/commands/common.rs's validators so both backends
+// reject the same input. Write-only — never runs on read. Every function
+// throws on failure rather than coercing, matching the project's "never
+// silently drop data" principle.
+
+const Validation = {
+    tagName(name) {
+        if (!name) throw new Error('Tag name cannot be empty');
+        if (name.length > CONSTANTS.VALIDATION.TAG_NAME_MAX) {
+            throw new Error('Tag name exceeds ' + CONSTANTS.VALIDATION.TAG_NAME_MAX + ' characters');
+        }
+        if (!/^[a-z0-9_-]+$/i.test(name)) {
+            throw new Error('Tag name "' + name + '" contains invalid characters');
+        }
+    },
+
+    shortText(value, fieldName) {
+        if (value == null) return;
+        if (String(value).length > CONSTANTS.VALIDATION.SHORT_TEXT_MAX) {
+            throw new Error(fieldName + ' exceeds ' + CONSTANTS.VALIDATION.SHORT_TEXT_MAX + ' characters');
+        }
+    },
+
+    comments(value) {
+        if (value == null) return;
+        if (String(value).length > CONSTANTS.VALIDATION.COMMENTS_MAX) {
+            throw new Error('Comments exceeds ' + CONSTANTS.VALIDATION.COMMENTS_MAX + ' characters');
+        }
+    },
+
+    pages(value) {
+        if (value == null) return;
+        const n = Number(value);
+        if (!Number.isFinite(n) || n < CONSTANTS.VALIDATION.PAGES_MIN || n > CONSTANTS.VALIDATION.PAGES_MAX) {
+            throw new Error('Pages out of range (' + CONSTANTS.VALIDATION.PAGES_MIN + '-' + CONSTANTS.VALIDATION.PAGES_MAX + ')');
+        }
+    },
+
+    rating(value) {
+        if (value == null) return;
+        const n = Number(value);
+        if (!Number.isFinite(n) || n < CONSTANTS.VALIDATION.RATING_MIN || n > CONSTANTS.VALIDATION.RATING_MAX) {
+            throw new Error('Rating out of range (' + CONSTANTS.VALIDATION.RATING_MIN + '-' + CONSTANTS.VALIDATION.RATING_MAX + ')');
+        }
+    },
+
+    // Strict YYYY-MM-DD with a plausible year range. Empty/null is left to
+    // the caller — an optional date field may legitimately be unset.
+    date(value, fieldName) {
+        if (value == null || value === '') return;
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value));
+        if (!m) throw new Error(fieldName + ' must be in YYYY-MM-DD format');
+        const year = parseInt(m[1], 10);
+        const month = parseInt(m[2], 10);
+        const day = parseInt(m[3], 10);
+        if (year < CONSTANTS.VALIDATION.YEAR_MIN || year > CONSTANTS.VALIDATION.YEAR_MAX) {
+            throw new Error(fieldName + ' year out of range');
+        }
+        if (month < 1 || month > 12) throw new Error(fieldName + ' month out of range');
+        if (day < 1 || day > 31) throw new Error(fieldName + ' day out of range');
+    },
+
+    // isNewItem: true when this save has no ItemId to fall back to, so a
+    // missing/blank Title would otherwise insert a blank catalogue row.
+    title(value, isNewItem) {
+        if (value == null) {
+            if (isNewItem) throw new Error('Title cannot be empty');
+            return;
+        }
+        if (String(value).trim() === '') throw new Error('Title cannot be empty');
+        if (String(value).length > CONSTANTS.VALIDATION.SHORT_TEXT_MAX) {
+            throw new Error('Title exceeds ' + CONSTANTS.VALIDATION.SHORT_TEXT_MAX + ' characters');
+        }
+    },
+
+    /** Validates the item-half fields of a joined record (or a bare item). */
+    itemFields(record, isNewItem) {
+        const has = (k) => Object.prototype.hasOwnProperty.call(record, k);
+        if (has('Title')) this.title(record.Title, isNewItem);
+        else if (isNewItem) this.title(null, true);
+        if (has('Author')) this.shortText(record.Author, 'Author');
+        if (has('Author2')) this.shortText(record.Author2, 'Author2');
+        if (has('ISBN')) this.shortText(record.ISBN, 'ISBN');
+        if (has('Pages')) this.pages(record.Pages);
+        if (has('ItemDateAdded')) this.date(record.ItemDateAdded, 'ItemDateAdded');
+        if (has('ItemModified')) this.date(record.ItemModified, 'ItemModified');
+        if (has('DateAdded')) this.date(record.DateAdded, 'DateAdded');
+        if (has('Tags') && Array.isArray(record.Tags)) {
+            record.Tags.forEach(t => this.tagName(String(t).trim().toLowerCase()));
+        }
+    },
+
+    /** Validates the collection-specific fields of a joined record. */
+    collectionFields(collection, record) {
+        const has = (k) => Object.prototype.hasOwnProperty.call(record, k);
+        if (collection === CONSTANTS.COLLECTIONS.CONSUMED) {
+            if (has('Finished')) this.date(record.Finished, 'Finished');
+            if (has('Rating')) this.rating(record.Rating);
+            if (has('Comments')) this.comments(record.Comments);
+        } else if (collection === CONSTANTS.COLLECTIONS.QUEUED) {
+            if (has('Source')) this.shortText(record.Source, 'Source');
+            if (has('Comments')) this.comments(record.Comments);
+        } else if (collection === CONSTANTS.COLLECTIONS.OWNED) {
+            if (has('Location')) this.shortText(record.Location, 'Location');
+            if (has('Patron')) this.shortText(record.Patron, 'Patron');
+            if (has('CheckedOutDate')) this.date(record.CheckedOutDate, 'CheckedOutDate');
+            if (has('Comments')) this.comments(record.Comments);
+        }
+    },
+};
+
 // ── Pure join helpers ─────────────────────────────────────────────────────────
 // No IndexedDB, no state — plain functions over arrays, so they can be
 // exercised directly against a hand-seeded dataset.
@@ -525,6 +637,10 @@ const DBManagerWeb = {
      * joins a second collection without re-typing title/author.
      */
     async saveCollectionRecord(collection, record) {
+        const isNewItem = !record.ItemId;
+        Validation.itemFields(record, isNewItem);
+        Validation.collectionFields(collection, record);
+
         const defaults = this._defaults();
         const prepared = {};
         Object.keys(record).forEach(k => { prepared[k] = record[k]; });
@@ -630,6 +746,16 @@ const DBManagerWeb = {
         const desired = new Set();
 
         (records || []).forEach(input => {
+            // Validated before ItemId is defaulted in, so "no ItemId" still
+            // means "no ItemId" for the purposes of requiring a Title.
+            // Throwing here aborts the whole replace — nothing has been
+            // written yet, ops only apply at the single _rawWrite() below —
+            // so one bad row rejects the entire restore rather than a
+            // partial one (COLLECTYX-SEC-30).
+            const isNewItem = !input.ItemId;
+            Validation.itemFields(input, isNewItem);
+            Validation.collectionFields(collection, input);
+
             const prepared = {};
             Object.keys(input).forEach(k => { prepared[k] = input[k]; });
             if (!prepared.id) prepared.id = this._newId();
@@ -717,6 +843,7 @@ const DBManagerWeb = {
         if (existing && existing.owner !== this._owner()) {
             throw new Error('Item not found');
         }
+        Validation.itemFields(item, !existing);
         const row = {};
         if (existing) Object.keys(existing).forEach(k => { row[k] = existing[k]; });
 
@@ -841,7 +968,7 @@ const DBManagerWeb = {
             date_added: tag.DateAdded || today,
             modified: today,
         };
-        if (!row.name) throw new Error('Tag name cannot be empty');
+        Validation.tagName(row.name);
 
         const tags = await this._load(CONSTANTS.STORES.TAGS);
         const clash = tags.find(t => t.owner === row.owner && t.name === row.name && t.id !== row.id);
@@ -900,7 +1027,11 @@ const DBManagerWeb = {
         const seen = new Set();
         (tagList || []).forEach(tag => {
             const name = String(tag.Name || '').trim().toLowerCase();
-            if (!name || seen.has(name)) return;
+            if (!name) return;
+            // Aborts the whole restore (throws before _rawWrite runs) —
+            // COLLECTYX-SEC-30.
+            Validation.tagName(name);
+            if (seen.has(name)) return;
             seen.add(name);
             ops.push({
                 store: S.TAGS, action: 'put',

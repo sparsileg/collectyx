@@ -9,10 +9,15 @@ async function generateStatistics() {
         DBManager.getAllTags(),
     ]);
 
-    // Filter books with dates and extract year
-    const datedBooks = consumed.filter(book => book.Finished).map(book => {
-        return { ...book, year: getYearFromFinishedDate(book.Finished) };
-    });
+    // Filter books with dates and extract year. Records whose Finished
+    // value doesn't yield a plausible year are dropped here rather than
+    // rendered with a garbage year (COLLECTYX-SEC-28) — the underlying
+    // value stays in the database untouched; this is a display-time guard,
+    // not a data repair.
+    const datedBooks = consumed
+        .filter(book => book.Finished)
+        .map(book => ({ ...book, year: getYearFromFinishedDate(book.Finished) }))
+        .filter(book => book.year !== null);
 
     // Calculate totals
     const totalBooks = datedBooks.length;
@@ -34,10 +39,21 @@ async function generateStatistics() {
         yearlyStats[year].pages += parseInt(book.Pages) || 0;
     });
 
-    // Fill in missing years with zeros
-    if (Object.keys(yearlyStats).length > 0) {
-        const minYear = Math.min(...Object.keys(yearlyStats).map(Number));
-        const maxYear = Math.max(...Object.keys(yearlyStats).map(Number));
+    // Fill in missing years with zeros. reduce() rather than Math.min/max
+    // with a spread — spreading a large key array into an argument list
+    // throws RangeError, a second failure mode from the same root cause
+    // getYearFromFinishedDate now guards against. The span is additionally
+    // capped at MAX_YEARLY_FILL_SPAN so even a plausible-but-huge range
+    // (already bounded 1000–2200 by getYearFromFinishedDate, so this is
+    // belt-and-suspenders) can't blow up the loop.
+    const MAX_YEARLY_FILL_SPAN = 200;
+    const years = Object.keys(yearlyStats).map(Number);
+    if (years.length > 0) {
+        const minYear = years.reduce((a, b) => Math.min(a, b));
+        let maxYear = years.reduce((a, b) => Math.max(a, b));
+        if (maxYear - minYear > MAX_YEARLY_FILL_SPAN) {
+            maxYear = minYear + MAX_YEARLY_FILL_SPAN;
+        }
 
         for (let year = minYear; year <= maxYear; year++) {
             if (!yearlyStats[year]) {

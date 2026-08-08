@@ -70,9 +70,7 @@ pub fn save_tag(state: State<AppState>, tag: TagRecord) -> Result<String, String
     let now = today();
 
     let name = tag.name.trim().to_lowercase();
-    if name.is_empty() {
-        return Err("Tag name cannot be empty".to_string());
-    }
+    common::validate_tag_name(&name)?;
 
     let owner = tag.owner.clone().unwrap_or_else(|| common::current_owner(&db));
     let id = tag.id.clone().unwrap_or_else(new_uuid);
@@ -171,6 +169,13 @@ pub fn replace_all_tags(state: State<AppState>, tags: Vec<TagRecord>) -> Result<
         let name = tag.name.trim().to_lowercase();
         if name.is_empty() {
             continue;
+        }
+        // A restore is all-or-nothing (COLLECTYX-SEC-30) — one invalid tag
+        // name aborts the whole transaction rather than being silently
+        // skipped, since a partial restore is a worse outcome than an
+        // explicit error naming the offending row.
+        if let Err(msg) = common::validate_tag_name(&name) {
+            return Err(msg);
         }
         tx.execute(
             "INSERT OR IGNORE INTO tags (id, owner, name, date_added, modified)

@@ -11,6 +11,153 @@ use std::collections::HashMap;
 
 use crate::constants::DEFAULT_OWNER;
 
+// ── Validation (COLLECTYX-SEC-30) ───────────────────────────────────────────
+//
+// Rules the frontend enforced (tag format, date format, required Title) did
+// not exist in either backend, so a restore file or a direct IPC call wrote
+// them verbatim. These limits are mirrored in src/js/constants.js's
+// CONSTANTS.VALIDATION and src/js/db-manager-web.js's Validation object —
+// all three must agree or the backends diverge. Write-only: existing rows
+// are never checked on read, only on the next write that touches them.
+
+pub const MAX_SHORT_TEXT: usize = 500; // Title, Author, Author2, ISBN, Location, Patron, Source
+pub const MAX_COMMENTS: usize = 10_000;
+pub const MAX_TAG_NAME: usize = 64;
+pub const MIN_PAGES: i64 = 0;
+pub const MAX_PAGES: i64 = 100_000;
+pub const MIN_RATING: i64 = 1;
+pub const MAX_RATING: i64 = 5;
+pub const MIN_YEAR: i64 = 1000;
+pub const MAX_YEAR: i64 = 2200;
+
+pub fn validate_tag_name(name: &str) -> std::result::Result<(), String> {
+    if name.is_empty() {
+        return Err("Tag name cannot be empty".to_string());
+    }
+    if name.chars().count() > MAX_TAG_NAME {
+        return Err(format!("Tag name exceeds {} characters", MAX_TAG_NAME));
+    }
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(format!("Tag name \"{}\" contains invalid characters", name));
+    }
+    Ok(())
+}
+
+/// Strict YYYY-MM-DD shape with a plausible year range. Empty strings are
+/// the caller's concern (an optional date field may legitimately be unset);
+/// this only runs against a non-empty value.
+pub fn validate_date(value: &str, field_name: &str) -> std::result::Result<(), String> {
+    let bytes = value.as_bytes();
+    let valid_shape = bytes.len() == 10
+        && bytes[4] == b'-'
+        && bytes[7] == b'-'
+        && bytes[0..4].iter().all(u8::is_ascii_digit)
+        && bytes[5..7].iter().all(u8::is_ascii_digit)
+        && bytes[8..10].iter().all(u8::is_ascii_digit);
+    if !valid_shape {
+        return Err(format!("{} must be in YYYY-MM-DD format", field_name));
+    }
+    let year: i64 = value[0..4].parse().unwrap_or(0);
+    let month: i64 = value[5..7].parse().unwrap_or(0);
+    let day: i64 = value[8..10].parse().unwrap_or(0);
+    if year < MIN_YEAR || year > MAX_YEAR {
+        return Err(format!("{} year out of range", field_name));
+    }
+    if month < 1 || month > 12 {
+        return Err(format!("{} month out of range", field_name));
+    }
+    if day < 1 || day > 31 {
+        return Err(format!("{} day out of range", field_name));
+    }
+    Ok(())
+}
+
+pub fn validate_short_text(value: &Option<String>, field_name: &str) -> std::result::Result<(), String> {
+    if let Some(v) = value {
+        if v.chars().count() > MAX_SHORT_TEXT {
+            return Err(format!("{} exceeds {} characters", field_name, MAX_SHORT_TEXT));
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_comments(value: &Option<String>) -> std::result::Result<(), String> {
+    if let Some(v) = value {
+        if v.chars().count() > MAX_COMMENTS {
+            return Err(format!("Comments exceeds {} characters", MAX_COMMENTS));
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_rating(value: Option<i64>) -> std::result::Result<(), String> {
+    if let Some(r) = value {
+        if r < MIN_RATING || r > MAX_RATING {
+            return Err(format!("Rating out of range ({}-{})", MIN_RATING, MAX_RATING));
+        }
+    }
+    Ok(())
+}
+
+/// Validates the item half of a joined record: Title (non-empty, bounded,
+/// required only when this save has no ItemId — i.e. is minting a new
+/// item), Author/Author2/ISBN length, Pages range, ItemDateAdded/
+/// ItemModified format if present, and each tag name.
+///
+/// A Title key absent from the payload is fine when updating an existing
+/// item via ItemId — upsert_item's own CASE WHEN keeps the stored title.
+/// It is only an error when there is no existing item to fall back to.
+pub fn validate_item_fields(fields: &ItemFields) -> std::result::Result<(), String> {
+    match &fields.title {
+        Some(t) => {
+            if t.trim().is_empty() {
+                return Err("Title cannot be empty".to_string());
+            }
+            if t.chars().count() > MAX_SHORT_TEXT {
+                return Err(format!("Title exceeds {} characters", MAX_SHORT_TEXT));
+            }
+        }
+        None => {
+            if fields.item_id.is_none() {
+                return Err("Title cannot be empty".to_string());
+            }
+        }
+    }
+    if let Some(Some(a)) = &fields.author {
+        validate_short_text(&Some(a.clone()), "Author")?;
+    }
+    if let Some(Some(a2)) = &fields.author2 {
+        validate_short_text(&Some(a2.clone()), "Author2")?;
+    }
+    if let Some(Some(isbn)) = &fields.isbn {
+        validate_short_text(&Some(isbn.clone()), "ISBN")?;
+    }
+    if let Some(Some(pages)) = &fields.pages {
+        if *pages < MIN_PAGES || *pages > MAX_PAGES {
+            return Err(format!("Pages out of range ({}-{})", MIN_PAGES, MAX_PAGES));
+        }
+    }
+    if let Some(d) = &fields.item_date_added {
+        if !d.is_empty() {
+            validate_date(d, "ItemDateAdded")?;
+        }
+    }
+    if let Some(d) = &fields.item_modified {
+        if !d.is_empty() {
+            validate_date(d, "ItemModified")?;
+        }
+    }
+    if let Some(tags) = &fields.tags {
+        for name in tags {
+            validate_tag_name(&name.trim().to_lowercase())?;
+        }
+    }
+    Ok(())
+}
+
 /// Distinguishes an absent JSON key (deserializes to None — leave the
 /// stored value alone) from a key explicitly present as null (deserializes
 /// to Some(None) — clear it) from a key present with a value (Some(Some(v))).
@@ -128,6 +275,9 @@ pub fn current_owner(conn: &rusqlite::Connection) -> String {
 /// payload and never changed by a later save — an item cannot change
 /// hands via a normal edit.
 pub fn upsert_item(tx: &Transaction, fields: &ItemFields, now: &str) -> Result<String> {
+    if let Err(msg) = validate_item_fields(fields) {
+        return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
+    }
     let item_id = match &fields.item_id {
         Some(id) => {
             if let Err(msg) = assert_item_owned(tx, id) {
@@ -263,6 +413,10 @@ pub fn reconcile_tags(
     let mut tag_ids: Vec<String> = Vec::new();
 
     for name in &wanted {
+        if let Err(msg) = validate_tag_name(name) {
+            return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
+        }
+
         let existing: Option<String> = tx
             .query_row(
                 "SELECT id FROM tags WHERE owner = ?1 AND name = ?2",

@@ -35,14 +35,37 @@ const CsvUtils = {
             .filter(r => r.some(c => c.trim() !== ''))
             .map(r => {
                 const obj = {};
-                headers.forEach((h, idx) => { obj[h] = r[idx] !== undefined ? r[idx] : ''; });
+                headers.forEach((h, idx) => {
+                    obj[h] = r[idx] !== undefined ? this._unescapeFormulaGuard(r[idx]) : '';
+                });
                 return obj;
             });
     },
 
+    // Reverses _field()'s leading-apostrophe escape, so an export from this
+    // app followed by a re-import doesn't accumulate an apostrophe on every
+    // pass. Only strips when the character after the apostrophe is itself a
+    // formula trigger — a value genuinely starting with an apostrophe was
+    // never escaped in the first place and is left alone.
+    _unescapeFormulaGuard(str) {
+        if (typeof str !== 'string' || str[0] !== "'") return str;
+        const rest = str.slice(1);
+        return this._FORMULA_TRIGGER.test(rest) ? rest : str;
+    },
+
+    // Characters that trigger formula/DDE evaluation in Excel/LibreOffice
+    // when they lead a cell — CWE-1236. Checked after stripping leading
+    // whitespace, since some parsers strip it before evaluating too.
+    _FORMULA_TRIGGER: /^[\s]*[=+\-@\t\r]/,
+
     _field(value) {
         const str = String(value == null ? '' : value);
-        return /[",\n\r]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+        // A leading apostrophe is prefixed to neutralise the trigger — the
+        // standard mitigation. ' is also added to the quoting trigger set
+        // so an already-apostrophe-prefixed value round-trips unambiguously
+        // rather than looking like something the exporter escaped.
+        const escaped = this._FORMULA_TRIGGER.test(str) ? "'" + str : str;
+        return /[",\n\r']/.test(escaped) ? '"' + escaped.replace(/"/g, '""') + '"' : escaped;
     },
 
     toCSV(rows, columns) {
