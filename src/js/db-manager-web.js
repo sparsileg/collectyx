@@ -663,12 +663,22 @@ const DBManagerWeb = {
             this._load(S.TAGS),
             this._load(S.ITEM_TAGS),
             this._load(S.ITEMS),
+            this._load(collection),
         ]);
         const workingTags = loaded[0].slice();
         const itemTags = loaded[1];
         const existingItems = JoinHelpers.indexById(loaded[2]);
+        const existingMemberships = loaded[3];
 
-        const ops = [{ store: collection, action: 'clear' }];
+        // Scoped to the active owner only — 'clear' would wipe every
+        // owner's rows in this store, not just the one being restored.
+        const ownerItemIds = new Set(
+            loaded[2].filter(i => i.owner === defaults.owner).map(i => i.id)
+        );
+        const ops = [];
+        existingMemberships
+            .filter(m => ownerItemIds.has(m.item_id))
+            .forEach(m => ops.push({ store: collection, action: 'delete', key: m.id }));
         const touchedItems = new Set();
         const desired = new Set();
 

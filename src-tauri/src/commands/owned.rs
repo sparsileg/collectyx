@@ -159,11 +159,15 @@ pub fn replace_all_owned(
     records: Vec<OwnedRecord>,
 ) -> Result<(), String> {
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let owner = common::current_owner(&db);
     let tx = db.transaction().map_err(|e| e.to_string())?;
     let now = today();
 
-    tx.execute("DELETE FROM owned", [])
-        .map_err(|e| e.to_string())?;
+    tx.execute(
+        "DELETE FROM owned WHERE item_id IN (SELECT id FROM items WHERE owner = ?1)",
+        params![owner],
+    )
+    .map_err(|e| e.to_string())?;
 
     for record in &records {
         write_one(&tx, record, &now, false).map_err(|e| e.to_string())?;
