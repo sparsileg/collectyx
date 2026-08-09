@@ -30,6 +30,12 @@ const BackupRestore = {
             DBManager.getAllTags(),
             DBManager.getSettings()
         ]);
+        // backupFolder is a local filesystem path, not portable data — never
+        // written into a backup/export file in the first place (CTX-SEC-101).
+        // It only ever comes from this device's own Settings, and restoring
+        // one already skips it; stripping here closes the same gap at the
+        // source, so a shared backup file never carries a local path at all.
+        const { backupFolder, ...exportableSettings } = settings || {};
         return {
             Header: {
                 timestamp: new Date().toISOString(),
@@ -41,7 +47,7 @@ const BackupRestore = {
             Queued: queued,
             Owned: owned,
             Tags: tags,
-            Settings: settings || {}
+            Settings: exportableSettings
         };
     },
 
@@ -140,7 +146,16 @@ const BackupRestore = {
                 : `collectyx-backup-${this._timestamp()}.json`;
 
             if (isTauri) {
-                const folder = ((data.Settings || {}).backupFolder || '').trim();
+                // _gatherAllData()'s Settings has backupFolder stripped
+                // (CTX-SEC-101 — never written into the backup payload), so
+                // the folder check reads settings directly instead.
+                let rawSettings = {};
+                try {
+                    rawSettings = await DBManager.getSettings() || {};
+                } catch (e) {
+                    console.error('BackupRestore.backupDatabase: could not load settings', e);
+                }
+                const folder = (rawSettings.backupFolder || '').trim();
                 if (!folder) {
                     showMessage('Backup folder is not set — set it in Settings before backing up.', CONSTANTS.MESSAGE_TYPES.ERROR);
                     return;
@@ -149,10 +164,9 @@ const BackupRestore = {
                 const contents = useGzip
                     ? Array.from(pako.gzip(json))
                     : Array.from(new TextEncoder().encode(json));
-                const path = `${folder}/${filename}`;
 
                 try {
-                    await window.__TAURI__.core.invoke('save_backup_file', { path: path, contents: contents });
+                    await window.__TAURI__.core.invoke('save_backup_file', { filename: filename, contents: contents });
                 } catch (writeErr) {
                     console.error('BackupRestore.backupDatabase: write to backup folder failed', writeErr);
                     showMessage('Backup folder is missing or inaccessible — set it again in Settings.', CONSTANTS.MESSAGE_TYPES.ERROR);
@@ -415,7 +429,12 @@ const BackupRestore = {
         await DBManager.replaceCollection('owned', data.Owned || []);
 
         if (data.Settings) {
-            await DBManager.saveSettings(data.Settings);
+            // backupFolder is never restored from a backup file — a shared
+            // or malicious backup could otherwise redirect where future
+            // backups get written (CTX-SEC-101). Every other setting
+            // restores normally.
+            const { backupFolder, ...restoredSettings } = data.Settings;
+            await DBManager.saveSettings(restoredSettings);
         }
     },
 
@@ -449,7 +468,7 @@ const BackupRestore = {
             showMessage(
                 `Restore complete — ${(data.Consumed || []).length} in ${MediaLabels.ConsumedLabel}, ` +
                 `${(data.Queued || []).length} in ${MediaLabels.QueuedLabel}, ` +
-                `${(data.Owned || []).length} in ${MediaLabels.OwnedLabel}.`,
+                `${(data.Owned || []).length} in ${MediaLabels.OwnedLabel}. Must reset backup folder.`,
                 CONSTANTS.MESSAGE_TYPES.SUCCESS
             );
 
