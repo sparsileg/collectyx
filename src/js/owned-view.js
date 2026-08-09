@@ -42,7 +42,7 @@
             <div class="collection-list-row owned-columns" data-id="${escapeHtml(record.id)}">
                 <div class="col-stacked">
                     <div class="stacked-title">${escapeHtml(record.Title || '')}</div>
-                    <div class="stacked-author">by ${escapeHtml(record.Author || '')}</div>
+                    <div class="stacked-author">by ${escapeHtml(record.Author || '')}${record.Author2 ? ' &amp; ' + escapeHtml(record.Author2) : ''}</div>
                 </div>
                 <span class="col-tags">${escapeHtml((record.Tags || []).join(', '))}</span>
                 <span class="col-status">${statusText}</span>
