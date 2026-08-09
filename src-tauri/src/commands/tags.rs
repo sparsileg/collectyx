@@ -12,7 +12,9 @@ pub struct TagRecord {
     #[serde(default)]
     pub id: Option<String>,
 
-    #[serde(rename = "Owner", default)]
+    // Serialize-only: no write path may take ownership from the payload
+    // (CTX-SEC-105/106, #55/#56).
+    #[serde(rename = "Owner", default, skip_deserializing)]
     pub owner: Option<String>,
 
     #[serde(rename = "Name")]
@@ -74,7 +76,8 @@ pub fn save_tag(state: State<AppState>, tag: TagRecord) -> Result<String, String
     let name = tag.name.trim().to_lowercase();
     common::validate_tag_name(&name)?;
 
-    let owner = tag.owner.clone().unwrap_or_else(|| common::current_owner(&db));
+    // Never taken from the payload (CTX-SEC-106 / #56).
+    let owner = common::current_owner(&db);
     let id = tag.id.clone().unwrap_or_else(new_uuid);
 
     // Only relevant when id names an existing row — a fresh id is a create,
@@ -195,9 +198,23 @@ pub fn replace_all_tags(state: State<AppState>, tags: Vec<TagRecord>) -> Result<
         if let Err(msg) = common::validate_tag_name(&name) {
             return Err(msg);
         }
+
+        // An id naming an existing row must be one we own — a fresh id
+        // is a create (CTX-SEC-105 / #55).
+        if let Some(id) = &tag.id {
+            let existing_owner: Option<String> = tx
+                .query_row("SELECT owner FROM tags WHERE id = ?1", params![id], |r| r.get(0))
+                .ok();
+            match existing_owner {
+                None => {}
+                Some(o) if o == owner => {}
+                Some(_) => return Err("Tag not found".to_string()),
+            }
+        }
+
         prepared.push(PreparedTag {
             id: tag.id.clone().unwrap_or_else(new_uuid),
-            owner: tag.owner.clone().unwrap_or_else(|| owner.clone()),
+            owner: owner.clone(), // never tag.owner
             name,
             date_added: tag.date_added.clone().unwrap_or_else(|| now.clone()),
         });
@@ -231,7 +248,8 @@ pub fn replace_all_tags(state: State<AppState>, tags: Vec<TagRecord>) -> Result<
              VALUES (?1,?2,?3,?4,?5)
              ON CONFLICT(id) DO UPDATE SET
                 name     = excluded.name,
-                modified = excluded.modified",
+                modified = excluded.modified
+              WHERE tags.owner = ?2",
             params![p.id, p.owner, p.name, p.date_added, now],
         )
         .map_err(|e| e.to_string())?;

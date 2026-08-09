@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::commands::common::{
-    self, owner_or_default, reconcile_tags, tags_by_item, today, upsert_item, ItemFields,
+    self, reconcile_tags, tags_by_item, today, upsert_item, ItemFields,
 };
 use crate::AppState;
 
@@ -141,8 +141,15 @@ fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_
     }
 
     let item_id = upsert_item(tx, &record.item, now)?;
-    let owner = owner_or_default(&record.item.owner, &common::current_owner(tx));
     let id = record.id.clone().unwrap_or_else(common::new_uuid);
+    // An id naming an existing membership row must be one we own — the
+    // ON CONFLICT below would otherwise repoint someone else's row
+    // (CTX-SEC-103 / #53).
+    if record.id.is_some() {
+        if let Err(msg) = common::assert_membership_writable(tx, "queued", &id) {
+            return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
+        }
+    }
     let date_added = record.date_added.clone().unwrap_or_else(|| now.to_string());
     let rank_param: Option<i64> = if apply_rank { record.rank } else { None };
 
@@ -181,7 +188,7 @@ fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_
     )?;
 
     if let Some(names) = &record.item.tags {
-        reconcile_tags(tx, &item_id, &owner, names, now, bump_modified_on_new_link)?;
+        reconcile_tags(tx, &item_id, names, now, bump_modified_on_new_link)?;
     }
 
     Ok((id, item_id))

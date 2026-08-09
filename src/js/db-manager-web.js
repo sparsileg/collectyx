@@ -284,6 +284,12 @@ const JoinHelpers = {
         const has = (k) => Object.prototype.hasOwnProperty.call(record, k);
 
         const prevItem = existing.item || null;
+        // A prevItem naming another owner's row is refused here too, not
+        // just by callers — an ItemId belonging to someone else must never
+        // be silently written through (CTX-SEC-107 / #57).
+        if (prevItem && defaults.owner && prevItem.owner !== defaults.owner) {
+            throw new Error('Item not found');
+        }
         const item = {};
         if (prevItem) Object.keys(prevItem).forEach(k => { item[k] = prevItem[k]; });
 
@@ -291,7 +297,7 @@ const JoinHelpers = {
         // Ownership is set once, at creation, from the active owner — never
         // taken from the payload and never changed by a later save. An
         // item cannot change hands via a normal edit (COLLECTYX-SEC-05).
-        item.owner = (prevItem && prevItem.owner) || defaults.owner;
+        item.owner = defaults.owner;
         item.media_type_id = record.MediaTypeId ||
                              (prevItem && prevItem.media_type_id) || defaults.mediaTypeId;
         item.date_added = record.ItemDateAdded != null ? record.ItemDateAdded
@@ -701,6 +707,16 @@ const DBManagerWeb = {
             throw new Error('Item not found');
         }
 
+        // The membership row must belong to us too, not just the item —
+        // membership stores carry no owner column of their own, so this
+        // resolves through the parent item (CTX-SEC-103 / #53).
+        if (existing.membership) {
+            const parent = loaded[2].find(i => i.id === existing.membership.item_id);
+            if (!parent || parent.owner !== defaults.owner) {
+                throw new Error('Record not found');
+            }
+        }
+
         const split = JoinHelpers.splitRecord(collection, prepared, defaults, existing);
         const item = split.item;
 
@@ -817,10 +833,19 @@ const DBManagerWeb = {
             if (!prepared.id) prepared.id = this._newId();
             if (!prepared.ItemId) prepared.ItemId = this._newId();
 
+            // Same rule as saveCollectionRecord — an ItemId naming another
+            // owner's row is indistinguishable from one that doesn't exist
+            // (CTX-SEC-107 / #57). splitRecord below also refuses this, but
+            // the check is stated explicitly here too.
+            const prevItem = existingItems.get(prepared.ItemId) || null;
+            if (prevItem && prevItem.owner !== defaults.owner) {
+                throw new Error('Item not found');
+            }
+
             // Same absent-vs-null rule as saveCollectionRecord: replacing a
             // collection must not blank item fields owned by another one.
             const split = JoinHelpers.splitRecord(collection, prepared, defaults, {
-                item: existingItems.get(prepared.ItemId) || null,
+                item: prevItem,
                 membership: null,
             });
             const item = split.item;
@@ -1239,7 +1264,11 @@ const DBManagerWeb = {
     async setCurrentlyReading(id, value) {
         const S = CONSTANTS.STORES;
         const row = await this._rawGet(S.QUEUED, id);
-        if (!row) throw new Error('Queued record not found: ' + id);
+        // Same error whether the row is absent or belongs to another owner
+        // (CTX-SEC-108 / #58) — mirrors Rust's toggle_currently_reading.
+        if (!row) throw new Error('Record not found');
+        await this._assertItemOwned(row.item_id);
+
         row.currently_reading = value ? 1 : 0;
         row.modified = this._today();
         await this._rawWrite([S.QUEUED], [{ store: S.QUEUED, action: 'put', value: row }]);

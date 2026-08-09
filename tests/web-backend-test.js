@@ -92,7 +92,7 @@ function ok(label, cond) {
     console.log('\n2. saveCollectionRecord');
     const saved = await DB.saveCollectionRecord('consumed', {
         Title: 'Dune', Author: 'Herbert, Frank', Pages: 412, ISBN: '9780441013593',
-        Finished: '2020-06-01', Rating: 9, Recommend: 1, Comments: 'first read',
+        Finished: '2020-06-01', Rating: 4, Recommend: 1, Comments: 'first read',
         Tags: ['SciFi', 'classic'],
     });
     ok('returns generated ids', !!saved.id && !!saved.ItemId);
@@ -100,7 +100,7 @@ function ok(label, cond) {
     let consumed = await DB.getCollection('consumed');
     check('one record readable back', consumed.length, 1);
     check('Title round-trips through storage', consumed[0].Title, 'Dune');
-    check('Rating round-trips', consumed[0].Rating, 9);
+    check('Rating round-trips', consumed[0].Rating, 4);
     check('tags lowercased and sorted', consumed[0].Tags, ['classic', 'scifi']);
     check('tag rows created', (await DB.getAllTags()).length, 2);
 
@@ -109,7 +109,7 @@ function ok(label, cond) {
     const itemId = consumed[0].ItemId;
     await DB.saveCollectionRecord('consumed', {
         ItemId: itemId, Title: 'Dune', Author: 'Herbert, Frank', Pages: 412,
-        Finished: '2025-03-15', Rating: 10, Recommend: 1, Comments: 're-read',
+        Finished: '2025-03-15', Rating: 5, Recommend: 1, Comments: 're-read',
         Tags: ['scifi', 'classic'],
     });
     consumed = await DB.getCollection('consumed');

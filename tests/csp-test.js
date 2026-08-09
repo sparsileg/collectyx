@@ -65,28 +65,15 @@ console.log("\n2. object-src/base-uri/form-action 'none' present in both policie
     ok(`tauri: ${directive} 'none'`, (tauriCsp[directive] || []).includes("'none'"));
 });
 
-// ── 3. the two policies agree where they should ───────────────────────────────
-// connect-src is allowed to diverge — the web policy drops Tauri's IPC-only
-// sources (ipc:, http://ipc.localhost), which are meaningless in a browser.
-console.log('\n3. web and Tauri policies agree on every directive except connect-src');
+// ── 3. the two policies agree on every directive ───────────────────────────────
+// #51 put the IPC-only sources (ipc:, http://ipc.localhost) into the shared
+// web meta tag too, so there is no longer a genuinely Tauri-only connect-src
+// source — both policies are asserted identical across the board.
+console.log('\n3. web and Tauri policies agree on every directive');
 const allDirectives = new Set([...Object.keys(webCsp), ...Object.keys(tauriCsp)]);
 allDirectives.forEach(directive => {
-    if (directive === 'connect-src') return;
     check(`${directive} matches between web and Tauri`, webCsp[directive], tauriCsp[directive]);
 });
-
-console.log('\n   connect-src divergence is the Tauri-only IPC sources, nothing else');
-const webConnect = new Set(webCsp['connect-src'] || []);
-const tauriConnect = new Set(tauriCsp['connect-src'] || []);
-const tauriOnly = [...tauriConnect].filter(s => !webConnect.has(s));
-ok("web connect-src omits ipc:", !webConnect.has('ipc:'));
-ok('web connect-src omits http://ipc.localhost', !webConnect.has('http://ipc.localhost'));
-ok('everything web connect-src has, tauri connect-src also has',
-   [...webConnect].every(s => tauriConnect.has(s)),
-   'web-only sources: ' + [...webConnect].filter(s => !tauriConnect.has(s)).join(', '));
-ok('tauri connect-src extras are only the known IPC sources',
-   tauriOnly.every(s => s === 'ipc:' || s === 'http://ipc.localhost'),
-   'unexpected tauri-only sources: ' + tauriOnly.join(', '));
 
 // ── 4. baseline hardening ─────────────────────────────────────────────────────
 console.log('\n4. baseline: default-src, script-src, img-src present and strict');

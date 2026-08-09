@@ -11,7 +11,9 @@ use crate::AppState;
 pub struct ItemRecord {
     pub id: String,
 
-    #[serde(rename = "Owner")]
+    // Serialize-only: meaningful on read, never settable on write
+    // (CTX-SEC-101 / #52). save_item derives owner server-side instead.
+    #[serde(rename = "Owner", default, skip_deserializing)]
     pub owner: String,
 
     #[serde(rename = "MediaTypeId")]
@@ -154,6 +156,32 @@ pub fn detach_tag(state: State<AppState>, item_id: String, tag_id: String) -> Re
 pub fn save_item(state: State<AppState>, item: ItemRecord) -> Result<String, String> {
     let db = common::lock_db(&state.db);
     let now = today();
+    // Never taken from the payload (CTX-SEC-101 / #52) — same rule
+    // upsert_item applies to the item row on every collection save path.
+    let owner = common::current_owner(&db);
+
+    if item.title.trim().is_empty() {
+        return Err("Title cannot be empty".to_string());
+    }
+    common::validate_short_text(&Some(item.title.clone()), "Title")?;
+    common::validate_short_text(&item.author, "Author")?;
+    common::validate_short_text(&item.author2, "Author2")?;
+    common::validate_short_text(&item.isbn, "ISBN")?;
+    if let Some(p) = item.pages {
+        if p < common::MIN_PAGES || p > common::MAX_PAGES {
+            return Err(format!(
+                "Pages out of range ({}-{})",
+                common::MIN_PAGES,
+                common::MAX_PAGES
+            ));
+        }
+    }
+    if let Some(d) = &item.date_added {
+        if !d.is_empty() {
+            common::validate_date(d, "DateAdded")?;
+        }
+    }
+
     let id = if item.id.is_empty() { new_uuid() } else { item.id.clone() };
     if !item.id.is_empty() {
         common::assert_item_id_writable(&db, &item.id)?;
@@ -166,7 +194,7 @@ pub fn save_item(state: State<AppState>, item: ItemRecord) -> Result<String, Str
          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)
          ON CONFLICT(id) DO UPDATE SET
             media_type_id = excluded.media_type_id,
-            title         = excluded.title,
+            title         = CASE WHEN excluded.title != '' THEN excluded.title ELSE items.title END,
             author        = excluded.author,
             author2       = excluded.author2,
             pages         = excluded.pages,
@@ -174,7 +202,7 @@ pub fn save_item(state: State<AppState>, item: ItemRecord) -> Result<String, Str
             modified      = excluded.modified",
         params![
             id,
-            item.owner,
+            owner,
             item.media_type_id,
             item.title,
             item.author,

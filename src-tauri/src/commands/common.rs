@@ -177,7 +177,9 @@ pub struct ItemFields {
     #[serde(rename = "ItemId", default)]
     pub item_id: Option<String>,
 
-    #[serde(rename = "Owner", default)]
+    // Serialize-only: no write path may take ownership from the payload
+    // (CTX-SEC-101/104, #52/#54). Kept for read-side responses only.
+    #[serde(rename = "Owner", default, skip_deserializing)]
     pub owner: Option<String>,
 
     #[serde(rename = "MediaTypeId", default)]
@@ -412,6 +414,32 @@ pub fn assert_item_id_writable(conn: &rusqlite::Connection, item_id: &str) -> st
     }
 }
 
+/// Membership tables (consumed/queued/owned) carry no owner column of
+/// their own — ownership is derived through the parent item. Same
+/// missing-vs-forbidden-indistinguishable rule as assert_item_id_writable:
+/// an id absent entirely is a create (allowed); an id present but
+/// belonging to another owner is refused (CTX-SEC-103 / #53). `table` is
+/// always an internal literal ("consumed" | "queued" | "owned"), never
+/// caller input.
+pub fn assert_membership_writable(
+    conn: &rusqlite::Connection,
+    table: &str,
+    id: &str,
+) -> std::result::Result<(), String> {
+    debug_assert!(matches!(table, "consumed" | "queued" | "owned"));
+    let owner = current_owner(conn);
+    let sql = format!(
+        "SELECT i.owner FROM {t} m JOIN items i ON i.id = m.item_id WHERE m.id = ?1",
+        t = table
+    );
+    let found: Option<String> = conn.query_row(&sql, params![id], |r| r.get(0)).ok();
+    match found {
+        None => Ok(()),
+        Some(row_owner) if row_owner == owner => Ok(()),
+        Some(_) => Err("Record not found".to_string()),
+    }
+}
+
 /// Tag equivalent of assert_item_owned.
 pub fn assert_tag_owned(conn: &rusqlite::Connection, tag_id: &str) -> std::result::Result<(), String> {
     let owner = current_owner(conn);
@@ -446,11 +474,13 @@ pub fn assert_tag_owned(conn: &rusqlite::Connection, tag_id: &str) -> std::resul
 pub fn reconcile_tags(
     tx: &Transaction,
     item_id: &str,
-    owner: &str,
     names: &[String],
     now: &str,
     bump_modified_on_new_link: bool,
 ) -> Result<()> {
+    // Owner is resolved here, not accepted as a parameter — a caller can
+    // no longer hand this a payload-supplied owner (CTX-SEC-104 / #54).
+    let owner = current_owner(tx);
     let mut wanted: Vec<String> = names
         .iter()
         .map(|n| n.trim().to_lowercase())

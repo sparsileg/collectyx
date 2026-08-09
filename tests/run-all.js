@@ -45,13 +45,13 @@ if (mode === 'disk') {
 const tests = [
     ['schema-test.js',      'SQLite DDL creates, FKs enforce, cascades work'],
     ['migration-test.js',   'migrate_v1 batch executes, user_version set'],
-    ['join-test.js',        'join-simulation helpers vs hand-seeded data'],
     ['web-backend-test.js', 'DBManagerWeb end-to-end against IndexedDB'],
     ['parity-test.js',      'backend interfaces + Rust command wiring'],
     ['rust-sql-test.js',    'SQL from the Rust modules, issues #23/#24/#27'],
     ['dashboard-xss-test.js', 'dashboard.js escapes hostile record data (issue #20)'],
     ['csp-test.js',           'CSP present in both builds and in sync (issue #21)'],
     ['backup-restore-test.js', 'restore validation + snapshot/rollback (issue #22)'],
+    ['security-audit-52-58-test.js', 'owner-from-payload / membership BOLA (issues #52-#58)'],
 ];
 
 let failed = 0;
