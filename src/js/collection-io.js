@@ -130,9 +130,10 @@ const CollectionIO = {
     _wired: false,
     _bindEvents() {
         if (this._wired) return;
-        this._wired = true;
         const input = document.getElementById('csvImportInput');
-        if (input) input.addEventListener('change', (event) => this.handleImportFileSelected(event));
+        if (!input) return;
+        input.addEventListener('change', (event) => this.handleImportFileSelected(event));
+        this._wired = true;
     },
 
     triggerImportCSV(collection) {
@@ -147,6 +148,14 @@ const CollectionIO = {
         const file = event.target.files[0];
         const collection = this._importTarget;
         if (!file || !collection) return;
+
+        if (file.size > CONSTANTS.MAX_IMPORT_FILE_BYTES) {
+            showMessage(
+                `File is too large (${Math.round(file.size / (1024 * 1024))} MB, max ${Math.round(CONSTANTS.MAX_IMPORT_FILE_BYTES / (1024 * 1024))} MB)`,
+                CONSTANTS.MESSAGE_TYPES.ERROR
+            );
+            return;
+        }
 
         const text = await file.text();
         const spec = COLLECTION_IO_SPEC[collection];

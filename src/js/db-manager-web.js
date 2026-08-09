@@ -951,6 +951,24 @@ const DBManagerWeb = {
         this._invalidate(S.ITEM_TAGS);
     },
 
+    // Backend-only for now (COLLECTYX-SEC-39 finding 3) — no UI caller
+    // yet. Intended for the admin interface's planned Find Orphans
+    // capability. Mirrors Rust's count_orphan_items: items with no row in
+    // any of the three membership stores.
+    async countOrphanItems() {
+        const S = CONSTANTS.STORES;
+        const owner = this._owner();
+        const loaded = await Promise.all([
+            this._load(S.ITEMS),
+            this._load(S.CONSUMED),
+            this._load(S.QUEUED),
+            this._load(S.OWNED),
+        ]);
+        const claimed = new Set();
+        [loaded[1], loaded[2], loaded[3]].forEach(rows => rows.forEach(r => claimed.add(r.item_id)));
+        return loaded[0].filter(i => i.owner === owner && !claimed.has(i.id)).length;
+    },
+
     async detachTag(itemId, tagId) {
         await this._assertItemOwned(itemId);
         await this._assertTagOwned(tagId);
@@ -999,9 +1017,18 @@ const DBManagerWeb = {
         const loaded = await Promise.all([
             this._load(CONSTANTS.STORES.TAGS),
             this._load(CONSTANTS.STORES.ITEM_TAGS),
+            this._load(CONSTANTS.STORES.ITEMS),
         ]);
-        const counts = JoinHelpers.tagUsageCounts(loaded[1]);
         const owner = this._owner();
+        // item_tags carries no owner of its own — a link belongs to
+        // whichever owner its item belongs to. Counting every link
+        // regardless disclosed how many items *anywhere* carried a tag,
+        // not how many the active owner can actually see (COLLECTYX-SEC-39
+        // finding 4); scope to this owner's item ids first, same rule
+        // Rust's tags.rs subquery now applies via its JOIN.
+        const ownedItemIds = new Set(loaded[2].filter(i => i.owner === owner).map(i => i.id));
+        const ownerScopedLinks = loaded[1].filter(l => ownedItemIds.has(l.item_id));
+        const counts = JoinHelpers.tagUsageCounts(ownerScopedLinks);
         return loaded[0].filter(t => t.owner === owner).map(t => ({
             id: t.id,
             Owner: t.owner,
@@ -1049,6 +1076,16 @@ const DBManagerWeb = {
         const itemTags = await this._load(S.ITEM_TAGS);
         const affected = itemTags.filter(l => l.tag_id === tagId);
 
+        // The deletion below is deliberately unscoped — every link to this
+        // tag_id goes, matching Rust's ON DELETE CASCADE. Only the *count*
+        // reported back to the user is owner-scoped (COLLECTYX-SEC-39
+        // finding 4) — otherwise "removed from N book(s)" could include
+        // books the active owner can't see, overstating the effect.
+        const owner = this._owner();
+        const items = await this._load(S.ITEMS);
+        const ownedItemIds = new Set(items.filter(i => i.owner === owner).map(i => i.id));
+        const ownerScopedCount = affected.filter(l => ownedItemIds.has(l.item_id)).length;
+
         const ops = [{ store: S.TAGS, action: 'delete', key: tagId }];
         affected.forEach(l => ops.push({
             store: S.ITEM_TAGS, action: 'delete', key: [l.item_id, l.tag_id],
@@ -1066,7 +1103,7 @@ const DBManagerWeb = {
 
         await this._rawWrite([S.TAGS, S.ITEM_TAGS], ops);
         this._invalidate(S.TAGS, S.ITEM_TAGS);
-        return affected.length;
+        return ownerScopedCount;
     },
 
     /**

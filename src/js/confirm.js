@@ -14,7 +14,6 @@ const Confirm = {
 
     _bindEvents() {
         if (this._wired) return;
-        this._wired = true;
         const modal = document.getElementById('confirmModal');
         if (!modal) return;
         modal.addEventListener('click', (event) => {
@@ -24,14 +23,24 @@ const Confirm = {
             if (action === 'confirm') this._settle(true);
             else if (action === 'cancel') this._settle(false);
         });
+        this._wired = true;
     },
 
     // Resolves true (confirmed) or false (cancelled). A second open() while
     // one is already pending cancels the first rather than leaving it
     // unresolved — nothing does that today, but an abandoned Promise would
     // hang its caller's async function forever.
+    //
+    // If binding failed (#confirmModal missing from the DOM), this must
+    // read as "cancel" rather than a Promise nothing ever resolves — an
+    // unanswerable confirmation hanging its caller forever is worse than a
+    // wrongly-cancelled action (COLLECTYX-SEC-36).
     open(message, confirmLabel) {
         this._bindEvents();
+        if (!this._wired) {
+            console.error('Confirm.open: #confirmModal not found — treating as cancelled');
+            return Promise.resolve(false);
+        }
         if (this._resolve) this._settle(false);
 
         const messageEl = document.getElementById('confirmMessage');

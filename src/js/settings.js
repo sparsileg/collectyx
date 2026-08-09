@@ -11,11 +11,10 @@ const SettingsModal = {
     _wired: false,
     _bindEvents() {
         if (this._wired) return;
-        this._wired = true;
-        const form = document.getElementById('settingsForm');
-        if (form) form.addEventListener('submit', (event) => this.save(event));
         const modal = document.getElementById('settingsModal');
         if (!modal) return;
+        const form = document.getElementById('settingsForm');
+        if (form) form.addEventListener('submit', (event) => this.save(event));
         modal.addEventListener('click', (event) => {
             const btn = event.target.closest('[data-action]');
             if (!btn || !modal.contains(btn)) return;
@@ -27,6 +26,7 @@ const SettingsModal = {
             }
             else if (action === 'close') this.close();
         });
+        this._wired = true;
     },
 
     async open() {
@@ -165,7 +165,6 @@ const OwnerTestModal = {
     _wired: false,
     _bindEvents() {
         if (this._wired) return;
-        this._wired = true;
         const modal = document.getElementById('ownerTestModal');
         if (!modal) return;
         modal.addEventListener('click', (event) => {
@@ -175,6 +174,7 @@ const OwnerTestModal = {
             if (action === 'save') this.save();
             else if (action === 'close') this.close();
         });
+        this._wired = true;
     },
 
     async open() {

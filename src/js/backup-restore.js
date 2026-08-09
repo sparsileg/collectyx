@@ -187,20 +187,18 @@ const BackupRestore = {
     // Both restore modals are static markup, never rebuilt. Screen 2 is
     // only ever reached through screen 1, so binding both here covers the
     // whole flow with one guarded call.
+    // fileInput/checkbox are optional companions of screen 1 — bound if
+    // present, but not required to latch the guard. Both modals ARE
+    // required: they gate every restore action, so the guard only latches
+    // once both are confirmed bound (COLLECTYX-SEC-36) — binding only one
+    // would leave the other permanently inert on a later retry.
     _wired: false,
     _bindEvents() {
         if (this._wired) return;
-        this._wired = true;
-
-        const fileInput = document.getElementById('restoreFileInput');
-        if (fileInput) fileInput.addEventListener('change', () => this.fileSelected());
-
-        const checkbox = document.getElementById('restoreConfirmCheckbox');
-        if (checkbox) checkbox.addEventListener('change', () => this.checkboxChanged());
 
         const bind = (modalId) => {
             const modal = document.getElementById(modalId);
-            if (!modal) return;
+            if (!modal) return false;
             modal.addEventListener('click', (event) => {
                 const btn = event.target.closest('[data-action]');
                 if (!btn || !modal.contains(btn)) return;
@@ -210,9 +208,18 @@ const BackupRestore = {
                 else if (action === 'continue') this.continueToScreen2();
                 else if (action === 'execute') this.executeRestore();
             });
+            return true;
         };
-        bind('restoreScreen1Modal');
-        bind('restoreScreen2Modal');
+        const bothBound = bind('restoreScreen1Modal') && bind('restoreScreen2Modal');
+        if (!bothBound) return;
+
+        const fileInput = document.getElementById('restoreFileInput');
+        if (fileInput) fileInput.addEventListener('change', () => this.fileSelected());
+
+        const checkbox = document.getElementById('restoreConfirmCheckbox');
+        if (checkbox) checkbox.addEventListener('change', () => this.checkboxChanged());
+
+        this._wired = true;
     },
 
     showScreen1() {
@@ -243,11 +250,25 @@ const BackupRestore = {
         const file = document.getElementById('restoreFileInput').files[0];
         if (!file) return;
 
+        if (file.size > CONSTANTS.MAX_IMPORT_FILE_BYTES) {
+            this._parsedData = null;
+            await this.showScreen2(null, `File is too large (${Math.round(file.size / (1024 * 1024))} MB, max ${Math.round(CONSTANTS.MAX_IMPORT_FILE_BYTES / (1024 * 1024))} MB)`);
+            return;
+        }
+
         try {
             const arrayBuffer = await file.arrayBuffer();
             const jsonText = this._fileName.endsWith('.gz')
                 ? pako.ungzip(new Uint8Array(arrayBuffer), { to: 'string' })
                 : new TextDecoder().decode(arrayBuffer);
+            // file.size only bounds the compressed .gz — a small file can
+            // still decompress to something enormous. Checked post-inflate,
+            // before the (potentially expensive) JSON.parse.
+            if (jsonText.length > CONSTANTS.MAX_IMPORT_FILE_BYTES) {
+                this._parsedData = null;
+                await this.showScreen2(null, 'Decompressed backup is too large — refusing to parse');
+                return;
+            }
             this._parsedData = JSON.parse(jsonText);
         } catch (e) {
             this._parsedData = null;
@@ -469,11 +490,3 @@ const BackupRestore = {
     }
 };
 
-// Bridge functions retained for any caller outside index.html (the modal
-// markup no longer uses them — its handlers are delegated, above).
-function restoreBrowseFiles() { BackupRestore.browseFiles(); }
-function restoreFileSelected() { BackupRestore.fileSelected(); }
-function restoreContinue() { BackupRestore.continueToScreen2(); }
-function restoreCheckboxChanged() { BackupRestore.checkboxChanged(); }
-function executeRestore() { BackupRestore.executeRestore(); }
-function closeRestore() { BackupRestore.close(); }

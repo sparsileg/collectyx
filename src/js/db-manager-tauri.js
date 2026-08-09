@@ -92,8 +92,21 @@ const DBManagerTauri = {
     // ── Collection writes ─────────────────────────────────────────────────────
 
     async saveCollectionRecord(collection, record) {
-        const id = await invoke(this._commands(collection).save, { record: record });
-        return { id: id, ItemId: record.ItemId || null };
+        // ClientToday is the browser's own local calendar date
+        // (MediaLabels.todayISO(), core.js) — Rust's own today() is UTC by
+        // construction, which can date a record a day earlier than what
+        // the user sees on screen for anyone east of UTC (COLLECTYX-
+        // SEC-37). Rust prefers this when present and well-formed, falling
+        // back to its UTC calculation otherwise.
+        const payload = Object.assign({}, record, {
+            ClientToday: (typeof MediaLabels !== 'undefined' && MediaLabels.todayISO) ? MediaLabels.todayISO() : undefined
+        });
+        const result = await invoke(this._commands(collection).save, { record: payload });
+        // Rust now returns the item's real id for both new and existing
+        // records — previously this echoed back record.ItemId, which is
+        // null for a brand-new record and diverged from the web backend's
+        // shape (COLLECTYX-SEC-39 finding 5).
+        return { id: result.id, ItemId: result.itemId };
     },
 
     async deleteCollectionRecord(collection, id) {
@@ -121,6 +134,13 @@ const DBManagerTauri = {
 
     async attachTag(itemId, tagId) {
         return invoke('attach_tag', { itemId: itemId, tagId: tagId });
+    },
+
+    // Backend-only for now (COLLECTYX-SEC-39 finding 3) — no UI caller
+    // yet. Intended for the admin interface's planned Find Orphans
+    // capability.
+    async countOrphanItems() {
+        return invoke('count_orphan_items');
     },
 
     async detachTag(itemId, tagId) {

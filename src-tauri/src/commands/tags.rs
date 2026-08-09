@@ -31,13 +31,15 @@ pub struct TagRecord {
 
 #[tauri::command]
 pub fn get_all_tags(state: State<AppState>) -> Result<Vec<TagRecord>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
 
     let mut stmt = db
         .prepare(
             "SELECT t.id, t.owner, t.name, t.date_added, t.modified,
-                    (SELECT COUNT(*) FROM item_tags it WHERE it.tag_id = t.id)
+                    (SELECT COUNT(*) FROM item_tags it
+                       JOIN items i ON i.id = it.item_id
+                      WHERE it.tag_id = t.id AND i.owner = ?1)
                FROM tags t
               WHERE t.owner = ?1
               ORDER BY t.name ASC",
@@ -66,7 +68,7 @@ pub fn get_all_tags(state: State<AppState>) -> Result<Vec<TagRecord>, String> {
 /// references tag_id, not the name.
 #[tauri::command]
 pub fn save_tag(state: State<AppState>, tag: TagRecord) -> Result<String, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     let now = today();
 
     let name = tag.name.trim().to_lowercase();
@@ -120,15 +122,18 @@ pub fn delete_tag(
     id: String,
     substitute_tag_id: Option<String>,
 ) -> Result<i64, String> {
-    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut db = common::lock_db(&state.db);
     let tx = db.transaction().map_err(|e| e.to_string())?;
 
     common::assert_tag_owned(&tx, &id)?;
 
+    let owner = common::current_owner(&tx);
     let affected: i64 = tx
         .query_row(
-            "SELECT COUNT(*) FROM item_tags WHERE tag_id = ?1",
-            params![id],
+            "SELECT COUNT(*) FROM item_tags it
+               JOIN items i ON i.id = it.item_id
+              WHERE it.tag_id = ?1 AND i.owner = ?2",
+            params![id, owner],
             |row| row.get(0),
         )
         .map_err(|e| e.to_string())?;
@@ -172,7 +177,7 @@ struct PreparedTag {
 /// name), same as any other tag creation.
 #[tauri::command]
 pub fn replace_all_tags(state: State<AppState>, tags: Vec<TagRecord>) -> Result<(), String> {
-    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
     let tx = db.transaction().map_err(|e| e.to_string())?;
     let now = today();

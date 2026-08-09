@@ -44,7 +44,7 @@ pub struct ItemRecord {
 
 #[tauri::command]
 pub fn get_all_items(state: State<AppState>) -> Result<Vec<ItemRecord>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
 
     let mut stmt = db
@@ -86,11 +86,35 @@ pub fn get_all_items(state: State<AppState>) -> Result<Vec<ItemRecord>, String> 
     Ok(items)
 }
 
+/// Counts items with no membership row in any of the three collections
+/// (COLLECTYX-SEC-39 finding 3). Design doc §6.3 treats these as valid,
+/// intentionally-retained catalogue entries — restore's replace_all_*
+/// never deletes an items row, only its memberships — so this is a count,
+/// not a cleanup. Not called from anywhere in the current UI; it exists
+/// for the admin interface's planned Find Orphans capability.
+#[tauri::command]
+pub fn count_orphan_items(state: State<AppState>) -> Result<i64, String> {
+    let db = common::lock_db(&state.db);
+    let owner = common::current_owner(&db);
+    let count: i64 = db
+        .query_row(
+            "SELECT COUNT(*) FROM items i
+              WHERE i.owner = ?1
+                AND NOT EXISTS (SELECT 1 FROM consumed c WHERE c.item_id = i.id)
+                AND NOT EXISTS (SELECT 1 FROM queued q WHERE q.item_id = i.id)
+                AND NOT EXISTS (SELECT 1 FROM owned o WHERE o.item_id = i.id)",
+            params![owner],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(count)
+}
+
 /// Deletes an item and everything hanging off it. The membership and
 /// junction rows go via ON DELETE CASCADE.
 #[tauri::command]
 pub fn delete_item(state: State<AppState>, id: String) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     common::assert_item_owned(&db, &id)?;
     db.execute("DELETE FROM items WHERE id = ?1", params![id])
         .map_err(|e| e.to_string())?;
@@ -99,7 +123,7 @@ pub fn delete_item(state: State<AppState>, id: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn attach_tag(state: State<AppState>, item_id: String, tag_id: String) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     common::assert_item_owned(&db, &item_id)?;
     common::assert_tag_owned(&db, &tag_id)?;
     db.execute(
@@ -112,7 +136,7 @@ pub fn attach_tag(state: State<AppState>, item_id: String, tag_id: String) -> Re
 
 #[tauri::command]
 pub fn detach_tag(state: State<AppState>, item_id: String, tag_id: String) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     common::assert_item_owned(&db, &item_id)?;
     common::assert_tag_owned(&db, &tag_id)?;
     db.execute(
@@ -128,7 +152,7 @@ pub fn detach_tag(state: State<AppState>, item_id: String, tag_id: String) -> Re
 /// useful for the importer and for tests.
 #[tauri::command]
 pub fn save_item(state: State<AppState>, item: ItemRecord) -> Result<String, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     let now = today();
     let id = if item.id.is_empty() { new_uuid() } else { item.id.clone() };
     if !item.id.is_empty() {

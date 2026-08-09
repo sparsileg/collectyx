@@ -353,7 +353,8 @@ const TagFormModal = {
     // open() call.
     _bindEvents() {
         if (this._wired) return;
-        this._wired = true;
+        const modal = document.getElementById('tagFormModal');
+        if (!modal) return;
         const nameInput = document.getElementById('tagFormName');
         if (nameInput) {
             nameInput.addEventListener('input', (event) => {
@@ -363,14 +364,12 @@ const TagFormModal = {
         }
         const form = document.getElementById('tagFormForm');
         if (form) form.addEventListener('submit', (event) => this.save(event));
-        const modal = document.getElementById('tagFormModal');
-        if (modal) {
-            modal.addEventListener('click', (event) => {
-                const btn = event.target.closest('[data-action]');
-                if (!btn || !modal.contains(btn)) return;
-                if (btn.dataset.action === 'close') this.close();
-            });
-        }
+        modal.addEventListener('click', (event) => {
+            const btn = event.target.closest('[data-action]');
+            if (!btn || !modal.contains(btn)) return;
+            if (btn.dataset.action === 'close') this.close();
+        });
+        this._wired = true;
     },
 
     _showError(msg) {
@@ -439,7 +438,7 @@ const TagFormModal = {
             await TagsView.refreshAll();
         } catch (e) {
             console.error('TagFormModal.save failed', e);
-            showMessage(e && e.message ? e.message : 'Could not save tag — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
+            showMessage('Could not save tag — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
         }
     }
 };
@@ -453,7 +452,6 @@ const TagDeleteModal = {
 
     _bindEvents() {
         if (this._wired) return;
-        this._wired = true;
         const modal = document.getElementById('tagDeleteModal');
         if (!modal) return;
         modal.addEventListener('click', (event) => {
@@ -463,6 +461,7 @@ const TagDeleteModal = {
             if (action === 'confirm') this.confirm();
             else if (action === 'close') this.close();
         });
+        this._wired = true;
     },
 
     open(tagId) {
@@ -480,7 +479,7 @@ const TagDeleteModal = {
             .slice()
             .sort((a, b) => a.Name.localeCompare(b.Name));
         select.innerHTML = '<option value="">No substitute</option>' +
-            others.map(t => `<option value="${t.id}">${escapeHtml(t.Name)}</option>`).join('');
+            others.map(t => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.Name)}</option>`).join('');
         select.value = '';
 
         document.getElementById('tagDeleteModal').classList.add('open');
@@ -501,7 +500,7 @@ const TagDeleteModal = {
             await TagsView.refreshAll();
         } catch (e) {
             console.error('TagDeleteModal.confirm failed', e);
-            showMessage(e && e.message ? e.message : 'Could not delete tag — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
+            showMessage('Could not delete tag — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
         }
     }
 };

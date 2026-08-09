@@ -23,11 +23,10 @@ const OwnedModal = {
     _wired: false,
     _bindEvents() {
         if (this._wired) return;
-        this._wired = true;
-        const form = document.getElementById('mlForm');
-        if (form) form.addEventListener('submit', (event) => this.save(event));
         const modal = document.getElementById('mlModal');
         if (!modal) return;
+        const form = document.getElementById('mlForm');
+        if (form) form.addEventListener('submit', (event) => this.save(event));
         modal.addEventListener('click', (event) => {
             const btn = event.target.closest('[data-action]');
             if (!btn || !modal.contains(btn)) return;
@@ -35,6 +34,7 @@ const OwnedModal = {
             if (action === 'close') this.close();
             else if (action === 'delete') this.deleteRecord();
         });
+        this._wired = true;
     },
 
     open(recordId, containerId) {

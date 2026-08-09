@@ -63,6 +63,7 @@ fn row_to_record(row: &rusqlite::Row) -> Result<ConsumedRecord> {
             tags: Some(Vec::new()),
             item_date_added: row.get(15)?,
             item_modified: row.get(16)?,
+            client_today: None,
         },
         finished: row.get(9)?,
         rating: row.get(10)?,
@@ -75,7 +76,7 @@ fn row_to_record(row: &rusqlite::Row) -> Result<ConsumedRecord> {
 
 #[tauri::command]
 pub fn get_all_consumed(state: State<AppState>) -> Result<Vec<ConsumedRecord>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
 
     let mut stmt = db.prepare(SELECT_JOINED).map_err(|e| e.to_string())?;
@@ -97,28 +98,34 @@ pub fn get_all_consumed(state: State<AppState>) -> Result<Vec<ConsumedRecord>, S
 }
 
 #[tauri::command]
-pub fn save_consumed(state: State<AppState>, record: ConsumedRecord) -> Result<String, String> {
-    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+pub fn save_consumed(state: State<AppState>, record: ConsumedRecord) -> Result<common::SaveResult, String> {
+    let mut db = common::lock_db(&state.db);
     let tx = db.transaction().map_err(|e| e.to_string())?;
-    let now = today();
+    // COLLECTYX-SEC-37: an interactive save reflects the user's own local
+    // calendar date when the client supplied one; restore (replace_all_*
+    // below) reproduces historical state instead and keeps the server date.
+    let now = common::resolve_today(&record.item.client_today);
 
-    let id = write_one(&tx, &record, &now, true).map_err(|e| e.to_string())?;
+    let (id, item_id) = write_one(&tx, &record, &now, true).map_err(|e| e.to_string())?;
 
     tx.commit().map_err(|e| e.to_string())?;
-    Ok(id)
+    Ok(common::SaveResult { id, item_id })
 }
 
 /// Writes one record's item row, membership row, and tag links. Shared by
 /// save_consumed and replace_all_consumed so both apply identical rules.
 /// bump_modified_on_new_link is true only for the interactive single-save
 /// path — restore reproduces historical state and shouldn't make every
-/// reused tag look like fresh activity.
+/// reused tag look like fresh activity. Returns (membership id, item id) —
+/// the latter lets callers report a real ItemId for a brand-new record
+/// rather than echoing back whatever the caller sent in (COLLECTYX-SEC-39
+/// finding 5).
 fn write_one(
     tx: &rusqlite::Transaction,
     record: &ConsumedRecord,
     now: &str,
     bump_modified_on_new_link: bool,
-) -> Result<String> {
+) -> Result<(String, String)> {
     if let Err(msg) = common::validate_date(&record.finished, "Finished") {
         return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
     }
@@ -169,12 +176,12 @@ fn write_one(
         reconcile_tags(tx, &item_id, &owner, names, now, bump_modified_on_new_link)?;
     }
 
-    Ok(id)
+    Ok((id, item_id))
 }
 
 #[tauri::command]
 pub fn delete_consumed(state: State<AppState>, id: String) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
     // Only the membership row goes; the item may belong to other collections.
     // Scoped through the item join (consumed has no owner column of its
@@ -199,7 +206,7 @@ pub fn replace_all_consumed(
     state: State<AppState>,
     records: Vec<ConsumedRecord>,
 ) -> Result<(), String> {
-    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
     let tx = db.transaction().map_err(|e| e.to_string())?;
     let now = today();

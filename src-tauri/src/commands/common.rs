@@ -208,15 +208,32 @@ pub struct ItemFields {
 
     #[serde(rename = "ItemModified", default)]
     pub item_modified: Option<String>,
+
+    /// The client's own local calendar date (YYYY-MM-DD), attached by
+    /// db-manager-tauri.js on every write via MediaLabels.todayISO()
+    /// (COLLECTYX-SEC-37). Rust's own today() is UTC by construction —
+    /// for a user east of UTC that can date a record a day earlier than
+    /// what they see on screen. Preferred over the server date when
+    /// present and well-formed; see resolve_today().
+    #[serde(rename = "ClientToday", default)]
+    pub client_today: Option<String>,
 }
 
-/// Today's date in the YYYY-MM-DD storage format.
+/// Today's date in the YYYY-MM-DD storage format, in UTC. Prefer
+/// `resolve_today()` for anything that should reflect the user's local
+/// calendar date (COLLECTYX-SEC-37) — this is the server-side fallback,
+/// used when no client-supplied date is available (an old client, or a
+/// bare Rust-side caller like the importer).
 pub fn today() -> String {
     // Avoids pulling in chrono for one formatting call.
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
+        // A failure here means SystemTime::now() is before the UNIX epoch
+        // — the clock is broken. Previously this silently produced
+        // 1970-01-01, a plausible-looking wrong date; failing loudly is
+        // safer for something that stamps every row's date_added/modified.
+        .expect("today(): system clock is set before the UNIX epoch");
     let days = secs / 86_400;
 
     // Civil-from-days (Howard Hinnant's algorithm), epoch 1970-01-01.
@@ -232,6 +249,21 @@ pub fn today() -> String {
     let y = if m <= 2 { y + 1 } else { y };
 
     format!("{:04}-{:02}-{:02}", y, m, d)
+}
+
+/// Resolves the date to stamp date_added/modified with: the client's own
+/// local calendar date when present and well-formed, otherwise the
+/// server's UTC calculation (COLLECTYX-SEC-37). A malformed client_today
+/// (clock skew, a tampered payload) falls back rather than being trusted
+/// or rejecting the whole save — this is a display-quality date, not a
+/// security-relevant one.
+pub fn resolve_today(client_today: &Option<String>) -> String {
+    if let Some(d) = client_today {
+        if validate_date(d, "ClientToday").is_ok() {
+            return d.clone();
+        }
+    }
+    today()
 }
 
 pub fn owner_or_default(owner: &Option<String>, fallback: &str) -> String {
@@ -518,6 +550,35 @@ pub fn tags_by_item(
         map.entry(item_id).or_default().push(name);
     }
     Ok(map)
+}
+
+/// Returned by each collection's save_* command. Web's saveCollectionRecord
+/// always returns a real ItemId, minting one up front for a new record;
+/// Tauri previously echoed back whatever ItemId the caller sent in — null
+/// for a new record, since the caller doesn't know it yet. Both backends
+/// now return the same shape (COLLECTYX-SEC-39 finding 5).
+#[derive(Debug, Serialize)]
+pub struct SaveResult {
+    pub id: String,
+    #[serde(rename = "itemId")]
+    pub item_id: String,
+}
+
+/// Locks the shared connection, recovering the guard even if a prior panic
+/// poisoned it. Without this, one panic while a command holds the lock
+/// disables every subsequent command for the life of the process
+/// (COLLECTYX-SEC-38 item 6) — returning an error rather than panicking
+/// was already the right call for individual commands, but a poisoned
+/// `Mutex` still needs an explicit recovery, since `.lock()` itself starts
+/// erroring once poisoned. The connection is not left in a broken state by
+/// a panic in Rust; only the guard's poison flag needs clearing.
+pub fn lock_db(
+    mutex: &std::sync::Mutex<rusqlite::Connection>,
+) -> std::sync::MutexGuard<'_, rusqlite::Connection> {
+    mutex.lock().unwrap_or_else(|poisoned| {
+        log::warn!("lock_db: recovering a poisoned database lock");
+        poisoned.into_inner()
+    })
 }
 
 /// UUID v4, sourced from the OS CSPRNG via the `uuid` crate.

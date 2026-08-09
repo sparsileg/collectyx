@@ -30,11 +30,10 @@ const ConsumedModal = {
     _wired: false,
     _bindEvents() {
         if (this._wired) return;
-        this._wired = true;
-        const form = document.getElementById('cbrForm');
-        if (form) form.addEventListener('submit', (event) => this.save(event));
         const modal = document.getElementById('cbrModal');
         if (!modal) return;
+        const form = document.getElementById('cbrForm');
+        if (form) form.addEventListener('submit', (event) => this.save(event));
         modal.addEventListener('click', (event) => {
             const btn = event.target.closest('[data-action]');
             if (!btn || !modal.contains(btn)) return;
@@ -42,6 +41,7 @@ const ConsumedModal = {
             if (action === 'close') this.close();
             else if (action === 'delete') this.deleteRecord();
         });
+        this._wired = true;
     },
 
     // prefill: optional { Title, Author, ItemId } — used by the To Be Read

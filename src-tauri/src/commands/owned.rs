@@ -63,6 +63,7 @@ fn row_to_record(row: &rusqlite::Row) -> Result<OwnedRecord> {
             tags: Some(Vec::new()),
             item_date_added: row.get(15)?,
             item_modified: row.get(16)?,
+            client_today: None,
         },
         location: row.get(9)?,
         patron: row.get(10)?,
@@ -75,7 +76,7 @@ fn row_to_record(row: &rusqlite::Row) -> Result<OwnedRecord> {
 
 #[tauri::command]
 pub fn get_all_owned(state: State<AppState>) -> Result<Vec<OwnedRecord>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
 
     let mut stmt = db.prepare(SELECT_JOINED).map_err(|e| e.to_string())?;
@@ -97,18 +98,18 @@ pub fn get_all_owned(state: State<AppState>) -> Result<Vec<OwnedRecord>, String>
 }
 
 #[tauri::command]
-pub fn save_owned(state: State<AppState>, record: OwnedRecord) -> Result<String, String> {
-    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+pub fn save_owned(state: State<AppState>, record: OwnedRecord) -> Result<common::SaveResult, String> {
+    let mut db = common::lock_db(&state.db);
     let tx = db.transaction().map_err(|e| e.to_string())?;
-    let now = today();
+    let now = common::resolve_today(&record.item.client_today);
 
-    let id = write_one(&tx, &record, &now, true).map_err(|e| e.to_string())?;
+    let (id, item_id) = write_one(&tx, &record, &now, true).map_err(|e| e.to_string())?;
 
     tx.commit().map_err(|e| e.to_string())?;
-    Ok(id)
+    Ok(common::SaveResult { id, item_id })
 }
 
-fn write_one(tx: &rusqlite::Transaction, record: &OwnedRecord, now: &str, bump_modified_on_new_link: bool) -> Result<String> {
+fn write_one(tx: &rusqlite::Transaction, record: &OwnedRecord, now: &str, bump_modified_on_new_link: bool) -> Result<(String, String)> {
     if let Err(msg) = common::validate_short_text(&record.location, "Location") {
         return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
     }
@@ -166,12 +167,12 @@ fn write_one(tx: &rusqlite::Transaction, record: &OwnedRecord, now: &str, bump_m
         reconcile_tags(tx, &item_id, &owner, names, now, bump_modified_on_new_link)?;
     }
 
-    Ok(id)
+    Ok((id, item_id))
 }
 
 #[tauri::command]
 pub fn delete_owned(state: State<AppState>, id: String) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
     let affected = db
         .execute(
@@ -191,7 +192,7 @@ pub fn replace_all_owned(
     state: State<AppState>,
     records: Vec<OwnedRecord>,
 ) -> Result<(), String> {
-    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
     let tx = db.transaction().map_err(|e| e.to_string())?;
     let now = today();

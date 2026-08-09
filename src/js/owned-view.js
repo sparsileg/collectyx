@@ -111,6 +111,20 @@ const OwnedView = {
 
         try {
             const queuedData = await DBManager.getCollection('queued');
+
+            // Authoritative check against a fresh fetch, not the render-time
+            // isQueuedFromLibrary() hint — that reads CollectionView's
+            // local cache, which is empty on a cold start straight into My
+            // Library (COLLECTYX-SEC-39 finding 2). Without this, "To
+            // Read" on an already-queued book silently created a second
+            // queued row against the same item.
+            const alreadyQueued = queuedData.some(r => r.ItemId === record.ItemId && r.Source === 'My Library');
+            if (alreadyQueued) {
+                showMessage(`Already in ${MediaLabels.QueuedLabel}`, CONSTANTS.MESSAGE_TYPES.INFO);
+                await this.refreshAll();
+                return;
+            }
+
             const maxRank = queuedData.reduce((max, r) => (r.Rank != null && r.Rank > max ? r.Rank : max), 0);
 
             // saveCollectionRecord no longer writes Rank — reorderQueued
@@ -138,16 +152,16 @@ const OwnedView = {
     _checkoutWired: false,
     _bindCheckoutEvents() {
         if (this._checkoutWired) return;
-        this._checkoutWired = true;
-        const form = document.getElementById('checkoutForm');
-        if (form) form.addEventListener('submit', (event) => this.confirmCheckout(event));
         const modal = document.getElementById('checkoutModal');
         if (!modal) return;
+        const form = document.getElementById('checkoutForm');
+        if (form) form.addEventListener('submit', (event) => this.confirmCheckout(event));
         modal.addEventListener('click', (event) => {
             const btn = event.target.closest('[data-action]');
             if (!btn || !modal.contains(btn)) return;
             if (btn.dataset.action === 'close') this.closeCheckout();
         });
+        this._checkoutWired = true;
     },
 
     openCheckout(recordId, containerId) {

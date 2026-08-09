@@ -8,6 +8,20 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     let mut version = get_schema_version(conn)?;
     log::info!("Database schema version: {}", version);
 
+    // A binary at CURRENT_SCHEMA_VERSION opening a database written by a
+    // newer build must refuse outright rather than proceed against a
+    // schema it doesn't understand — the shape that corrupts data on a
+    // downgrade or a sync rollback (COLLECTYX-SEC-38 item 4). No migration
+    // runs in this case.
+    if version > CURRENT_SCHEMA_VERSION {
+        panic!(
+            "{} database schema version {} is newer than this build supports (expected {}). \
+             Refusing to run migrations — use a newer build, or restore from a backup \
+             compatible with this version.",
+            APP_NAME, version, CURRENT_SCHEMA_VERSION
+        );
+    }
+
     if version < 1 {
         migrate_v1(conn)?;
         version = 1;
@@ -80,12 +94,21 @@ fn migrate_v2(conn: &Connection) -> Result<()> {
 }
 
 fn get_schema_version(conn: &Connection) -> Result<u32> {
-    let version: u32 = conn.query_row(
+    // SQLite stores user_version as a signed 32-bit integer; reading it
+    // directly as u32 fails with an opaque conversion error on a negative
+    // value instead of a clear message (COLLECTYX-SEC-38 item 4).
+    let version: i64 = conn.query_row(
         "PRAGMA user_version",
         [],
         |row| row.get(0),
     )?;
-    Ok(version)
+    if version < 0 {
+        panic!(
+            "{} database schema version is negative ({}) — the database file is corrupt",
+            APP_NAME, version
+        );
+    }
+    Ok(version as u32)
 }
 
 /// Returns the current schema version constant for reference.

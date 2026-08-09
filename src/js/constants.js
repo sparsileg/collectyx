@@ -133,6 +133,13 @@ const CONSTANTS = {
         TOP_TAGS: 7
     },
 
+    // Rejected before any read — a CSV import or restore file beyond this
+    // is almost certainly not a legitimate personal library/backup, and
+    // reading it whole into memory (file.text()/file.arrayBuffer()) with
+    // no limit is a memory-exhaustion vector; pako.ungzip on an
+    // unbounded .gz compounds it (COLLECTYX-SEC-38 item 7).
+    MAX_IMPORT_FILE_BYTES: 50 * 1024 * 1024,
+
     // Backend write-time validation limits (COLLECTYX-SEC-30). Must match
     // src-tauri/src/commands/common.rs's constants — both backends enforce
     // the same rules on the same input.

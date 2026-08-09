@@ -72,6 +72,7 @@ fn row_to_record(row: &rusqlite::Row) -> Result<QueuedRecord> {
             tags: Some(Vec::new()),
             item_date_added: row.get(14)?,
             item_modified: row.get(15)?,
+            client_today: None,
         },
         rank: row.get(9)?,
         source: row.get(10)?,
@@ -84,7 +85,7 @@ fn row_to_record(row: &rusqlite::Row) -> Result<QueuedRecord> {
 
 #[tauri::command]
 pub fn get_all_queued(state: State<AppState>) -> Result<Vec<QueuedRecord>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
 
     let mut stmt = db.prepare(SELECT_JOINED).map_err(|e| e.to_string())?;
@@ -106,15 +107,15 @@ pub fn get_all_queued(state: State<AppState>) -> Result<Vec<QueuedRecord>, Strin
 }
 
 #[tauri::command]
-pub fn save_queued(state: State<AppState>, record: QueuedRecord) -> Result<String, String> {
-    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+pub fn save_queued(state: State<AppState>, record: QueuedRecord) -> Result<common::SaveResult, String> {
+    let mut db = common::lock_db(&state.db);
     let tx = db.transaction().map_err(|e| e.to_string())?;
-    let now = today();
+    let now = common::resolve_today(&record.item.client_today);
 
-    let id = write_one(&tx, &record, &now, true, false).map_err(|e| e.to_string())?;
+    let (id, item_id) = write_one(&tx, &record, &now, true, false).map_err(|e| e.to_string())?;
 
     tx.commit().map_err(|e| e.to_string())?;
-    Ok(id)
+    Ok(common::SaveResult { id, item_id })
 }
 
 /// apply_rank controls whether record.rank is written to the "rank" column
@@ -124,7 +125,7 @@ pub fn save_queued(state: State<AppState>, record: QueuedRecord) -> Result<Strin
 /// Restore (replace_all_queued) is the one caller that must honor the
 /// incoming rank verbatim, since it is reproducing exact prior state, not
 /// performing a live reorder.
-fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_modified_on_new_link: bool, apply_rank: bool) -> Result<String> {
+fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_modified_on_new_link: bool, apply_rank: bool) -> Result<(String, String)> {
     if let Err(msg) = common::validate_short_text(&record.source, "Source") {
         return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
     }
@@ -183,12 +184,12 @@ fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_
         reconcile_tags(tx, &item_id, &owner, names, now, bump_modified_on_new_link)?;
     }
 
-    Ok(id)
+    Ok((id, item_id))
 }
 
 #[tauri::command]
 pub fn delete_queued(state: State<AppState>, id: String) -> Result<(), String> {
-    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
     let tx = db.transaction().map_err(|e| e.to_string())?;
 
@@ -240,7 +241,7 @@ pub fn reorder_queued(
     id: String,
     new_rank: Option<i64>,
 ) -> Result<(), String> {
-    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
     let tx = db.transaction().map_err(|e| e.to_string())?;
 
@@ -312,7 +313,7 @@ pub fn toggle_currently_reading(
     id: String,
     value: bool,
 ) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
     let now = today();
     let affected = db
@@ -333,7 +334,7 @@ pub fn replace_all_queued(
     state: State<AppState>,
     records: Vec<QueuedRecord>,
 ) -> Result<(), String> {
-    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
     let tx = db.transaction().map_err(|e| e.to_string())?;
     let now = today();
