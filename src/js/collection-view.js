@@ -98,6 +98,7 @@ const CollectionView = {
             <div class="collection-view-header">
                 <h2>${escapeHtml(this._labelFor(state.collection))}
                     <span class="search-icon" data-action="toggle-search">🔍</span>
+                    <span class="match-count" id="${containerId}-match-count"></span>
                 </h2>
                 <button type="button" class="btn btn-primary collection-add-btn" data-action="add">Add</button>
             </div>
@@ -124,10 +125,13 @@ const CollectionView = {
             if (!q) return true;
             if (isTagSearch) {
                 if (!tagQuery) return true;
-                return (r.Tags || []).some(t => t.toLowerCase().includes(tagQuery));
+                return (r.Tags || []).some(t => t.toLowerCase() === tagQuery);
             }
             return (r.Title || '').toLowerCase().includes(q) || (r.Author || '').toLowerCase().includes(q);
         });
+
+        const countEl = document.getElementById(`${containerId}-match-count`);
+        if (countEl) countEl.textContent = q ? `(${rows.length} matches)` : '';
 
         if (rows.length === 0) {
             list.innerHTML = `<div class="collection-list-empty">${state.data.length === 0 ? 'Nothing here yet.' : 'No matches.'}</div>`;
