@@ -26,3 +26,11 @@ uuid        = { version = "1", features = ["v4"] }
 tauri                = { version = "2.11.3", features = ["devtools"] }
 tauri-plugin-dialog  = "2"
 tauri-plugin-log     = "2"
+
+[features]
+default = []
+# Gates set_app_meta (current_owner switch, #59 / CTX-SEC-109). Off by
+# default so a shipped build cannot switch owners via IPC at all. Must be
+# combined with ENABLE_OWNER_TEST_SWITCH: true in src/js/constants.js —
+# that flag alone only hides the UI button, it does not gate the command.
+owner-test-switch = []

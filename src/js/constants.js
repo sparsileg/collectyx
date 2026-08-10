@@ -16,7 +16,11 @@ const CONSTANTS = {
 
     // Gates the Settings → "Owner (Testing)" switch (COLLECTYX-SEC-35).
     // Default false so the control does not ship in a normal build; flip
-    // to true locally to exercise owner-scoping.
+    // to true locally to exercise owner-scoping. This flag hides/shows
+    // the UI button only — it does NOT gate the Rust command. The
+    // set_app_meta command itself is only registered when the Tauri
+    // build has the `owner-test-switch` Cargo feature enabled (#59 /
+    // CTX-SEC-109). Both must be on for the switch to work at all.
     ENABLE_OWNER_TEST_SWITCH: false,
 
     // Object stores (web) / tables (Tauri). Names match the SQL tables

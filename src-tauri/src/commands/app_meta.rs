@@ -22,6 +22,11 @@ const ALLOWED_KEYS: &[&str] = &["current_owner"];
 // cap is the right ceiling. common.rs's own validation consts weren't
 // available this session to import directly; keep this in sync by hand
 // until that's confirmed.
+//
+// Only used by set_app_meta, which is itself feature-gated (#59 /
+// CTX-SEC-109) — cfg matches so this doesn't warn as dead code in a
+// default build.
+#[cfg(feature = "owner-test-switch")]
 const APP_META_VALUE_MAX: usize = 500;
 
 #[tauri::command]
@@ -44,6 +49,7 @@ pub fn get_app_meta(state: State<AppState>, key: String) -> Result<Option<String
 }
 
 #[tauri::command]
+#[cfg(feature = "owner-test-switch")]
 pub fn set_app_meta(state: State<AppState>, key: String, value: String) -> Result<(), String> {
     if !ALLOWED_KEYS.contains(&key.as_str()) {
         return Err(format!("Unknown app_meta key \"{}\"", key));
