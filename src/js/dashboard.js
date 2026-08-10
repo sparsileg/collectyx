@@ -352,13 +352,13 @@ async function loadDashboardOrder() {
     const dashboardGrid = document.querySelector('.dashboard-grid');
     if (!dashboardGrid) return false;
 
-    const cardMap = {};
+    const cardMap = Object.create(null);
     dashboardGrid.querySelectorAll('.dashboard-card').forEach(card => {
         cardMap[card.id] = card;
     });
 
     savedOrder.forEach(cardId => {
-        if (cardMap[cardId]) {
+        if (DASHBOARD_CONSTANTS.DEFAULT_ORDER.includes(cardId) && cardMap[cardId]) {
             dashboardGrid.appendChild(cardMap[cardId]);
         }
     });

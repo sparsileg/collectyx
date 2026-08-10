@@ -17,7 +17,13 @@ window.onload = async function () {
 
     // Dashboard is the default active view and showView() is never called
     // for the initial load, so it's rendered directly here.
-    if (typeof renderDashboard === 'function') await renderDashboard();
+    if (typeof renderDashboard === 'function') {
+        try {
+            await renderDashboard();
+        } catch (e) {
+            console.error('renderDashboard failed:', e);
+        }
+    }
 
     const versionDisplay = document.getElementById('appVersionDisplay');
     if (versionDisplay) {
