@@ -191,9 +191,18 @@ async function selectTheme(themePath, label) {
 // ── Font-size stepper ─────────────────────────────────────────────────────────
 
 function applyFontSize(pct) {
-    document.documentElement.style.fontSize = pct + '%';
+    // adjustFontSize() already clamps before saving, but a value read
+    // straight from settings (restore, corrupted DB, direct edit) skips
+    // that write-side clamp and reaches here raw — clamp on read too so an
+    // out-of-range value can't drive document.documentElement's font-size
+    // CSS sink arbitrarily (CTX-SEC-111 / #61).
+    const clamped = Math.min(
+        SIDEBAR_CONSTANTS.FONT_SIZE.MAX,
+        Math.max(SIDEBAR_CONSTANTS.FONT_SIZE.MIN, Number(pct) || SIDEBAR_CONSTANTS.FONT_SIZE.DEFAULT)
+    );
+    document.documentElement.style.fontSize = clamped + '%';
     const valueEl = document.getElementById('font-size-value');
-    if (valueEl) valueEl.textContent = pct + '%';
+    if (valueEl) valueEl.textContent = clamped + '%';
 }
 
 async function adjustFontSize(direction) {

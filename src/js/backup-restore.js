@@ -452,7 +452,25 @@ const BackupRestore = {
             // or malicious backup could otherwise redirect where future
             // backups get written (CTX-SEC-101). Every other setting
             // restores normally.
-            const { backupFolder, ...restoredSettings } = data.Settings;
+            //
+            // Beyond that one field, restore an explicit allow-list rather
+            // than the object as-is — a corrupted or malicious Settings
+            // blob otherwise reaches saveSettings() verbatim and drives a
+            // CSS sink (fontSize), a DOM update (dashboardCardOrder), or
+            // an unknown key nothing here has ever validated (CTX-SEC-111
+            // / #61). Any key not in this list is silently dropped, not
+            // logged — it was never a real setting to begin with.
+            const ALLOWED_SETTINGS_KEYS = [
+                'dailyReadingGoal',
+                'dateFormat',
+                'fontSize',
+                'displayTheme',
+                'dashboardCardOrder'
+            ];
+            const restoredSettings = {};
+            ALLOWED_SETTINGS_KEYS.forEach(key => {
+                if (data.Settings[key] !== undefined) restoredSettings[key] = data.Settings[key];
+            });
             await DBManager.saveSettings(restoredSettings);
         }
     },

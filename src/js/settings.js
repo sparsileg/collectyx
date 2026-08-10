@@ -21,6 +21,7 @@ const SettingsModal = {
             const action = btn.dataset.action;
             if (action === 'browse-folder') this.browseBackupFolder();
             else if (action === 'clear-folder') this.clearBackupFolder();
+            else if (action === 'reset') this.reset();
             else if (action === 'open-owner-test') {
                 if (CONSTANTS.ENABLE_OWNER_TEST_SWITCH) OwnerTestModal.open();
             }
@@ -80,6 +81,34 @@ const SettingsModal = {
 
     clearBackupFolder() {
         document.getElementById('settingsBackupFolder').value = '';
+    },
+
+    // In-app recovery path for a corrupted settings blob — previously
+    // there was no way back short of editing the DB by hand. Writes an
+    // empty object rather than a hand-built defaults object: every reader
+    // (this modal's own open(), applyFontSize(), loadTheme(),
+    // loadDashboardOrder()) already falls back to its own named constant
+    // when a key is absent, so {} is the real default state, not a
+    // duplicate of those constants (CTX-SEC-111 / #61).
+    async reset() {
+        const ok = await Confirm.open(
+            'Reset all settings to their defaults? This clears theme, font size, daily goal, date format, backup folder, and dashboard card order.',
+            'Reset'
+        );
+        if (!ok) return;
+
+        try {
+            await DBManager.saveSettings({});
+            this.close();
+            showMessage('Settings reset to defaults', CONSTANTS.MESSAGE_TYPES.SUCCESS);
+            // Visible effects (theme, font size) need a reload the same
+            // way OwnerTestModal.save() already does — both touch state
+            // that's applied once at startup, not re-read reactively.
+            setTimeout(() => window.location.reload(), 600);
+        } catch (e) {
+            console.error('SettingsModal.reset failed', e);
+            showMessage('Could not reset settings — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
+        }
     },
 
     async save(event) {
