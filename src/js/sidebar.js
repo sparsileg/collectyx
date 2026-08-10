@@ -198,10 +198,12 @@ function applyFontSize(pct) {
 
 async function adjustFontSize(direction) {
     let current = {};
+    let loaded = true;
     try {
         current = await DBManager.getSettings() || {};
     } catch (e) {
         console.error('adjustFontSize: could not load settings', e);
+        loaded = false;
     }
     const currentSize = current.fontSize || SIDEBAR_CONSTANTS.FONT_SIZE.DEFAULT;
     const next = Math.min(
@@ -209,6 +211,11 @@ async function adjustFontSize(direction) {
         Math.max(SIDEBAR_CONSTANTS.FONT_SIZE.MIN, currentSize + direction * SIDEBAR_CONSTANTS.FONT_SIZE.STEP)
     );
     applyFontSize(next);
+    // A failed load means `current` is an empty stand-in, not the real
+    // settings object — saving onto it would silently blank every other
+    // stored setting (CTX-SEC-110 / #60). The visual size change above
+    // still applies; only persistence is skipped.
+    if (!loaded) return;
     try {
         await DBManager.saveSettings({ ...current, fontSize: next });
     } catch (e) {

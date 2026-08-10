@@ -86,10 +86,16 @@ const SettingsModal = {
         event.preventDefault();
 
         let current = {};
+        let loaded = true;
         try {
             current = await DBManager.getSettings() || {};
         } catch (e) {
             console.error('SettingsModal.save: could not load current settings', e);
+            loaded = false;
+        }
+        if (!loaded) {
+            showMessage('Could not read current settings — refusing to overwrite them.', CONSTANTS.MESSAGE_TYPES.ERROR);
+            return;
         }
 
         const goalInput = document.getElementById('settingsDailyGoal').value;

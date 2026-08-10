@@ -10,7 +10,7 @@ use crate::AppState;
 /// null if not yet set.
 #[tauri::command]
 pub fn get_settings(state: State<AppState>) -> Result<Option<String>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
     let result = db.query_row(
         "SELECT data FROM settings WHERE owner = ?1",
@@ -29,7 +29,7 @@ pub fn get_settings(state: State<AppState>) -> Result<Option<String>, String> {
 /// primary key rather than Scriptum's fixed 'app-settings' row id.
 #[tauri::command]
 pub fn save_settings(state: State<AppState>, data: String) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
     db.execute(
         "INSERT INTO settings (owner, data) VALUES (?1, ?2)

@@ -231,11 +231,15 @@ pub fn today() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
-        // A failure here means SystemTime::now() is before the UNIX epoch
-        // — the clock is broken. Previously this silently produced
-        // 1970-01-01, a plausible-looking wrong date; failing loudly is
-        // safer for something that stamps every row's date_added/modified.
-        .expect("today(): system clock is set before the UNIX epoch");
+        // A broken clock (before the UNIX epoch) must not panic while this
+        // runs with the database lock held (CTX-SEC-110 / #60) — a panic
+        // here poisons the mutex and, pre-#60, permanently broke
+        // get_settings/save_settings/get_all_media_types for the rest of
+        // the process. Fall back to the epoch and log loudly instead.
+        .unwrap_or_else(|_| {
+            log::error!("today(): system clock is set before the UNIX epoch; using 1970-01-01");
+            0
+        });
     let days = secs / 86_400;
 
     // Civil-from-days (Howard Hinnant's algorithm), epoch 1970-01-01.

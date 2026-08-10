@@ -8,6 +8,7 @@ use rusqlite::Result;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::commands::common;
 use crate::AppState;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -29,7 +30,7 @@ pub struct MediaType {
 
 #[tauri::command]
 pub fn get_all_media_types(state: State<AppState>) -> Result<Vec<MediaType>, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
 
     let mut stmt = db
         .prepare(

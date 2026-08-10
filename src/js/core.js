@@ -295,8 +295,25 @@ async function loadTheme() {
 async function changeTheme(themePath) {
     const themeLink = document.getElementById('themeLink');
     themeLink.href = themePath;
-    const current = await DBManager.getSettings() || {};
-    await DBManager.saveSettings({ ...current, displayTheme: themePath });
+    let current = {};
+    let loaded = true;
+    try {
+        current = await DBManager.getSettings() || {};
+    } catch (e) {
+        console.error('changeTheme: could not load settings', e);
+        loaded = false;
+    }
+    // Same rule as sidebar.js's adjustFontSize (CTX-SEC-110 / #60): a
+    // failed load means `current` is an empty stand-in, not the real
+    // settings object. The visual theme switch above still applies;
+    // persistence is skipped so other stored settings aren't blanked.
+    if (loaded) {
+        try {
+            await DBManager.saveSettings({ ...current, displayTheme: themePath });
+        } catch (e) {
+            console.error('changeTheme: could not save settings', e);
+        }
+    }
 
     if (document.getElementById('statisticsView').classList.contains('active')) {
         if (typeof destroyCharts === 'function') destroyCharts();
