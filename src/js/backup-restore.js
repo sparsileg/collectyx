@@ -110,6 +110,25 @@ const BackupRestore = {
             }
         }
 
+        // Every referenced ItemId must be present in Items[] — a membership
+        // row pointing at an item the file does not carry cannot be
+        // restored, and this must be caught before _wipeAll() runs, not
+        // after (CTX-SEC-112 / #62 fix 3). This is independent of the
+        // owner-mismatch failure #52 already closed — a dangling ItemId
+        // fails replaceCollection() for a different reason and hits the
+        // same wipe-then-rollback exposure.
+        const itemIds = new Set((data.Items || []).map(i => i.id).filter(Boolean));
+        for (const key of ['Consumed', 'Queued', 'Owned']) {
+            const rows = data[key];
+            if (!Array.isArray(rows)) continue;
+            for (let i = 0; i < rows.length; i++) {
+                const ref = rows[i].ItemId;
+                if (ref && !itemIds.has(ref)) {
+                    return `${key}[${i}] references ItemId "${ref}", which is not in Items`;
+                }
+            }
+        }
+
         if (data.Tags !== undefined) {
             if (this._typeName(data.Tags) !== 'array') {
                 return `Tags must be an array, got ${this._typeName(data.Tags)}`;
