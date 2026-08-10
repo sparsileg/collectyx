@@ -17,7 +17,23 @@ pub struct AppState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    // Second launch attempt is redirected into the running instance and
+    // focuses its window instead of opening a second SQLite connection
+    // against the same file — a second process writing concurrently is
+    // the root cause of the SQLITE_BUSY exposure (CTX-SEC-113 / #63).
+    // Desktop-only; the plugin does not target mobile.
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
+        }));
+    }
+
+    let builder = builder
         .setup(|app| {
             // Logging (debug builds only)
             if cfg!(debug_assertions) {

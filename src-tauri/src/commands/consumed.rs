@@ -215,7 +215,10 @@ pub fn replace_all_consumed(
 ) -> Result<(), String> {
     let mut db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
-    let tx = db.transaction().map_err(|e| e.to_string())?;
+    // Whole-collection delete + rewrite, restore's worst-case write
+    // contention path — Immediate for the same reason as queued.rs's
+    // delete_queued (CTX-SEC-113 / #63).
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
     let now = today();
 
     tx.execute(

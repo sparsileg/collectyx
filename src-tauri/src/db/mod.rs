@@ -20,6 +20,13 @@ pub fn open_db(_app: &AppHandle) -> Result<Connection> {
 
     let conn = Connection::open(&db_path)?;
 
+    // Waits up to 5s for a lock instead of failing immediately with
+    // SQLITE_BUSY — the default is 0. Doesn't replace the single-instance
+    // guard (lib.rs), which prevents the concurrent-writer case outright;
+    // this is a second layer for any write contention that guard doesn't
+    // cover, e.g. WAL checkpointing (CTX-SEC-113 / #63).
+    conn.busy_timeout(std::time::Duration::from_secs(5))?;
+
     // Performance and reliability pragmas
     conn.execute_batch("
         PRAGMA journal_mode = WAL;

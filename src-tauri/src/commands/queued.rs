@@ -198,7 +198,12 @@ fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_
 pub fn delete_queued(state: State<AppState>, id: String) -> Result<(), String> {
     let mut db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
-    let tx = db.transaction().map_err(|e| e.to_string())?;
+    // Immediate, not the default Deferred — this reads deleted_rank then
+    // writes based on it. Deferred would escalate to a write lock only at
+    // the first write, risking SQLITE_BUSY mid-transaction after the read
+    // already happened; Immediate takes the write lock upfront instead
+    // (CTX-SEC-113 / #63).
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
 
     let deleted_rank: Option<i64> = tx
         .query_row(
@@ -250,7 +255,9 @@ pub fn reorder_queued(
 ) -> Result<(), String> {
     let mut db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
-    let tx = db.transaction().map_err(|e| e.to_string())?;
+    // Reads old_rank then writes shifted rows based on it — same reasoning
+    // as delete_queued above (CTX-SEC-113 / #63).
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
 
     let old_rank: Option<i64> = tx
         .query_row(
@@ -343,7 +350,10 @@ pub fn replace_all_queued(
 ) -> Result<(), String> {
     let mut db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
-    let tx = db.transaction().map_err(|e| e.to_string())?;
+    // Whole-collection delete + rewrite, restore's worst-case write
+    // contention path — Immediate for the same reason as delete_queued
+    // above (CTX-SEC-113 / #63).
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
     let now = today();
 
     tx.execute(
