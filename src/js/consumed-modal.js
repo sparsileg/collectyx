@@ -34,6 +34,16 @@ const ConsumedModal = {
         if (!modal) return;
         const form = document.getElementById('cbrForm');
         if (form) form.addEventListener('submit', (event) => this.save(event));
+        const finishedEl = document.getElementById('cbrFinished');
+        if (finishedEl) {
+            finishedEl.addEventListener('input', () => finishedEl.setCustomValidity(''));
+            finishedEl.addEventListener('invalid', () => {
+                if (finishedEl.validity.valueMissing) {
+                    const format = CollectionView._dateFormat();
+                    finishedEl.setCustomValidity(`Finished date is required — use ${DateUtils.placeholderFor(format)}`);
+                }
+            });
+        }
         modal.addEventListener('click', (event) => {
             const btn = event.target.closest('[data-action]');
             if (!btn || !modal.contains(btn)) return;
@@ -42,6 +52,20 @@ const ConsumedModal = {
             else if (action === 'delete') this.deleteRecord();
         });
         this._wired = true;
+    },
+
+    _showError(msg) {
+        const el = document.getElementById('cbrModalError');
+        if (!el) return;
+        el.textContent = msg;
+        el.style.display = '';
+    },
+
+    _clearError() {
+        const el = document.getElementById('cbrModalError');
+        if (!el) return;
+        el.textContent = '';
+        el.style.display = 'none';
     },
 
     // prefill: optional { Title, Author, ItemId } — used by the To Be Read
@@ -56,6 +80,7 @@ const ConsumedModal = {
             itemId: record ? record.ItemId : ((prefill && prefill.ItemId) || null)
         };
         this._onSaved = onSaved || null;
+        this._clearError();
 
         const format = CollectionView._dateFormat();
 
@@ -86,7 +111,9 @@ const ConsumedModal = {
         // Default to today when adding — whether from scratch or pre-filled
         // from a To Be Read item, this is still a new Books Read entry.
         const finishedIso = record ? record.Finished : MediaLabels.todayISO();
-        document.getElementById('cbrFinished').value = DateUtils.formatDate(finishedIso, format);
+        const finishedEl = document.getElementById('cbrFinished');
+        finishedEl.value = DateUtils.formatDate(finishedIso, format);
+        finishedEl.setCustomValidity('');
 
         document.getElementById('cbrRating').innerHTML = RatingUtils.optionsHtml(record ? record.Rating : null);
         document.getElementById('cbrComments').value = record ? (record.Comments || '') : '';
@@ -108,12 +135,19 @@ const ConsumedModal = {
         const format = CollectionView._dateFormat();
 
         const title = document.getElementById('cbrTitle').value.trim();
-        if (!title) { showMessage('Title is required.', CONSTANTS.MESSAGE_TYPES.ERROR); return; }
+        if (!title) {
+            showMessage('Title is required.', CONSTANTS.MESSAGE_TYPES.ERROR);
+            this._showError('Title is required.');
+            return;
+        }
 
-        const finishedInput = document.getElementById('cbrFinished').value;
+        const finishedEl = document.getElementById('cbrFinished');
+        const finishedInput = finishedEl.value;
         const finished = DateUtils.parseDateInput(finishedInput, format);
-        if (finishedInput && !finished) {
-            showMessage(`Invalid date — please use ${DateUtils.placeholderFor(format)}`, CONSTANTS.MESSAGE_TYPES.ERROR);
+        if (!finished) {
+            finishedEl.value = '';
+            finishedEl.setCustomValidity(`Incorrect format. Use ${DateUtils.placeholderFor(format)}`);
+            finishedEl.reportValidity();
             return;
         }
 
@@ -140,6 +174,7 @@ const ConsumedModal = {
         } catch (e) {
             console.error('ConsumedModal.save failed', e);
             showMessage('Could not save — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
+            this._showError('Could not save — see console for details');
         }
     },
 
@@ -156,6 +191,7 @@ const ConsumedModal = {
         } catch (e) {
             console.error('ConsumedModal.deleteRecord failed', e);
             showMessage('Could not delete — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
+            this._showError('Could not delete — see console for details');
         }
     }
 };

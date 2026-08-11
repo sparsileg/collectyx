@@ -227,10 +227,11 @@
       <div id="cbrModal" class="modal">
         <div class="modal-content modal-content-wide">
           <h3 id="cbrModalTitle">Add</h3>
+          <div class="modal-error" id="cbrModalError" style="display: none;"></div>
           <form id="cbrForm">
             <div class="form-group">
               <label for="cbrFinished">Finished:</label>
-              <input type="text" id="cbrFinished" maxlength="10">
+              <input type="text" id="cbrFinished" maxlength="10" required>
             </div>
             <div class="form-group">
               <label for="cbrTitle">Title:</label>
@@ -299,6 +300,7 @@
       <div id="tbrModal" class="modal">
         <div class="modal-content modal-content-wide">
           <h3 id="tbrModalTitle">Add</h3>
+          <div class="modal-error" id="tbrModalError" style="display: none;"></div>
           <form id="tbrForm">
             <div class="form-group">
               <label for="tbrTitle">Title:</label>
@@ -342,6 +344,7 @@
       <div id="mlModal" class="modal">
         <div class="modal-content modal-content-wide">
           <h3 id="mlModalTitle">Add</h3>
+          <div class="modal-error" id="mlModalError" style="display: none;"></div>
           <form id="mlForm">
             <div class="form-group">
               <label for="mlTitle">Title:</label>

@@ -41,6 +41,20 @@ const QueuedModal = {
         this._wired = true;
     },
 
+    _showError(msg) {
+        const el = document.getElementById('tbrModalError');
+        if (!el) return;
+        el.textContent = msg;
+        el.style.display = '';
+    },
+
+    _clearError() {
+        const el = document.getElementById('tbrModalError');
+        if (!el) return;
+        el.textContent = '';
+        el.style.display = 'none';
+    },
+
     open(recordId, containerId) {
         this._bindEvents();
         const record = recordId ? CollectionView.getRecord(containerId, recordId) : null;
@@ -49,6 +63,7 @@ const QueuedModal = {
             containerId,
             itemId: record ? record.ItemId : null
         };
+        this._clearError();
 
         document.getElementById('tbrModalTitle').textContent = record
             ? `Edit ${MediaLabels.QueuedLabel}`
@@ -78,7 +93,11 @@ const QueuedModal = {
         const { recordId, containerId, itemId } = this._current;
 
         const title = document.getElementById('tbrTitle').value.trim();
-        if (!title) { showMessage('Title is required.', CONSTANTS.MESSAGE_TYPES.ERROR); return; }
+        if (!title) {
+            showMessage('Title is required.', CONSTANTS.MESSAGE_TYPES.ERROR);
+            this._showError('Title is required.');
+            return;
+        }
 
         let allQueued;
         try {
@@ -86,6 +105,7 @@ const QueuedModal = {
         } catch (e) {
             console.error('QueuedModal.save: could not load current ranks', e);
             showMessage('Could not save — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
+            this._showError('Could not save — see console for details');
             return;
         }
 
@@ -121,6 +141,7 @@ const QueuedModal = {
         } catch (e) {
             console.error('QueuedModal.save failed', e);
             showMessage('Could not save — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
+            this._showError('Could not save — see console for details');
         }
     },
 
@@ -149,6 +170,7 @@ const QueuedModal = {
         } catch (e) {
             console.error('QueuedModal.deleteRecord failed', e);
             showMessage('Could not delete — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
+            this._showError('Could not delete — see console for details');
         }
     }
 };

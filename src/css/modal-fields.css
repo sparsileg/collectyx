@@ -18,6 +18,24 @@
     display: block;
 }
 
+/* ── In-modal error region ────────────────────────────────────────────── */
+/* Save/validation failures surface here, inside the modal itself — the
+   page-level .message-area (base.css, z-index:90) sits below the modal's
+   own z-index:2000 and its full-viewport overlay, so it's invisible while
+   any modal is open. This is per-modal, not shared, so one collection's
+   error never leaks into another's markup. */
+
+.modal-error {
+    background: var(--color-message-bg);
+    color: var(--error-color);
+    border-left: 3px solid var(--error-color);
+    border-radius: var(--border-radius-sm);
+    padding: 8px 12px;
+    margin-bottom: 20px;
+    font-size: 0.9em;
+    text-shadow: var(--text-shadow-subtle, none);
+}
+
 /* ── Author / Author 2 block ──────────────────────────────────────────────── */
 /* One heading ("Author" / "Author 2") above a Given Name + Surname row,
    rather than a per-field label — keeps both rows the same width and stops

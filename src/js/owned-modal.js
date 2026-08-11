@@ -37,10 +37,25 @@ const OwnedModal = {
         this._wired = true;
     },
 
+    _showError(msg) {
+        const el = document.getElementById('mlModalError');
+        if (!el) return;
+        el.textContent = msg;
+        el.style.display = '';
+    },
+
+    _clearError() {
+        const el = document.getElementById('mlModalError');
+        if (!el) return;
+        el.textContent = '';
+        el.style.display = 'none';
+    },
+
     open(recordId, containerId) {
         this._init();
         const record = recordId ? CollectionView.getRecord(containerId, recordId) : null;
         this._current = { recordId, containerId, itemId: record ? record.ItemId : null };
+        this._clearError();
 
         document.getElementById('mlModalTitle').textContent = record
             ? `Edit ${MediaLabels.OwnedLabel}`
@@ -73,7 +88,11 @@ const OwnedModal = {
         const { recordId, containerId, itemId } = this._current;
 
         const title = document.getElementById('mlTitle').value.trim();
-        if (!title) { showMessage('Title is required.', CONSTANTS.MESSAGE_TYPES.ERROR); return; }
+        if (!title) {
+            showMessage('Title is required.', CONSTANTS.MESSAGE_TYPES.ERROR);
+            this._showError('Title is required.');
+            return;
+        }
 
         const payload = {
             Title: title,
@@ -95,6 +114,7 @@ const OwnedModal = {
         } catch (e) {
             console.error('OwnedModal.save failed', e);
             showMessage('Could not save — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
+            this._showError('Could not save — see console for details');
         }
     },
 
@@ -111,6 +131,7 @@ const OwnedModal = {
         } catch (e) {
             console.error('OwnedModal.deleteRecord failed', e);
             showMessage('Could not delete — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
+            this._showError('Could not delete — see console for details');
         }
     }
 };
