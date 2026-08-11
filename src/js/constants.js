@@ -130,9 +130,9 @@ const CONSTANTS = {
 
     // # rows in dashboard cards
     ROW_LIMITS: {
-        RECENT_FINISHED: 5,
+        RECENT_FINISHED: 4,
         WHATS_NEXT: 4,
-        TOP_TAGS: 7
+        TOP_TAGS: 5
     },
 
     // Rejected before any read — a CSV import or restore file beyond this

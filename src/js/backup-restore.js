@@ -82,6 +82,27 @@ const BackupRestore = {
         return typeof v === 'number' && Number.isInteger(v) && v >= 1;
     },
 
+    // Every optional field below (Option<T>/Option<Option<T>> in Rust)
+    // only forgives an absent key or an explicit null — a present value
+    // of the wrong JSON type still crashes deserialization before any
+    // validation code runs (#80). These four helpers are the type-shape
+    // check for each of Rust's optional field kinds; absent/null always
+    // passes, since that's the caller's concern (an unset optional field
+    // is legitimate).
+    _isValidOptionalString(v) {
+        return v === undefined || v === null || typeof v === 'string';
+    },
+    _isValidOptionalInt(v) {
+        return v === undefined || v === null || (typeof v === 'number' && Number.isInteger(v));
+    },
+    _isValidOptionalBool(v) {
+        return v === undefined || v === null || typeof v === 'boolean';
+    },
+    _isValidOptionalStringArray(v) {
+        if (v === undefined || v === null) return true;
+        return Array.isArray(v) && v.every(x => typeof x === 'string');
+    },
+
     // Returns { fatal: string|null, skippable: [{ label, index, record, reason }] }.
     // Fatal covers file-shape problems that cannot be partially applied —
     // not an object, a section not an array, a record not an object — and
@@ -119,6 +140,16 @@ const BackupRestore = {
             } else if (!this._isValidMediaTypeId(record.MediaTypeId)) {
                 reasons.push('invalid MediaTypeId');
             }
+            // Items[] uses ItemRecord — plain Author/Author2/Pages/ISBN/
+            // Tags/DateAdded/Modified keys (not the ItemDateAdded/
+            // ItemModified names Consumed/Queued/Owned use below).
+            if (!this._isValidOptionalString(record.Author)) reasons.push('invalid Author');
+            if (!this._isValidOptionalString(record.Author2)) reasons.push('invalid Author2');
+            if (!this._isValidOptionalInt(record.Pages)) reasons.push('invalid Pages');
+            if (!this._isValidOptionalString(record.ISBN)) reasons.push('invalid ISBN');
+            if (!this._isValidOptionalStringArray(record.Tags)) reasons.push('invalid Tags');
+            if (!this._isValidOptionalString(record.DateAdded)) reasons.push('invalid DateAdded');
+            if (!this._isValidOptionalString(record.Modified)) reasons.push('invalid Modified');
             if (reasons.length > 0) {
                 skippable.push({ label: 'Items', index: i, record, reason: reasons.join('; ') });
             }
@@ -148,6 +179,34 @@ const BackupRestore = {
                 if (record.MediaTypeId !== undefined && record.MediaTypeId !== null
                     && !this._isValidMediaTypeId(record.MediaTypeId)) {
                     reasons.push('invalid MediaTypeId');
+                }
+                // Shared ItemFields — every optional field crashes Rust
+                // deserialization if present with the wrong type (#80).
+                if (!this._isValidOptionalString(record.id)) reasons.push('invalid id');
+                if (!this._isValidOptionalString(record.ItemId)) reasons.push('invalid ItemId');
+                if (!this._isValidOptionalString(record.Author)) reasons.push('invalid Author');
+                if (!this._isValidOptionalString(record.Author2)) reasons.push('invalid Author2');
+                if (!this._isValidOptionalInt(record.Pages)) reasons.push('invalid Pages');
+                if (!this._isValidOptionalString(record.ISBN)) reasons.push('invalid ISBN');
+                if (!this._isValidOptionalStringArray(record.Tags)) reasons.push('invalid Tags');
+                if (!this._isValidOptionalString(record.ItemDateAdded)) reasons.push('invalid ItemDateAdded');
+                if (!this._isValidOptionalString(record.ItemModified)) reasons.push('invalid ItemModified');
+                if (!this._isValidOptionalString(record.Comments)) reasons.push('invalid Comments');
+                if (!this._isValidOptionalString(record.DateAdded)) reasons.push('invalid DateAdded');
+                if (!this._isValidOptionalString(record.Modified)) reasons.push('invalid Modified');
+                // Collection-specific optional fields.
+                if (key === 'Consumed') {
+                    if (!this._isValidOptionalInt(record.Rating)) reasons.push('invalid Rating');
+                }
+                if (key === 'Queued') {
+                    if (!this._isValidOptionalInt(record.Rank)) reasons.push('invalid Rank');
+                    if (!this._isValidOptionalString(record.Source)) reasons.push('invalid Source');
+                    if (!this._isValidOptionalBool(record.CurrentlyReading)) reasons.push('invalid CurrentlyReading');
+                }
+                if (key === 'Owned') {
+                    if (!this._isValidOptionalString(record.Location)) reasons.push('invalid Location');
+                    if (!this._isValidOptionalString(record.Patron)) reasons.push('invalid Patron');
+                    if (!this._isValidOptionalString(record.CheckedOutDate)) reasons.push('invalid CheckedOutDate');
                 }
                 // Finished has no default in Rust's ConsumedRecord — schema
                 // requires it (consumed.finished TEXT NOT NULL) — missing
