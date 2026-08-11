@@ -110,13 +110,13 @@ them cheaply is now, before the schema and API contract are frozen.
 
 ### Top five risks
 
-| # | Risk | ID | Severity |
+| #   | Risk                                                                                                         | ID                         | Severity        |
 | --- | ------------------------------------------------------------------------------------------------------------ | -------------------------- | --------------- |
-| 1 | Arbitrary file write to any path with any bytes, reachable from a restored backup file | CTX-SEC-101 | Critical |
-| 2 | `owner` accepted from the request payload on six write paths | CTX-SEC-102, 104, 105, 106 | High |
-| 3 | Membership-row `id` client-supplied and never ownership-checked on upsert (both backends) | CTX-SEC-103 | High |
-| 4 | Web backend writes through to another owner's item row during restore | CTX-SEC-107 | High |
-| 5 | Authorization principal (`current_owner`) is switchable by the client; the "build flag" gating it is UI-only | CTX-SEC-109 | Blocking for D1 |
+| 1   | Arbitrary file write to any path with any bytes, reachable from a restored backup file                       | CTX-SEC-101                | Critical        |
+| 2   | `owner` accepted from the request payload on six write paths                                                 | CTX-SEC-102, 104, 105, 106 | High            |
+| 3   | Membership-row `id` client-supplied and never ownership-checked on upsert (both backends)                    | CTX-SEC-103                | High            |
+| 4   | Web backend writes through to another owner's item row during restore                                        | CTX-SEC-107                | High            |
+| 5   | Authorization principal (`current_owner`) is switchable by the client; the "build flag" gating it is UI-only | CTX-SEC-109                | Blocking for D1 |
 
 ### Most likely attack vectors
 
@@ -170,45 +170,45 @@ scenario, impact, recommended fix, and corrected code — are in
 
 ### Critical
 
-| ID | Title | Component |
+| ID                                                                         | Title                                                    | Component  |
 | -------------------------------------------------------------------------- | -------------------------------------------------------- | ---------- |
 | [CTX-SEC-101](issues/CTX-SEC-101-arbitrary-file-write-save-backup-file.md) | Unrestricted arbitrary file write via `save_backup_file` | Rust / IPC |
 
 ### High
 
-| ID | Title | Component |
+| ID                                                                          | Title                                                                  | Component  |
 | --------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ---------- |
-| [CTX-SEC-102](issues/CTX-SEC-102-save-item-trusts-client-owner.md) | `save_item` trusts client-supplied `Owner` and performs no validation | Rust |
-| [CTX-SEC-103](issues/CTX-SEC-103-membership-id-bola.md) | Membership-row `id` client-supplied and never ownership-checked (BOLA) | Rust + Web |
-| [CTX-SEC-104](issues/CTX-SEC-104-reconcile-tags-payload-owner.md) | `reconcile_tags` scopes tag writes to a payload-supplied owner | Rust |
-| [CTX-SEC-105](issues/CTX-SEC-105-replace-all-tags-cross-owner.md) | `replace_all_tags` / `replaceAllTags` overwrite other owners' tags | Rust + Web |
-| [CTX-SEC-107](issues/CTX-SEC-107-web-replacecollection-cross-owner-item.md) | Web `replaceCollection` writes through to another owner's item row | Web |
+| [CTX-SEC-102](issues/CTX-SEC-102-save-item-trusts-client-owner.md)          | `save_item` trusts client-supplied `Owner` and performs no validation  | Rust       |
+| [CTX-SEC-103](issues/CTX-SEC-103-membership-id-bola.md)                     | Membership-row `id` client-supplied and never ownership-checked (BOLA) | Rust + Web |
+| [CTX-SEC-104](issues/CTX-SEC-104-reconcile-tags-payload-owner.md)           | `reconcile_tags` scopes tag writes to a payload-supplied owner         | Rust       |
+| [CTX-SEC-105](issues/CTX-SEC-105-replace-all-tags-cross-owner.md)           | `replace_all_tags` / `replaceAllTags` overwrite other owners' tags     | Rust + Web |
+| [CTX-SEC-107](issues/CTX-SEC-107-web-replacecollection-cross-owner-item.md) | Web `replaceCollection` writes through to another owner's item row     | Web        |
 
 ### Medium
 
-| ID | Title | Component |
+| ID                                                                               | Title                                                                               | Component    |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------ |
-| [CTX-SEC-106](issues/CTX-SEC-106-save-tag-payload-owner.md) | `save_tag` accepts a payload-supplied `Owner`; clash error is an enumeration oracle | Rust + Web |
-| [CTX-SEC-108](issues/CTX-SEC-108-web-setcurrentlyreading-missing-owner-check.md) | Web `setCurrentlyReading` performs no ownership check | Web |
-| [CTX-SEC-109](issues/CTX-SEC-109-authorization-principal-client-switchable.md) | Authorization principal is client-switchable; build flag is UI-only | Architecture |
-| [CTX-SEC-110](issues/CTX-SEC-110-inconsistent-mutex-lock-poisoning.md) | Three commands use raw `.lock()`; poisoning cascades to silent settings loss | Rust |
-| [CTX-SEC-111](issues/CTX-SEC-111-save-settings-unbounded-unvalidated.md) | `save_settings` accepts an unbounded, unvalidated JSON blob | Rust + Web |
-| [CTX-SEC-112](issues/CTX-SEC-112-restore-owner-divergence.md) | Restore aborts after wiping on owner mismatch; backends disagree | Restore flow |
-| [CTX-SEC-113](issues/CTX-SEC-113-no-sqlite-busy-timeout.md) | No `busy_timeout`; second instance causes write failures mid-restore | Rust / DB |
+| [CTX-SEC-106](issues/CTX-SEC-106-save-tag-payload-owner.md)                      | `save_tag` accepts a payload-supplied `Owner`; clash error is an enumeration oracle | Rust + Web   |
+| [CTX-SEC-108](issues/CTX-SEC-108-web-setcurrentlyreading-missing-owner-check.md) | Web `setCurrentlyReading` performs no ownership check                               | Web          |
+| [CTX-SEC-109](issues/CTX-SEC-109-authorization-principal-client-switchable.md)   | Authorization principal is client-switchable; build flag is UI-only                 | Architecture |
+| [CTX-SEC-110](issues/CTX-SEC-110-inconsistent-mutex-lock-poisoning.md)           | Three commands use raw `.lock()`; poisoning cascades to silent settings loss        | Rust         |
+| [CTX-SEC-111](issues/CTX-SEC-111-save-settings-unbounded-unvalidated.md)         | `save_settings` accepts an unbounded, unvalidated JSON blob                         | Rust + Web   |
+| [CTX-SEC-112](issues/CTX-SEC-112-restore-owner-divergence.md)                    | Restore aborts after wiping on owner mismatch; backends disagree                    | Restore flow |
+| [CTX-SEC-113](issues/CTX-SEC-113-no-sqlite-busy-timeout.md)                      | No `busy_timeout`; second instance causes write failures mid-restore                | Rust / DB    |
 
 ### Low
 
-| ID | Title | Component |
+| ID                                                                           | Title                                                                | Component  |
 | ---------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------- |
-| [CTX-SEC-114](issues/CTX-SEC-114-dashboard-order-prototype-lookup.md) | `loadDashboardOrder` resolves prototype properties; breaks startup | Frontend |
-| [CTX-SEC-115](issues/CTX-SEC-115-duplicate-csp-drift.md) | Two independent CSP definitions that can drift; no `frame-ancestors` | Config |
-| [CTX-SEC-116](issues/CTX-SEC-116-with-global-tauri.md) | `withGlobalTauri: true` exposes the IPC bridge to every script | Config |
-| [CTX-SEC-117](issues/CTX-SEC-117-restore-preview-unescaped-interpolation.md) | Restore preview interpolates backup-derived values unescaped | Frontend |
-| [CTX-SEC-118](issues/CTX-SEC-118-csv-import-hardening.md) | CSV import: prototype-unsafe keys, unbounded rows, sequential writes | Frontend |
-| [CTX-SEC-119](issues/CTX-SEC-119-dead-duplicate-shared-utils.md) | Dead duplicate `shared-utils.js` with a second `escapeHtml` | Frontend |
-| [CTX-SEC-120](issues/CTX-SEC-120-panic-paths.md) | Panic in `today()` reachable while holding the DB lock | Rust |
-| [CTX-SEC-121](issues/CTX-SEC-121-unvalidated-recommend-mediatypeid.md) | `Recommend` and `MediaTypeId` bypass the validation layer | Rust + Web |
-| [CTX-SEC-122](issues/CTX-SEC-122-rank-unvalidated-overflow.md) | `rank` unvalidated on restore; overflow in reorder shifts | Rust + Web |
+| [CTX-SEC-114](issues/CTX-SEC-114-dashboard-order-prototype-lookup.md)        | `loadDashboardOrder` resolves prototype properties; breaks startup   | Frontend   |
+| [CTX-SEC-115](issues/CTX-SEC-115-duplicate-csp-drift.md)                     | Two independent CSP definitions that can drift; no `frame-ancestors` | Config     |
+| [CTX-SEC-116](issues/CTX-SEC-116-with-global-tauri.md)                       | `withGlobalTauri: true` exposes the IPC bridge to every script       | Config     |
+| [CTX-SEC-117](issues/CTX-SEC-117-restore-preview-unescaped-interpolation.md) | Restore preview interpolates backup-derived values unescaped         | Frontend   |
+| [CTX-SEC-118](issues/CTX-SEC-118-csv-import-hardening.md)                    | CSV import: prototype-unsafe keys, unbounded rows, sequential writes | Frontend   |
+| [CTX-SEC-119](issues/CTX-SEC-119-dead-duplicate-shared-utils.md)             | Dead duplicate `shared-utils.js` with a second `escapeHtml`          | Frontend   |
+| [CTX-SEC-120](issues/CTX-SEC-120-panic-paths.md)                             | Panic in `today()` reachable while holding the DB lock               | Rust       |
+| [CTX-SEC-121](issues/CTX-SEC-121-unvalidated-recommend-mediatypeid.md)       | `Recommend` and `MediaTypeId` bypass the validation layer            | Rust + Web |
+| [CTX-SEC-122](issues/CTX-SEC-122-rank-unvalidated-overflow.md)               | `rank` unvalidated on restore; overflow in reorder shifts            | Rust + Web |
 
 ---
 
