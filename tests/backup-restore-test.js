@@ -16,6 +16,7 @@
  */
 const fs = require('fs');
 const vm = require('vm');
+const { stripEsmImports, esmStubs } = require('./lib/esm-shim');
 
 const R = process.env.COLLECTYX_ROOT || '../';
 const src = fs.readFileSync(R + '/src/js/backup-restore.js', 'utf8');
@@ -124,7 +125,12 @@ function loadBackupRestore(dom, db) {
         document: dom,
         CONSTANTS: { APP_VERSION: '0.1.0', MESSAGE_TYPES: { SUCCESS: 'success', ERROR: 'error' } },
         MediaLabels: { ConsumedLabel: 'Books Read', QueuedLabel: 'To Be Read', OwnedLabel: 'My Library' },
-        escapeHtml: (s) => String(s),
+        // A real implementation, not a passthrough — CTX-SEC-117's test
+        // (section 7) needs to see actual escaping happen at the sink, not
+        // just that some string reached innerHTML.
+        escapeHtml: (s) => String(s).replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[c])),
         showMessage: () => {},
         downloadFile: () => {},
         pako: { gzip: () => new Uint8Array(), ungzip: () => '' },
@@ -132,7 +138,9 @@ function loadBackupRestore(dom, db) {
     };
     sandbox.window = sandbox;
     vm.createContext(sandbox);
-    vm.runInContext(src + '\nthis.BackupRestore = BackupRestore;', sandbox);
+    const { stripped, bindings } = stripEsmImports(src);
+    Object.assign(sandbox, esmStubs(bindings));
+    vm.runInContext(stripped + '\nthis.BackupRestore = BackupRestore;', sandbox);
     return sandbox.BackupRestore;
 }
 
@@ -298,6 +306,58 @@ console.log("\n1. _validate() — malformed-file corpus (COLLECTYX-SEC-03's own 
         await BR.executeRestore();
         contains('error banner explains nothing was changed',
                  dom.getElementById('restoreError').textContent, 'before making any changes');
+    }
+
+    console.log('\n7. showScreen2 — malicious non-array Consumed cannot reach the DOM (CTX-SEC-117)');
+    {
+        // Bypasses continueToScreen2()/_validate() on purpose — the fix's
+        // whole point is that the sink must be safe on its own, not only
+        // when reached through the validator. A non-array .length here is
+        // exactly the shape _validate() would normally reject before this
+        // method is ever called in the real flow.
+        //
+        // Seeds one existing Consumed record so current (1) and backup (0,
+        // once coerced) differ — otherwise a coincidental "0" elsewhere in
+        // the markup (e.g. the current-count column) could make a weak
+        // assertion pass for the wrong reason.
+        const dom = freshDom();
+        const db = makeDB({
+            items: [{ id: 'old1', Title: 'Old Book' }],
+            consumed: [{ ItemId: 'old1', Title: 'Old Book' }],
+        });
+        const BR = loadBackupRestore(dom, db);
+        const malicious = {
+            Header: {},
+            Items: [],
+            Consumed: { length: '<img src=x onerror=alert(1)>' },
+            Queued: [], Owned: [], Tags: [],
+        };
+        await BR.showScreen2(malicious, null);
+        const html = dom.getElementById('restoreCounts').innerHTML;
+        ok('malicious payload does not appear anywhere in the rendered counts, escaped or not',
+           !html.includes('img') && !html.includes('onerror'));
+
+        const row = html.match(/Books Read<\/span>\s*<span[^>]*>([^<]*)<\/span>\s*<span[^>]*>→<\/span>\s*<span[^>]*>([^<]*)<\/span>/);
+        ok('Books Read row rendered and is parseable', row !== null);
+        if (row) {
+            ok('current count reflects the real existing record (1)', row[1] === '1');
+            ok('backup count is coerced to 0, not the malicious .length value', row[2] === '0');
+        }
+    }
+
+    console.log('\n8. showScreen2 — a genuine array count still renders correctly');
+    {
+        const dom = freshDom();
+        const db = makeDB({});
+        const BR = loadBackupRestore(dom, db);
+        await BR.showScreen2({
+            Header: {}, Items: [],
+            Consumed: [{ Title: 'A' }, { Title: 'B' }],
+            Queued: [], Owned: [], Tags: [],
+        }, null);
+        const html = dom.getElementById('restoreCounts').innerHTML;
+        ok('a real array of 2 renders as 2, not swallowed by the coercion guard',
+           html.includes('>2<'));
     }
 
     console.log('\n' + (failures === 0

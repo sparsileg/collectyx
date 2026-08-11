@@ -144,6 +144,11 @@ const CONSTANTS = {
     // unbounded .gz compounds it (COLLECTYX-SEC-38 item 7).
     MAX_IMPORT_FILE_BYTES: 50 * 1024 * 1024,
 
+    // Row cap for CSV import (CTX-SEC-118) — bounds UI freeze / memory use
+    // independent of the byte cap above, since a minimal-width CSV can
+    // still carry well over a million rows within 50MB.
+    MAX_IMPORT_ROWS: 50000,
+
     // Backend write-time validation limits (COLLECTYX-SEC-30). Must match
     // src-tauri/src/commands/common.rs's constants — both backends enforce
     // the same rules on the same input.

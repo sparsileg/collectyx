@@ -51,6 +51,8 @@ const tests = [
     ['dashboard-xss-test.js', 'dashboard.js escapes hostile record data (issue #20)'],
     ['csp-test.js',           'CSP present in both builds and in sync (issue #21)'],
     ['backup-restore-test.js', 'restore validation + snapshot/rollback (issue #22)'],
+    ['csv-import-test.js',    'CSV import hardening — prototype safety, row cap, re-entry guard (issue #68)'],
+    ['queued-rank-test.js',   'rank validation and shift overflow guard (issue #72)'],
     ['security-audit-52-58-test.js', 'owner-from-payload / membership BOLA (issues #52-#58)'],
 ];
 

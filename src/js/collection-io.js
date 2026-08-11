@@ -104,6 +104,7 @@ const COLLECTION_IO_SPEC = {
 
 const CollectionIO = {
     _importTarget: null,
+    _importing: false,
 
     _timestamp() {
         const d = new Date();
@@ -145,6 +146,11 @@ const CollectionIO = {
     },
 
     async handleImportFileSelected(event) {
+        if (this._importing) {
+            showMessage('An import is already running.', CONSTANTS.MESSAGE_TYPES.ERROR);
+            return;
+        }
+
         const file = event.target.files[0];
         const collection = this._importTarget;
         if (!file || !collection) return;
@@ -157,41 +163,66 @@ const CollectionIO = {
             return;
         }
 
-        const text = await file.text();
-        const spec = COLLECTION_IO_SPEC[collection];
-        const rows = CsvUtils.parseCSV(text);
+        this._importing = true;
+        try {
+            const text = await file.text();
+            const spec = COLLECTION_IO_SPEC[collection];
 
-        if (rows.length === 0) {
-            showMessage('No rows found in that CSV file', CONSTANTS.MESSAGE_TYPES.ERROR);
-            return;
-        }
-        if (!('Title' in rows[0])) {
-            showMessage('CSV must have a Title column', CONSTANTS.MESSAGE_TYPES.ERROR);
-            return;
-        }
-
-        let successCount = 0;
-        let skipCount = 0;
-        for (const row of rows) {
-            const payload = spec.fromRow(row);
-            if (!payload.Title) { skipCount++; continue; }
+            let rows;
             try {
-                await DBManager.saveCollectionRecord(collection, payload);
-                successCount++;
+                rows = CsvUtils.parseCSV(text);
             } catch (e) {
-                console.error('CollectionIO: import row failed', row, e);
-                skipCount++;
+                showMessage(e.message, CONSTANTS.MESSAGE_TYPES.ERROR);
+                return;
             }
+
+            if (rows.length === 0) {
+                showMessage('No rows found in that CSV file', CONSTANTS.MESSAGE_TYPES.ERROR);
+                return;
+            }
+            if (rows.length > CONSTANTS.MAX_IMPORT_ROWS) {
+                showMessage(
+                    `File has ${rows.length} rows (max ${CONSTANTS.MAX_IMPORT_ROWS})`,
+                    CONSTANTS.MESSAGE_TYPES.ERROR
+                );
+                return;
+            }
+            if (!('Title' in rows[0])) {
+                showMessage('CSV must have a Title column', CONSTANTS.MESSAGE_TYPES.ERROR);
+                return;
+            }
+
+            let successCount = 0;
+            let skipCount = 0;
+            for (let i = 0; i < rows.length; i++) {
+                const payload = spec.fromRow(rows[i]);
+                if (!payload.Title) { skipCount++; continue; }
+                try {
+                    await DBManager.saveCollectionRecord(collection, payload);
+                    successCount++;
+                } catch (e) {
+                    console.error('CollectionIO: import row failed', rows[i], e);
+                    skipCount++;
+                }
+                // Yield to the event loop periodically so the tab stays
+                // responsive on large imports, and show progress (CTX-SEC-118).
+                if (i % 100 === 0) {
+                    showMessage(`Importing… ${i}/${rows.length}`, CONSTANTS.MESSAGE_TYPES.INFO);
+                    await new Promise(r => setTimeout(r, 0));
+                }
+            }
+
+            showMessage(
+                `Imported ${successCount} record(s)` + (skipCount ? `, skipped ${skipCount}` : ''),
+                successCount > 0 ? CONSTANTS.MESSAGE_TYPES.SUCCESS : CONSTANTS.MESSAGE_TYPES.ERROR
+            );
+
+            if (collection === 'consumed' && typeof ConsumedView !== 'undefined') ConsumedView.load(spec.containerId);
+            else if (collection === 'queued' && typeof QueuedView !== 'undefined') QueuedView.load(spec.containerId);
+            else if (collection === 'owned' && typeof OwnedView !== 'undefined') OwnedView.load(spec.containerId);
+        } finally {
+            this._importing = false;
         }
-
-        showMessage(
-            `Imported ${successCount} record(s)` + (skipCount ? `, skipped ${skipCount}` : ''),
-            successCount > 0 ? CONSTANTS.MESSAGE_TYPES.SUCCESS : CONSTANTS.MESSAGE_TYPES.ERROR
-        );
-
-        if (collection === 'consumed' && typeof ConsumedView !== 'undefined') ConsumedView.load(spec.containerId);
-        else if (collection === 'queued' && typeof QueuedView !== 'undefined') QueuedView.load(spec.containerId);
-        else if (collection === 'owned' && typeof OwnedView !== 'undefined') OwnedView.load(spec.containerId);
     }
 };
 

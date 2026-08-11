@@ -31,10 +31,18 @@ const CsvUtils = {
         if (rows.length === 0) return [];
 
         const headers = rows[0].map(h => h.trim());
+        const seen = new Set();
+        for (const h of headers) {
+            if (seen.has(h)) throw new Error(`Duplicate column "${h}" in CSV header`);
+            seen.add(h);
+        }
+
         return rows.slice(1)
             .filter(r => r.some(c => c.trim() !== ''))
             .map(r => {
-                const obj = {};
+                // Object.create(null) — a header of "__proto__"/"constructor"
+                // must not touch the prototype chain (CTX-SEC-118).
+                const obj = Object.create(null);
                 headers.forEach((h, idx) => {
                     obj[h] = r[idx] !== undefined ? this._unescapeFormulaGuard(r[idx]) : '';
                 });

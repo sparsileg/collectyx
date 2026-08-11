@@ -6,6 +6,7 @@
  */
 const fs = require('fs');
 const vm = require('vm');
+const { stripEsmImports, esmStubs } = require('./lib/esm-shim');
 
 const R = (process.env.COLLECTYX_ROOT || '../') + '';
 let failures = 0;
@@ -27,7 +28,11 @@ function loadBackend(file, exportName) {
     vm.createContext(sandbox);
     vm.runInContext(fs.readFileSync(R + '/src/js/constants.js', 'utf8') +
                     '\nthis.CONSTANTS = CONSTANTS;', sandbox);
-    vm.runInContext(fs.readFileSync(R + '/src/js/' + file, 'utf8') +
+
+    const raw = fs.readFileSync(R + '/src/js/' + file, 'utf8');
+    const { stripped, bindings } = stripEsmImports(raw);
+    Object.assign(sandbox, esmStubs(bindings));
+    vm.runInContext(stripped +
                     '\nthis.__B = ' + exportName + ';', sandbox);
     return sandbox.__B;
 }

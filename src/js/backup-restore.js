@@ -372,14 +372,22 @@ const BackupRestore = {
             console.error('BackupRestore.showScreen2: could not load current counts', e);
         }
 
+        // Callers MUST run _validate() first — this method assumes Consumed/
+        // Queued/Owned/Tags are arrays. current/backup are escaped here
+        // regardless (CTX-SEC-117), but the assumption is load-bearing for
+        // the counts being meaningful.
         const countRow = (label, current, backup) => `
             <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0;
                         border-bottom: 1px solid var(--border-color);">
                 <span style="flex: 1;">${escapeHtml(label)}</span>
-                <span style="min-width: 40px; text-align: right;">${current}</span>
+                <span style="min-width: 40px; text-align: right;">${escapeHtml(String(current))}</span>
                 <span style="opacity: 0.6;">→</span>
-                <span style="min-width: 40px; text-align: right;">${backup}</span>
+                <span style="min-width: 40px; text-align: right;">${escapeHtml(String(backup))}</span>
             </div>`;
+
+        // Coerce to a real count so a non-array value can never reach the
+        // template, even though _validate() already guarantees arrays here.
+        const count = (v) => (Array.isArray(v) ? v.length : 0);
 
         countsDiv.innerHTML = `
             <div style="display: flex; gap: 12px; padding: 0 0 4px; font-weight: bold; opacity: 0.6;">
@@ -388,10 +396,10 @@ const BackupRestore = {
                 <span style="opacity: 0;">→</span>
                 <span style="min-width: 40px; text-align: right;">Backup</span>
             </div>
-            ${countRow(MediaLabels.ConsumedLabel, currentConsumed.length, (data.Consumed || []).length)}
-            ${countRow(MediaLabels.QueuedLabel, currentQueued.length, (data.Queued || []).length)}
-            ${countRow(MediaLabels.OwnedLabel, currentOwned.length, (data.Owned || []).length)}
-            ${countRow('Tags', currentTags.length, (data.Tags || []).length)}
+            ${countRow(MediaLabels.ConsumedLabel, currentConsumed.length, count(data.Consumed))}
+            ${countRow(MediaLabels.QueuedLabel, currentQueued.length, count(data.Queued))}
+            ${countRow(MediaLabels.OwnedLabel, currentOwned.length, count(data.Owned))}
+            ${countRow('Tags', currentTags.length, count(data.Tags))}
         `;
 
         warningDiv.style.display = 'block';

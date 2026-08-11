@@ -132,6 +132,15 @@ fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_
     if let Err(msg) = common::validate_comments(&record.comments) {
         return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
     }
+    // Only checked when this call will actually write rank (apply_rank —
+    // i.e. restore) — a normal save's incoming rank is ignored below
+    // regardless, so validating it here too would reject payloads that
+    // are never written anyway (CTX-SEC-122).
+    if apply_rank {
+        if let Err(msg) = common::validate_rank(record.rank) {
+            return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
+        }
+    }
     if let Some(d) = &record.date_added {
         if !d.is_empty() {
             if let Err(msg) = common::validate_date(d, "DateAdded") {
@@ -253,6 +262,9 @@ pub fn reorder_queued(
     id: String,
     new_rank: Option<i64>,
 ) -> Result<(), String> {
+    // Reject out-of-range targets up front — the modal already clamps, but
+    // this command is also reachable directly by invoke() (CTX-SEC-122).
+    common::validate_rank(new_rank)?;
     let mut db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
     // Reads old_rank then writes shifted rows based on it — same reasoning
@@ -275,11 +287,17 @@ pub fn reorder_queued(
     }
 
     match (old_rank, new_rank) {
+        // Bounded above by MAX_RANK — a legacy row stored above that (e.g.
+        // from a pre-validation restore) is excluded from the +1 rather
+        // than risking an integer overflow on the shift (CTX-SEC-122).
+        // The other three arms are unbounded above/below by construction —
+        // reviewed and confirmed not to reach either i64 edge from a
+        // shift this size.
         (None, Some(nr)) => tx.execute(
             "UPDATE queued SET \"rank\" = \"rank\" + 1
-               WHERE id <> ?1 AND \"rank\" >= ?2
+               WHERE id <> ?1 AND \"rank\" >= ?2 AND \"rank\" < ?4
                  AND item_id IN (SELECT id FROM items WHERE owner = ?3)",
-            params![id, nr, owner],
+            params![id, nr, owner, common::MAX_RANK],
         ),
         (Some(or_), None) => tx.execute(
             "UPDATE queued SET \"rank\" = \"rank\" - 1

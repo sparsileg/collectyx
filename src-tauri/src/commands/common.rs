@@ -29,6 +29,8 @@ pub const MIN_RATING: i64 = 1;
 pub const MAX_RATING: i64 = 5;
 pub const MIN_YEAR: i64 = 1000;
 pub const MAX_YEAR: i64 = 2200;
+pub const MIN_RANK: i64 = 1;
+pub const MAX_RANK: i64 = 1_000_000; // far above any realistic personal queue (CTX-SEC-122)
 
 pub fn validate_tag_name(name: &str) -> std::result::Result<(), String> {
     if name.is_empty() {
@@ -97,6 +99,18 @@ pub fn validate_rating(value: Option<i64>) -> std::result::Result<(), String> {
     if let Some(r) = value {
         if r < MIN_RATING || r > MAX_RATING {
             return Err(format!("Rating out of range ({}-{})", MIN_RATING, MAX_RATING));
+        }
+    }
+    Ok(())
+}
+
+/// Rejects out-of-range rank values, including the ones that overflow the
+/// unguarded +1/-1 shift arithmetic in reorder_queued/delete_queued when
+/// left unchecked (CTX-SEC-122). None (unranked) always passes.
+pub fn validate_rank(value: Option<i64>) -> std::result::Result<(), String> {
+    if let Some(r) = value {
+        if r < MIN_RANK || r > MAX_RANK {
+            return Err(format!("Rank out of range ({}-{})", MIN_RANK, MAX_RANK));
         }
     }
     Ok(())

@@ -1282,6 +1282,18 @@ const DBManagerWeb = {
      * a no-op if newRank matches the row's current stored rank.
      */
     async reorderQueued(id, newRank) {
+        // Reject out-of-range targets up front — mirrors Rust's
+        // validate_rank. JS numbers also lose integer precision above
+        // 2^53, so this bound doubles as a precision guard, not just a
+        // range guard (CTX-SEC-122).
+        if (newRank != null) {
+            const n = Number(newRank);
+            if (!Number.isInteger(n) || n < 1 || n > 1000000) {
+                throw new Error('Rank out of range (1-1000000)');
+            }
+            newRank = n;
+        }
+
         const S = CONSTANTS.STORES;
         const owner = this._owner();
         const loaded = await Promise.all([this._load(S.QUEUED), this._load(S.ITEMS)]);
@@ -1310,7 +1322,11 @@ const DBManagerWeb = {
         };
 
         if (oldRank == null && newRank != null) {
-            shift(rank => rank >= newRank, 1);
+            // Bounded above by 1,000,000 — a legacy row already stored past
+            // that (e.g. from before this validation existed) is excluded
+            // from the +1 rather than drifting further out of range
+            // (CTX-SEC-122). Mirrors the Rust MAX_RANK guard.
+            shift(rank => rank >= newRank && rank < 1000000, 1);
         } else if (oldRank != null && newRank == null) {
             shift(rank => rank > oldRank, -1);
         } else if (oldRank != null && newRank != null && newRank > oldRank) {
