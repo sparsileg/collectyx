@@ -163,7 +163,7 @@ re-read is a second row with the same `item_id`, not a duplicate item.
 | `id`         | TEXT (UUID) PK       |                             |
 | `item_id`    | TEXT FK → `items.id` |                             |
 | `finished`   | TEXT NOT NULL        | YYYY-MM-DD                  |
-| `rating`     | INTEGER              | 1–10, nullable              |
+| `rating`     | INTEGER              | 1–5, nullable — Skip(1)/Okay(2)/Good(3)/Excellent(4)/Essential(5) |
 | `recommend`  | INTEGER              | 0/1, nullable               |
 | `comments`   | TEXT                 | notes specific to this read |
 | `date_added` | TEXT                 |                             |
@@ -442,11 +442,11 @@ and simulated in JS on IndexedDB; callers cannot tell the difference.
   Title: 'Dune',                // ┐
   Author: 'Herbert, Frank',     // │
   Author2: null,                // ├─ from items
-  Pages: 412,                   // │
+`  Pages: 412,                   // │
   ISBN: '9780441013593',        // ┘
   Tags: ['classic', 'scifi'],   // resolved tag names, sorted
   Finished: '2020-06-01',       // ┐
-  Rating: 9,                    // ├─ collection-specific
+  Rating: 4,                    // ├─ collection-specific
   Recommend: 1,                 // │
   Comments: 'first read',       // ┘
   DateAdded: '2020-06-01',      // the membership row's own timestamps

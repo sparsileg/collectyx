@@ -19,6 +19,7 @@ async function renderDashboard() {
     await renderReadingGoals(consumed);
     renderWhatsNext(queued);
     renderLibraryStats(owned);
+    renderYearlyStatsCard(consumed);
 
     // Enable drag-drop after content is loaded
     setTimeout(() => {
@@ -289,6 +290,158 @@ function renderLibraryStats(owned) {
 }
 
 
+// ── Yearly Statistics (relocated from the retired Statistics view) ─────────
+// Full-row dashboard card (.dashboard-card-full-row in dashboard.css) —
+// the only card that spans the whole grid row instead of one column.
+// Ported from statistics.js's generateStatistics()/renderYearlyChart();
+// the top-tags-by-count bar chart that used to sit alongside this one in
+// the Statistics view was deleted outright, not relocated — the
+// Dashboard's own separate Top Tags card (a list, not a chart) above is
+// unrelated and untouched.
+
+let yearlyStatsChart;
+
+function computeYearlyStats(consumed) {
+    // Records whose Finished value doesn't yield a plausible year are
+    // dropped here rather than rendered with a garbage year
+    // (COLLECTYX-SEC-28) — the underlying value stays in the database
+    // untouched; this is a display-time guard, not a data repair.
+    const datedBooks = consumed
+        .filter(book => book.Finished)
+        .map(book => ({ ...book, year: getYearFromFinishedDate(book.Finished) }))
+        .filter(book => book.year !== null);
+
+    const yearlyStats = {};
+    datedBooks.forEach(book => {
+        const year = book.year;
+        if (!yearlyStats[year]) {
+            yearlyStats[year] = { books: 0, pages: 0 };
+        }
+        yearlyStats[year].books++;
+        yearlyStats[year].pages += parseInt(book.Pages) || 0;
+    });
+
+    // Fill in missing years with zeros. reduce() rather than Math.min/max
+    // with a spread — spreading a large key array into an argument list
+    // throws RangeError, a second failure mode from the same root cause
+    // getYearFromFinishedDate already guards against. The span is
+    // additionally capped at MAX_YEARLY_FILL_SPAN so even a
+    // plausible-but-huge range (already bounded 1000-2200 by
+    // getYearFromFinishedDate, so this is belt-and-suspenders) can't blow
+    // up the loop.
+    const MAX_YEARLY_FILL_SPAN = 200;
+    const years = Object.keys(yearlyStats).map(Number);
+    if (years.length > 0) {
+        const minYear = years.reduce((a, b) => Math.min(a, b));
+        let maxYear = years.reduce((a, b) => Math.max(a, b));
+        if (maxYear - minYear > MAX_YEARLY_FILL_SPAN) {
+            maxYear = minYear + MAX_YEARLY_FILL_SPAN;
+        }
+        for (let year = minYear; year <= maxYear; year++) {
+            if (!yearlyStats[year]) {
+                yearlyStats[year] = { books: 0, pages: 0 };
+            }
+        }
+    }
+
+    return yearlyStats;
+}
+
+function renderYearlyStatsCard(consumed) {
+    const yearlyStats = computeYearlyStats(consumed);
+    try {
+        const canvas = document.getElementById('yearlyStatsChart');
+        if (!canvas) return;
+        const existingChart = Chart.getChart(canvas);
+        if (existingChart) existingChart.destroy();
+
+        const ctx = canvas.getContext('2d');
+        const colors = getThemeColors();
+
+        const years = Object.keys(yearlyStats).sort();
+        const booksData = years.map(year => yearlyStats[year].books);
+        const pagesData = years.map(year => (yearlyStats[year].pages / 1000));
+
+        const axisMax = Math.max(0, ...booksData, ...pagesData);
+        const niceMax = axisMax === 0 ? 10 : Math.ceil(axisMax * 1.1);
+
+        yearlyStatsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'Books Read',
+                        data: booksData,
+                        borderColor: colors.primary,
+                        backgroundColor: colors.primary,
+                        fill: false,
+                        tension: 0.1,
+                        type: 'line',
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Pages (÷1000)',
+                        data: pagesData,
+                        borderColor: colors.secondary,
+                        backgroundColor: colors.secondary,
+                        fill: false,
+                        tension: 0.1,
+                        type: 'line',
+                        yAxisID: 'y'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: colors.primary
+                        }
+                    },
+                    y: {
+                        type: 'linear',
+                        position: 'left',
+                        min: 0,
+                        max: niceMax,
+                        ticks: {
+                            color: colors.primary
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        position: 'right',
+                        min: 0,
+                        max: niceMax,
+                        ticks: {
+                            color: colors.primary
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: colors.primary
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error rendering yearly stats chart:', error);
+        showMessage('Error displaying yearly statistics chart', CONSTANTS.MESSAGE_TYPES.ERROR);
+    }
+}
+
+
 // Simple drag and drop for dashboard cards
 let draggedCard = null;
 
@@ -347,7 +500,7 @@ async function saveDashboardOrder() {
 async function loadDashboardOrder() {
     const settings = await DBManager.getSettings() || {};
     const savedOrder = settings[DASHBOARD_CONSTANTS.STORAGE_KEY];
-    if (!savedOrder || !Array.isArray(savedOrder) || savedOrder.length !== 6) return false;
+    if (!savedOrder || !Array.isArray(savedOrder) || savedOrder.length !== DASHBOARD_CONSTANTS.DEFAULT_ORDER.length) return false;
 
     const dashboardGrid = document.querySelector('.dashboard-grid');
     if (!dashboardGrid) return false;
@@ -379,6 +532,8 @@ window.renderReadingGoals = renderReadingGoals;
 window.renderReadingGoalChart = renderReadingGoalChart;
 window.renderWhatsNext = renderWhatsNext;
 window.renderLibraryStats = renderLibraryStats;
+window.computeYearlyStats = computeYearlyStats;
+window.renderYearlyStatsCard = renderYearlyStatsCard;
 window.enableDashboardDragDrop = enableDashboardDragDrop;
 window.saveDashboardOrder = saveDashboardOrder;
 window.loadDashboardOrder = loadDashboardOrder;

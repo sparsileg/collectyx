@@ -62,9 +62,6 @@ function showView(viewName, buttonElement) {
         TagsView.load('tagsView');
     } else if (viewName === CONSTANTS.VIEWS.DASHBOARD && typeof renderDashboard === 'function') {
         renderDashboard();
-    } else if (viewName === CONSTANTS.VIEWS.STATISTICS && typeof renderStatistics === 'function') {
-        if (typeof destroyCharts === 'function') destroyCharts();
-        renderStatistics();
     }
 }
 
@@ -321,10 +318,10 @@ async function changeTheme(themePath) {
         }
     }
 
-    if (document.getElementById('statisticsView').classList.contains('active')) {
-        if (typeof destroyCharts === 'function') destroyCharts();
-        await renderStatistics();
-    }
+    // Dashboard (including the relocated Yearly Statistics card) does not
+    // currently re-render on a theme change while visible — same
+    // pre-existing behavior the Reading Goals chart already had before
+    // this card moved here. Re-render on the next view switch instead.
 }
 
 function getThemeColors() {

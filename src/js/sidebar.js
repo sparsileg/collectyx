@@ -11,10 +11,14 @@ const SIDEBAR_CONSTANTS = {
         'css/themes/flat.css': 'Flat'
     },
     FONT_SIZE: {
-        DEFAULT: 100,
-        STEP: 10,
-        MIN: 70,
-        MAX: 150
+        DEFAULT: 16,
+        STEP: 1,
+        MIN: 8,
+        MAX: 30,
+        // Base px value a legacy percentage was computed against (100% =
+        // 16px, the browser default this app never used to pin). Only
+        // used by resolveFontSizePx()'s one-time legacy conversion below.
+        LEGACY_PERCENT_BASE_PX: 16
     },
     // Fixed nav entries plus their fallback labels. Queued/Consumed/Owned
     // labels are overridden at runtime from media_types (design doc §4.1,
@@ -25,8 +29,7 @@ const SIDEBAR_CONSTANTS = {
         { view: 'queued', label: 'To Be Read' },
         { view: 'consumed', label: 'Books Read' },
         { view: 'owned', label: 'My Library' },
-        { view: 'tags', label: 'Tags' },
-        { view: 'statistics', label: 'Statistics' }
+        { view: 'tags', label: 'Tags' }
     ],
     // Views that get a contextual hamburger section (design doc §4.2) —
     // the three collection views. Dashboard/Tags/Statistics get none.
@@ -190,6 +193,20 @@ async function selectTheme(themePath, label) {
 
 // ── Font-size stepper ─────────────────────────────────────────────────────────
 
+// Pixel-based font-size stepper (8-30px). Previously stored/applied as a
+// percentage (70-150%); the two ranges never overlap, so a stored value
+// above the new MAX is unambiguously a leftover percentage from before
+// this change — converted once here, then persisted as real px on the
+// next stepper click. No settings-schema version bump needed.
+function resolveFontSizePx(raw) {
+    const n = Number(raw);
+    if (!n || isNaN(n)) return SIDEBAR_CONSTANTS.FONT_SIZE.DEFAULT;
+    if (n > SIDEBAR_CONSTANTS.FONT_SIZE.MAX) {
+        return Math.round((n / 100) * SIDEBAR_CONSTANTS.FONT_SIZE.LEGACY_PERCENT_BASE_PX);
+    }
+    return n;
+}
+
 function applyFontSize(pct) {
     // adjustFontSize() already clamps before saving, but a value read
     // straight from settings (restore, corrupted DB, direct edit) skips
@@ -198,11 +215,11 @@ function applyFontSize(pct) {
     // CSS sink arbitrarily (CTX-SEC-111 / #61).
     const clamped = Math.min(
         SIDEBAR_CONSTANTS.FONT_SIZE.MAX,
-        Math.max(SIDEBAR_CONSTANTS.FONT_SIZE.MIN, Number(pct) || SIDEBAR_CONSTANTS.FONT_SIZE.DEFAULT)
+        Math.max(SIDEBAR_CONSTANTS.FONT_SIZE.MIN, resolveFontSizePx(pct))
     );
-    document.documentElement.style.fontSize = clamped + '%';
+    document.documentElement.style.fontSize = clamped + 'px';
     const valueEl = document.getElementById('font-size-value');
-    if (valueEl) valueEl.textContent = clamped + '%';
+    if (valueEl) valueEl.textContent = clamped + 'px';
 }
 
 async function adjustFontSize(direction) {
@@ -214,7 +231,7 @@ async function adjustFontSize(direction) {
         console.error('adjustFontSize: could not load settings', e);
         loaded = false;
     }
-    const currentSize = current.fontSize || SIDEBAR_CONSTANTS.FONT_SIZE.DEFAULT;
+    const currentSize = resolveFontSizePx(current.fontSize || SIDEBAR_CONSTANTS.FONT_SIZE.DEFAULT);
     const next = Math.min(
         SIDEBAR_CONSTANTS.FONT_SIZE.MAX,
         Math.max(SIDEBAR_CONSTANTS.FONT_SIZE.MIN, currentSize + direction * SIDEBAR_CONSTANTS.FONT_SIZE.STEP)
@@ -329,4 +346,5 @@ window.initSidebarChrome = initSidebarChrome;
 window.initNavigation = initNavigation;
 window.applyFontSize = applyFontSize;
 window.adjustFontSize = adjustFontSize;
+window.resolveFontSizePx = resolveFontSizePx;
 window.updateHamburgerContextualSection = updateHamburgerContextualSection;

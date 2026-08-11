@@ -24,3 +24,12 @@
     --border-radius-lg:     8px;
     --nav-gap:              10px;
 }
+
+/* Anchors the font-size stepper's default (sidebar.js's
+   SIDEBAR_CONSTANTS.FONT_SIZE.DEFAULT = 16) to a real, explicit value.
+   Previously unset — document.documentElement.style.fontSize was only
+   ever touched by the stepper itself, so the true default was whatever
+   the browser's own base happened to be, not something this app pinned. */
+html {
+    font-size: 16px;
+}

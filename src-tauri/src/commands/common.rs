@@ -286,10 +286,6 @@ pub fn resolve_today(client_today: &Option<String>) -> String {
     today()
 }
 
-pub fn owner_or_default(owner: &Option<String>, fallback: &str) -> String {
-    owner.clone().unwrap_or_else(|| fallback.to_string())
-}
-
 /// The currently-active owner, per app_meta's `current_owner` key, falling
 /// back to DEFAULT_OWNER if unset (v1's untouched, no-testing-switch path).
 ///

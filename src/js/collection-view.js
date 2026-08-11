@@ -98,7 +98,6 @@ const CollectionView = {
             <div class="collection-view-header">
                 <h2>${escapeHtml(this._labelFor(state.collection))}
                     <span class="search-icon" data-action="toggle-search">🔍</span>
-                    <span class="match-count" id="${containerId}-match-count"></span>
                 </h2>
                 <button type="button" class="btn btn-primary collection-add-btn" data-action="add">Add</button>
             </div>
@@ -130,8 +129,14 @@ const CollectionView = {
             return (r.Title || '').toLowerCase().includes(q) || (r.Author || '').toLowerCase().includes(q);
         });
 
-        const countEl = document.getElementById(`${containerId}-match-count`);
-        if (countEl) countEl.textContent = q ? `(${rows.length} matches)` : '';
+        // Routed through the normal status message, not a dedicated
+        // element — a search's match count is just another status
+        // message; it gets overwritten by the next save/delete message
+        // and auto-dismisses after 60s like anything else shown here.
+        if (q) {
+            const n = rows.length;
+            showMessage(`${n} match${n === 1 ? '' : 'es'}`, CONSTANTS.MESSAGE_TYPES.INFO);
+        }
 
         if (rows.length === 0) {
             list.innerHTML = `<div class="collection-list-empty">${state.data.length === 0 ? 'Nothing here yet.' : 'No matches.'}</div>`;

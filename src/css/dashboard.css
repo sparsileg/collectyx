@@ -56,6 +56,21 @@
     box-shadow: var(--shadow-drag-over, none);
 }
 
+/* Spans every column auto-fit currently generated, at any breakpoint —
+   3-wide, 2-wide, or 1-wide, whatever .dashboard-grid's auto-fit produced.
+   No media queries needed; 1 / -1 tracks the live column count. */
+.dashboard-card-full-row {
+    grid-column: 1 / -1;
+}
+
+.yearly-stats-chart-wrap {
+    position: relative;
+    height: 300px;
+}
+#yearlyStatsChart {
+    max-height: 300px;
+}
+
 /* ── Quick Stats card ───────────────────────────────────────────────────────── */
 
 .stat-row {

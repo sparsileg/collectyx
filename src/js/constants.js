@@ -61,8 +61,7 @@ const CONSTANTS = {
         QUEUED: 'queued',
         CONSUMED: 'consumed',
         OWNED: 'owned',
-        TAGS: 'tags',
-        STATISTICS: 'statistics'
+        TAGS: 'tags'
     },
 
     STORAGE_KEYS: {
@@ -173,7 +172,8 @@ const DASHBOARD_CONSTANTS = {
         'recent-books',
         'reading-goals',
         'whats-next',
-        'library-stats'
+        'library-stats',
+        'yearly-stats'
     ],
     DRAG_CLASSES: {
         DRAGGING: 'dashboard-card-dragging',

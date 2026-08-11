@@ -11,9 +11,12 @@ const RatingUtils = {
         { value: 5, stars: '★★★★★', word: 'Essential' }
     ],
 
+    // List/row display — stars only, no word. Used by consumed-view.js's
+    // Books Read rows. The Add/Edit modal shows both (see optionsHtml
+    // below); the list is meant to be scannable, not descriptive.
     display(value) {
         const entry = this.LABELS.find(r => r.value === value);
-        return entry ? `${entry.stars} ${entry.word}` : '—';
+        return entry ? entry.stars : '—';
     },
 
     optionsHtml(selectedValue) {
