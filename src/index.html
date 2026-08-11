@@ -524,6 +524,26 @@
         </div>
       </div> <!-- end of Restore Screen 1 -->
 
+      <!-- Restore — Defective Records Found (skip or stop, before any wipe) -->
+      <div id="restoreDefectiveModal" class="modal">
+        <div class="modal-content">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0;">Defective Records Found</h3>
+            <button type="button" class="btn btn-secondary" data-action="stop">Stop Restore</button>
+          </div>
+
+          <div id="restoreDefectiveCount" style="margin-bottom: 15px;"></div>
+
+          <div id="restoreDefectiveList" style="max-height: 350px; overflow-y: auto; background: var(--card-bg);
+               border-radius: 6px; padding: 10px; margin-bottom: 15px;">
+          </div>
+
+          <div style="text-align: right;">
+            <button type="button" class="btn btn-primary" data-action="skip-continue">Skip Listed, Continue Restore</button>
+          </div>
+        </div>
+      </div> <!-- end of Restore Defective Records Modal -->
+
       <!-- Restore Screen 2 — Confirm Restore -->
       <div id="restoreScreen2Modal" class="modal">
         <div class="modal-content">

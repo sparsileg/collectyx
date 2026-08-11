@@ -60,12 +60,14 @@ const BackupRestore = {
     },
 
     // ── Validation ───────────────────────────────────────────────────────────
-    // A backup file is rejected in full rather than imported with warnings —
-    // by the time a per-record warning could be shown, the wipe in
-    // executeRestore() has already happened. Every check here runs before
-    // the confirmation checkbox becomes reachable (showScreen2's error path
-    // hides restoreCheckboxRow), so a file that fails validation cannot
-    // reach the wipe at all.
+    // Structural problems (file isn't an object, a section isn't an array,
+    // a record isn't an object) still halt in full — a shapeless record
+    // can't be shown for skip review, so there's nothing to offer the user.
+    // Per-record content problems (missing Title, a dangling ItemId) are
+    // collected instead and offered to the user as skippable (#74): Stop
+    // leaves current data untouched, same guarantee as a fatal failure;
+    // Skip drops just those records and proceeds. All of this runs before
+    // _wipeAll() in executeRestore() ever executes.
 
     _typeName(v) {
         if (Array.isArray(v)) return 'array';
@@ -73,52 +75,97 @@ const BackupRestore = {
         return typeof v;
     },
 
-    _validateRecord(record, label, index) {
-        if (this._typeName(record) !== 'object') {
-            return `${label}[${index}] must be an object, got ${this._typeName(record)}`;
-        }
-        if (typeof record.Title !== 'string' || record.Title.trim() === '') {
-            return `${label}[${index}] is missing Title`;
-        }
-        return null;
+    // MediaTypeId crashes Rust deserialization if present with the wrong
+    // JSON type (e.g. "" instead of a number) — caught here, before the
+    // wipe, rather than surfacing as a raw deserialize error mid-restore.
+    _isValidMediaTypeId(v) {
+        return typeof v === 'number' && Number.isInteger(v) && v >= 1;
     },
 
-    // Returns an error string naming the specific problem, or null if the
-    // file is structurally sound enough to restore from.
+    // Returns { fatal: string|null, skippable: [{ label, index, record, reason }] }.
+    // Fatal covers file-shape problems that cannot be partially applied —
+    // not an object, a section not an array, a record not an object — and
+    // still halts immediately, unchanged from before. Per-record content
+    // problems (missing Title, a dangling ItemId reference) are collected
+    // instead of failing on the first one found, so the caller can offer
+    // to skip just those records and restore everything else (#74).
     _validate(data) {
+        const skippable = [];
+
         if (this._typeName(data) !== 'object') {
-            return `Backup file must contain a JSON object, got ${this._typeName(data)}`;
+            return { fatal: `Backup file must contain a JSON object, got ${this._typeName(data)}`, skippable };
         }
 
         if (this._typeName(data.Items) !== 'array') {
-            return `Items must be an array, got ${this._typeName(data.Items)}`;
+            return { fatal: `Items must be an array, got ${this._typeName(data.Items)}`, skippable };
         }
         for (let i = 0; i < data.Items.length; i++) {
-            const err = this._validateRecord(data.Items[i], 'Items', i);
-            if (err) return err;
+            const record = data.Items[i];
+            if (this._typeName(record) !== 'object') {
+                return { fatal: `Items[${i}] must be an object, got ${this._typeName(record)}`, skippable };
+            }
+            // Rust's ItemRecord requires id/MediaTypeId with no default —
+            // missing or wrong-typed crashes deserialization, not just
+            // validation, so these are caught here alongside Title.
+            const reasons = [];
+            if (typeof record.Title !== 'string' || record.Title.trim() === '') {
+                reasons.push('missing Title');
+            }
+            if (typeof record.id !== 'string' || record.id.trim() === '') {
+                reasons.push('missing or invalid id');
+            }
+            if (record.MediaTypeId === undefined || record.MediaTypeId === null) {
+                reasons.push('missing MediaTypeId');
+            } else if (!this._isValidMediaTypeId(record.MediaTypeId)) {
+                reasons.push('invalid MediaTypeId');
+            }
+            if (reasons.length > 0) {
+                skippable.push({ label: 'Items', index: i, record, reason: reasons.join('; ') });
+            }
         }
 
         // Consumed/Queued/Owned: absent is treated the same as today's
         // `data.Consumed || []` fallback — restores as empty. Present but
-        // wrongly-typed, or containing a malformed record, is rejected.
+        // wrongly-typed, or containing a non-object record, is still fatal
+        // — a record with no shape at all can't be shown for skip review.
         for (const key of ['Consumed', 'Queued', 'Owned']) {
             if (data[key] === undefined) continue;
             if (this._typeName(data[key]) !== 'array') {
-                return `${key} must be an array, got ${this._typeName(data[key])}`;
+                return { fatal: `${key} must be an array, got ${this._typeName(data[key])}`, skippable };
             }
             for (let i = 0; i < data[key].length; i++) {
-                const err = this._validateRecord(data[key][i], key, i);
-                if (err) return err;
+                const record = data[key][i];
+                if (this._typeName(record) !== 'object') {
+                    return { fatal: `${key}[${i}] must be an object, got ${this._typeName(record)}`, skippable };
+                }
+                const reasons = [];
+                if (typeof record.Title !== 'string' || record.Title.trim() === '') {
+                    reasons.push('missing Title');
+                }
+                // MediaTypeId is optional here (ItemFields defaults to 1
+                // when absent) — only a present-but-wrong-type value
+                // crashes deserialization, so only that case is flagged.
+                if (record.MediaTypeId !== undefined && record.MediaTypeId !== null
+                    && !this._isValidMediaTypeId(record.MediaTypeId)) {
+                    reasons.push('invalid MediaTypeId');
+                }
+                // Finished has no default in Rust's ConsumedRecord — schema
+                // requires it (consumed.finished TEXT NOT NULL) — missing
+                // or wrong-typed crashes deserialization same as Title.
+                if (key === 'Consumed' && (typeof record.Finished !== 'string' || record.Finished.trim() === '')) {
+                    reasons.push('missing or invalid Finished date');
+                }
+                if (reasons.length > 0) {
+                    skippable.push({ label: key, index: i, record, reason: reasons.join('; ') });
+                }
             }
         }
 
         // Every referenced ItemId must be present in Items[] — a membership
         // row pointing at an item the file does not carry cannot be
-        // restored, and this must be caught before _wipeAll() runs, not
-        // after (CTX-SEC-112 / #62 fix 3). This is independent of the
-        // owner-mismatch failure #52 already closed — a dangling ItemId
-        // fails replaceCollection() for a different reason and hits the
-        // same wipe-then-rollback exposure.
+        // restored. Now skippable rather than fatal (#74); detection itself
+        // is unchanged from the #62 fix (CTX-SEC-112). Built from every raw
+        // Items entry regardless of that entry's own Title validity.
         const itemIds = new Set((data.Items || []).map(i => i.id).filter(Boolean));
         for (const key of ['Consumed', 'Queued', 'Owned']) {
             const rows = data[key];
@@ -126,31 +173,50 @@ const BackupRestore = {
             for (let i = 0; i < rows.length; i++) {
                 const ref = rows[i].ItemId;
                 if (ref && !itemIds.has(ref)) {
-                    return `${key}[${i}] references ItemId "${ref}", which is not in Items`;
+                    skippable.push({ label: key, index: i, record: rows[i], reason: `references ItemId "${ref}", which is not in Items` });
                 }
             }
         }
 
         if (data.Tags !== undefined) {
             if (this._typeName(data.Tags) !== 'array') {
-                return `Tags must be an array, got ${this._typeName(data.Tags)}`;
+                return { fatal: `Tags must be an array, got ${this._typeName(data.Tags)}`, skippable };
             }
             for (let i = 0; i < data.Tags.length; i++) {
                 const tag = data.Tags[i];
                 if (this._typeName(tag) !== 'object') {
-                    return `Tags[${i}] must be an object, got ${this._typeName(tag)}`;
+                    return { fatal: `Tags[${i}] must be an object, got ${this._typeName(tag)}`, skippable };
                 }
                 if (typeof tag.Name !== 'string' || tag.Name.trim() === '') {
-                    return `Tags[${i}] is missing Name`;
+                    skippable.push({ label: 'Tags', index: i, record: tag, reason: 'missing Name' });
                 }
             }
         }
 
         if (data.Settings !== undefined && this._typeName(data.Settings) !== 'object') {
-            return `Settings must be an object, got ${this._typeName(data.Settings)}`;
+            return { fatal: `Settings must be an object, got ${this._typeName(data.Settings)}`, skippable };
         }
 
-        return null;
+        return { fatal: null, skippable };
+    },
+
+    // Removes every flagged record from a shallow copy of data — called
+    // only after the user explicitly chooses to skip and continue.
+    // data.Items itself is filtered too (a bad-Title item is dropped),
+    // but membership rows referencing that item's id are only dropped if
+    // they were independently flagged — no cascade is applied beyond what
+    // _validate() already found (#74, Q1: orphan items are allowed).
+    _filterSkippable(data, skippable) {
+        const dropIndexes = { Items: new Set(), Consumed: new Set(), Queued: new Set(), Owned: new Set(), Tags: new Set() };
+        for (const entry of skippable) {
+            dropIndexes[entry.label].add(entry.index);
+        }
+        const filtered = { ...data };
+        for (const key of Object.keys(dropIndexes)) {
+            if (!Array.isArray(data[key])) continue;
+            filtered[key] = data[key].filter((_, i) => !dropIndexes[key].has(i));
+        }
+        return filtered;
     },
 
     // ── Export ───────────────────────────────────────────────────────────────
@@ -242,11 +308,13 @@ const BackupRestore = {
                 else if (action === 'browse') this.browseFiles();
                 else if (action === 'continue') this.continueToScreen2();
                 else if (action === 'execute') this.executeRestore();
+                else if (action === 'stop') this.stopRestore();
+                else if (action === 'skip-continue') this.skipAndContinue();
             });
             return true;
         };
-        const bothBound = bind('restoreScreen1Modal') && bind('restoreScreen2Modal');
-        if (!bothBound) return;
+        const allBound = bind('restoreScreen1Modal') && bind('restoreScreen2Modal') && bind('restoreDefectiveModal');
+        if (!allBound) return;
 
         const fileInput = document.getElementById('restoreFileInput');
         if (fileInput) fileInput.addEventListener('change', () => this.fileSelected());
@@ -311,13 +379,58 @@ const BackupRestore = {
             return;
         }
 
-        const validationError = this._validate(this._parsedData);
-        if (validationError) {
+        const { fatal, skippable } = this._validate(this._parsedData);
+        if (fatal) {
             this._parsedData = null;
-            await this.showScreen2(null, validationError);
+            await this.showScreen2(null, fatal);
             return;
         }
 
+        if (skippable.length > 0) {
+            this.showDefectiveModal(skippable);
+            return;
+        }
+
+        await this.showScreen2(this._parsedData, null);
+    },
+
+    // ── Restore: Defective Records — skip or stop ──────────────────────────
+    // Shown between Screen 1 and Screen 2 only when _validate() finds
+    // skippable (non-fatal) per-record problems. Stop aborts before any
+    // wipe runs — same untouched-data guarantee as today's fatal-error
+    // path. Skip filters the flagged records out of _parsedData and
+    // proceeds to Screen 2 as if they were never in the file.
+    _pendingSkippable: null,
+
+    showDefectiveModal(skippable) {
+        this._pendingSkippable = skippable;
+        document.getElementById('restoreScreen1Modal').classList.remove('open');
+        document.getElementById('restoreDefectiveModal').classList.add('open');
+
+        const count = skippable.length;
+        document.getElementById('restoreDefectiveCount').innerHTML =
+            `<strong>${count} record${count === 1 ? '' : 's'} could not be restored.</strong> ` +
+            `Review below — Stop leaves your current data untouched, or skip these and restore everything else.`;
+
+        const listDiv = document.getElementById('restoreDefectiveList');
+        listDiv.innerHTML = skippable.map(entry => `
+            <div style="border-bottom: 1px solid var(--border-color); padding: 10px 0;">
+                <div style="margin-bottom: 4px;"><strong>${escapeHtml(entry.label)}[${entry.index}]</strong> — ${escapeHtml(entry.reason)}</div>
+                <pre style="white-space: pre-wrap; word-break: break-all; margin: 0; font-size: 0.85em; user-select: text;">${escapeHtml(JSON.stringify(entry.record, null, 2))}</pre>
+            </div>
+        `).join('');
+    },
+
+    stopRestore() {
+        this._pendingSkippable = null;
+        this.close();
+    },
+
+    async skipAndContinue() {
+        if (!this._parsedData || !this._pendingSkippable) return;
+        this._parsedData = this._filterSkippable(this._parsedData, this._pendingSkippable);
+        this._pendingSkippable = null;
+        document.getElementById('restoreDefectiveModal').classList.remove('open');
         await this.showScreen2(this._parsedData, null);
     },
 
@@ -550,9 +663,11 @@ const BackupRestore = {
     close() {
         document.getElementById('restoreScreen1Modal').classList.remove('open');
         document.getElementById('restoreScreen2Modal').classList.remove('open');
+        document.getElementById('restoreDefectiveModal').classList.remove('open');
         this._parsedData = null;
         this._fileName = null;
         this._fileSize = null;
+        this._pendingSkippable = null;
     }
 };
 
