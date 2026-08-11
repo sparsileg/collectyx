@@ -9,11 +9,16 @@ use crate::constants::{APP_NAME, DB_FILE_NAME};
 /// Enables WAL mode, foreign keys, and synchronous=NORMAL for performance.
 pub fn open_db(_app: &AppHandle) -> Result<Connection> {
     let data_dir = dirs_next::data_dir()
-        .expect("Could not resolve OS app data directory")
+        .unwrap_or_else(|| {
+            log::error!("open_db: dirs_next::data_dir() returned None — could not resolve OS app data directory");
+            panic!("Could not resolve the application data directory");
+        })
         .join(APP_NAME);
 
-    std::fs::create_dir_all(&data_dir)
-        .unwrap_or_else(|e| panic!("Could not create {} data directory: {:?}", APP_NAME, e));
+    std::fs::create_dir_all(&data_dir).unwrap_or_else(|e| {
+        log::error!("open_db: could not create data directory {}: {:?}", data_dir.display(), e);
+        panic!("Could not create the application data directory");
+    });
 
     let db_path = data_dir.join(DB_FILE_NAME);
     log::info!("Opening database at: {}", db_path.display());

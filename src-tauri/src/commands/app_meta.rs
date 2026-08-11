@@ -9,6 +9,7 @@
 use rusqlite::params;
 use tauri::State;
 
+use crate::commands::common;
 use crate::AppState;
 
 // Only current_owner exists today. Allow-listing both read and write now,
@@ -34,7 +35,7 @@ pub fn get_app_meta(state: State<AppState>, key: String) -> Result<Option<String
     if !ALLOWED_KEYS.contains(&key.as_str()) {
         return Err(format!("Unknown app_meta key \"{}\"", key));
     }
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     let result = db.query_row(
         "SELECT value FROM app_meta WHERE key = ?1",
         params![key],
@@ -44,7 +45,7 @@ pub fn get_app_meta(state: State<AppState>, key: String) -> Result<Option<String
     match result {
         Ok(value) => Ok(Some(value)),
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(common::db_err(e)),
     }
 }
 
@@ -57,12 +58,12 @@ pub fn set_app_meta(state: State<AppState>, key: String, value: String) -> Resul
     if value.len() > APP_META_VALUE_MAX {
         return Err(format!("Value exceeds {} characters", APP_META_VALUE_MAX));
     }
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let db = common::lock_db(&state.db);
     db.execute(
         "INSERT INTO app_meta (key, value) VALUES (?1, ?2)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         params![key, value],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(common::db_err)?;
     Ok(())
 }

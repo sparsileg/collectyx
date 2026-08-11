@@ -39,7 +39,7 @@ pub fn get_settings(state: State<AppState>) -> Result<Option<String>, String> {
     match result {
         Ok(data) => Ok(Some(data)),
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(common::db_err(e)),
     }
 }
 
@@ -65,6 +65,6 @@ pub fn save_settings(state: State<AppState>, data: String) -> Result<(), String>
          ON CONFLICT(owner) DO UPDATE SET data = excluded.data",
         params![owner, data],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(common::db_err)?;
     Ok(())
 }

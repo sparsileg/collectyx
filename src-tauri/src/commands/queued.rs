@@ -88,15 +88,15 @@ pub fn get_all_queued(state: State<AppState>) -> Result<Vec<QueuedRecord>, Strin
     let db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
 
-    let mut stmt = db.prepare(SELECT_JOINED).map_err(|e| e.to_string())?;
+    let mut stmt = db.prepare(SELECT_JOINED).map_err(common::db_err)?;
     let mut records = stmt
         .query_map(params![owner], |row| row_to_record(row))
-        .map_err(|e| e.to_string())?
+        .map_err(common::db_err)?
         .collect::<Result<Vec<_>>>()
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
     drop(stmt);
 
-    let tag_map = tags_by_item(&db, &owner).map_err(|e| e.to_string())?;
+    let tag_map = tags_by_item(&db, &owner).map_err(common::db_err)?;
     for record in records.iter_mut() {
         if let Some(item_id) = &record.item.item_id {
             record.item.tags = Some(tag_map.get(item_id).cloned().unwrap_or_default());
@@ -109,12 +109,12 @@ pub fn get_all_queued(state: State<AppState>) -> Result<Vec<QueuedRecord>, Strin
 #[tauri::command]
 pub fn save_queued(state: State<AppState>, record: QueuedRecord) -> Result<common::SaveResult, String> {
     let mut db = common::lock_db(&state.db);
-    let tx = db.transaction().map_err(|e| e.to_string())?;
+    let tx = db.transaction().map_err(common::db_err)?;
     let now = common::resolve_today(&record.item.client_today);
 
-    let (id, item_id) = write_one(&tx, &record, &now, true, false).map_err(|e| e.to_string())?;
+    let (id, item_id) = write_one(&tx, &record, &now, true, false).map_err(common::db_err)?;
 
-    tx.commit().map_err(|e| e.to_string())?;
+    tx.commit().map_err(common::db_err)?;
     Ok(common::SaveResult { id, item_id })
 }
 
@@ -212,7 +212,7 @@ pub fn delete_queued(state: State<AppState>, id: String) -> Result<(), String> {
     // the first write, risking SQLITE_BUSY mid-transaction after the read
     // already happened; Immediate takes the write lock upfront instead
     // (CTX-SEC-113 / #63).
-    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(common::db_err)?;
 
     let deleted_rank: Option<i64> = tx
         .query_row(
@@ -230,7 +230,7 @@ pub fn delete_queued(state: State<AppState>, id: String) -> Result<(), String> {
               WHERE id = ?1 AND item_id IN (SELECT id FROM items WHERE owner = ?2)",
             params![id, owner],
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
     if affected == 0 {
         return Err("Record not found".to_string());
     }
@@ -244,10 +244,10 @@ pub fn delete_queued(state: State<AppState>, id: String) -> Result<(), String> {
                  AND item_id IN (SELECT id FROM items WHERE owner = ?2)",
             params![rank, owner],
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
     }
 
-    tx.commit().map_err(|e| e.to_string())?;
+    tx.commit().map_err(common::db_err)?;
     Ok(())
 }
 
@@ -269,7 +269,7 @@ pub fn reorder_queued(
     let owner = common::current_owner(&db);
     // Reads old_rank then writes shifted rows based on it — same reasoning
     // as delete_queued above (CTX-SEC-113 / #63).
-    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(common::db_err)?;
 
     let old_rank: Option<i64> = tx
         .query_row(
@@ -282,7 +282,7 @@ pub fn reorder_queued(
         .map_err(|_| "Record not found".to_string())?;
 
     if old_rank == new_rank {
-        tx.commit().map_err(|e| e.to_string())?;
+        tx.commit().map_err(common::db_err)?;
         return Ok(());
     }
 
@@ -319,7 +319,7 @@ pub fn reorder_queued(
         ),
         _ => Ok(0),
     }
-    .map_err(|e| e.to_string())?;
+    .map_err(common::db_err)?;
 
     let now = today();
     let affected = tx
@@ -328,12 +328,12 @@ pub fn reorder_queued(
                WHERE id = ?3 AND item_id IN (SELECT id FROM items WHERE owner = ?4)",
             params![new_rank, now, id, owner],
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
     if affected == 0 {
         return Err("Record not found".to_string());
     }
 
-    tx.commit().map_err(|e| e.to_string())?;
+    tx.commit().map_err(common::db_err)?;
     Ok(())
 }
 
@@ -354,7 +354,7 @@ pub fn toggle_currently_reading(
               WHERE id = ?3 AND item_id IN (SELECT id FROM items WHERE owner = ?4)",
             params![value, now, id, owner],
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
     if affected == 0 {
         return Err("Record not found".to_string());
     }
@@ -371,19 +371,19 @@ pub fn replace_all_queued(
     // Whole-collection delete + rewrite, restore's worst-case write
     // contention path — Immediate for the same reason as delete_queued
     // above (CTX-SEC-113 / #63).
-    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(common::db_err)?;
     let now = today();
 
     tx.execute(
         "DELETE FROM queued WHERE item_id IN (SELECT id FROM items WHERE owner = ?1)",
         params![owner],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(common::db_err)?;
 
     for record in &records {
-        write_one(&tx, record, &now, false, true).map_err(|e| e.to_string())?;
+        write_one(&tx, record, &now, false, true).map_err(common::db_err)?;
     }
 
-    tx.commit().map_err(|e| e.to_string())?;
+    tx.commit().map_err(common::db_err)?;
     Ok(())
 }

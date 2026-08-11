@@ -641,3 +641,25 @@ pub fn lock_db(
 pub fn new_uuid() -> String {
     uuid::Uuid::new_v4().to_string()
 }
+
+/// Converts a rusqlite::Error into the string returned to the frontend.
+/// A raw `e.to_string()` can carry SQL fragments, bind values, or (via the
+/// underlying SQLite message) a filesystem path — fine on a local
+/// single-user desktop app today, but the wrong thing to have standardized
+/// on once a D1 sync surfaces these strings over the wire (CTX-SEC-120
+/// fix 3). Real database errors are logged in full and replaced with an
+/// opaque message.
+///
+/// One exception: this codebase smuggles validation and ownership-check
+/// messages ("Rating out of range...", "Record not found", ...) through
+/// rusqlite::Result via Error::ToSqlConversionFailure, precisely so a
+/// mid-transaction validation failure can still short-circuit a write with
+/// `?`. That message is our own text, not a raw db error, and is safe —
+/// and necessary — to return to the caller verbatim.
+pub fn db_err(e: rusqlite::Error) -> String {
+    if let rusqlite::Error::ToSqlConversionFailure(inner) = &e {
+        return inner.to_string();
+    }
+    log::error!("database error: {:?}", e);
+    "A database error occurred".to_string()
+}

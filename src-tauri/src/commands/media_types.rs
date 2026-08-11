@@ -38,7 +38,7 @@ pub fn get_all_media_types(state: State<AppState>) -> Result<Vec<MediaType>, Str
                FROM media_types
               ORDER BY id ASC",
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
 
     let types = stmt
         .query_map([], |row| {
@@ -50,9 +50,9 @@ pub fn get_all_media_types(state: State<AppState>) -> Result<Vec<MediaType>, Str
                 owned_label: row.get(4)?,
             })
         })
-        .map_err(|e| e.to_string())?
+        .map_err(common::db_err)?
         .collect::<Result<Vec<_>>>()
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
 
     Ok(types)
 }

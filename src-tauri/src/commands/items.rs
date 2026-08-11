@@ -57,7 +57,7 @@ pub fn get_all_items(state: State<AppState>) -> Result<Vec<ItemRecord>, String> 
               WHERE owner = ?1
               ORDER BY title ASC",
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
 
     let mut items = stmt
         .query_map(params![owner], |row| {
@@ -75,12 +75,12 @@ pub fn get_all_items(state: State<AppState>) -> Result<Vec<ItemRecord>, String> 
                 modified: row.get(9)?,
             })
         })
-        .map_err(|e| e.to_string())?
+        .map_err(common::db_err)?
         .collect::<Result<Vec<_>>>()
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
     drop(stmt);
 
-    let tag_map = tags_by_item(&db, &owner).map_err(|e| e.to_string())?;
+    let tag_map = tags_by_item(&db, &owner).map_err(common::db_err)?;
     for item in items.iter_mut() {
         item.tags = tag_map.get(&item.id).cloned().unwrap_or_default();
     }
@@ -108,7 +108,7 @@ pub fn count_orphan_items(state: State<AppState>) -> Result<i64, String> {
             params![owner],
             |row| row.get(0),
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
     Ok(count)
 }
 
@@ -119,7 +119,7 @@ pub fn delete_item(state: State<AppState>, id: String) -> Result<(), String> {
     let db = common::lock_db(&state.db);
     common::assert_item_owned(&db, &id)?;
     db.execute("DELETE FROM items WHERE id = ?1", params![id])
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
     Ok(())
 }
 
@@ -132,7 +132,7 @@ pub fn attach_tag(state: State<AppState>, item_id: String, tag_id: String) -> Re
         "INSERT OR IGNORE INTO item_tags (item_id, tag_id) VALUES (?1, ?2)",
         params![item_id, tag_id],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(common::db_err)?;
     Ok(())
 }
 
@@ -145,7 +145,7 @@ pub fn detach_tag(state: State<AppState>, item_id: String, tag_id: String) -> Re
         "DELETE FROM item_tags WHERE item_id = ?1 AND tag_id = ?2",
         params![item_id, tag_id],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(common::db_err)?;
     Ok(())
 }
 
@@ -213,7 +213,7 @@ pub fn save_item(state: State<AppState>, item: ItemRecord) -> Result<String, Str
             now
         ],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(common::db_err)?;
 
     Ok(id)
 }

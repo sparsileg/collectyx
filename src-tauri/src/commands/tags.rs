@@ -46,7 +46,7 @@ pub fn get_all_tags(state: State<AppState>) -> Result<Vec<TagRecord>, String> {
               WHERE t.owner = ?1
               ORDER BY t.name ASC",
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
 
     let tags = stmt
         .query_map(params![owner], |row| {
@@ -59,9 +59,9 @@ pub fn get_all_tags(state: State<AppState>) -> Result<Vec<TagRecord>, String> {
                 count: row.get(5)?,
             })
         })
-        .map_err(|e| e.to_string())?
+        .map_err(common::db_err)?
         .collect::<Result<Vec<_>>>()
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
 
     Ok(tags)
 }
@@ -111,7 +111,7 @@ pub fn save_tag(state: State<AppState>, tag: TagRecord) -> Result<String, String
             now
         ],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(common::db_err)?;
 
     Ok(id)
 }
@@ -126,7 +126,7 @@ pub fn delete_tag(
     substitute_tag_id: Option<String>,
 ) -> Result<i64, String> {
     let mut db = common::lock_db(&state.db);
-    let tx = db.transaction().map_err(|e| e.to_string())?;
+    let tx = db.transaction().map_err(common::db_err)?;
 
     common::assert_tag_owned(&tx, &id)?;
 
@@ -139,7 +139,7 @@ pub fn delete_tag(
             params![id, owner],
             |row| row.get(0),
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
 
     if let Some(substitute) = &substitute_tag_id {
         if substitute == &id {
@@ -152,14 +152,14 @@ pub fn delete_tag(
              SELECT item_id, ?1 FROM item_tags WHERE tag_id = ?2",
             params![substitute, id],
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
     }
 
     // item_tags rows go via ON DELETE CASCADE on tags.id.
     tx.execute("DELETE FROM tags WHERE id = ?1", params![id])
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
 
-    tx.commit().map_err(|e| e.to_string())?;
+    tx.commit().map_err(common::db_err)?;
     Ok(affected)
 }
 
@@ -182,7 +182,7 @@ struct PreparedTag {
 pub fn replace_all_tags(state: State<AppState>, tags: Vec<TagRecord>) -> Result<(), String> {
     let mut db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
-    let tx = db.transaction().map_err(|e| e.to_string())?;
+    let tx = db.transaction().map_err(common::db_err)?;
     let now = today();
 
     let mut prepared: Vec<PreparedTag> = Vec::new();
@@ -226,19 +226,19 @@ pub fn replace_all_tags(state: State<AppState>, tags: Vec<TagRecord>) -> Result<
     let existing_ids: Vec<String> = {
         let mut stmt = tx
             .prepare("SELECT id FROM tags WHERE owner = ?1")
-            .map_err(|e| e.to_string())?;
+            .map_err(common::db_err)?;
         let rows = stmt
             .query_map(params![owner], |row| row.get(0))
-            .map_err(|e| e.to_string())?
+            .map_err(common::db_err)?
             .collect::<Result<Vec<_>>>()
-            .map_err(|e| e.to_string())?;
+            .map_err(common::db_err)?;
         rows
     };
 
     for existing_id in &existing_ids {
         if !incoming_ids.contains(existing_id.as_str()) {
             tx.execute("DELETE FROM tags WHERE id = ?1", params![existing_id])
-                .map_err(|e| e.to_string())?;
+                .map_err(common::db_err)?;
         }
     }
 
@@ -252,9 +252,9 @@ pub fn replace_all_tags(state: State<AppState>, tags: Vec<TagRecord>) -> Result<
               WHERE tags.owner = ?2",
             params![p.id, p.owner, p.name, p.date_added, now],
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
     }
 
-    tx.commit().map_err(|e| e.to_string())?;
+    tx.commit().map_err(common::db_err)?;
     Ok(())
 }

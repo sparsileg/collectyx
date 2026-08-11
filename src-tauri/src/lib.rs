@@ -45,11 +45,15 @@ pub fn run() {
             }
 
             // Open (or create) the SQLite database and run migrations
-            let conn = db::open_db(app.handle())
-                .unwrap_or_else(|e| panic!("Failed to open {} database: {:?}", APP_NAME, e));
+            let conn = db::open_db(app.handle()).unwrap_or_else(|e| {
+                log::error!("Failed to open {} database: {:?}", APP_NAME, e);
+                panic!("Failed to open the {} database", APP_NAME);
+            });
 
-            db::migrations::run_migrations(&conn)
-                .expect("Failed to run database migrations");
+            db::migrations::run_migrations(&conn).unwrap_or_else(|e| {
+                log::error!("Failed to run database migrations: {:?}", e);
+                panic!("Failed to run database migrations");
+            });
 
             app.manage(AppState {
                 db: Mutex::new(conn),
@@ -162,7 +166,8 @@ pub fn run() {
         commands::app_meta::get_app_meta,
     ]);
 
-    builder
-        .run(tauri::generate_context!())
-        .unwrap_or_else(|e| panic!("error while running {}: {:?}", APP_NAME, e));
+    builder.run(tauri::generate_context!()).unwrap_or_else(|e| {
+        log::error!("error while running {}: {:?}", APP_NAME, e);
+        panic!("Fatal error while running {}", APP_NAME);
+    });
 }

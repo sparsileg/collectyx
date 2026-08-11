@@ -14,11 +14,14 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     // downgrade or a sync rollback (COLLECTYX-SEC-38 item 4). No migration
     // runs in this case.
     if version > CURRENT_SCHEMA_VERSION {
-        panic!(
-            "{} database schema version {} is newer than this build supports (expected {}). \
-             Refusing to run migrations — use a newer build, or restore from a backup \
-             compatible with this version.",
+        log::error!(
+            "{} database schema version {} is newer than this build supports (expected {})",
             APP_NAME, version, CURRENT_SCHEMA_VERSION
+        );
+        panic!(
+            "This database was created by a newer version of {}. \
+             Please update the application, or restore from a compatible backup.",
+            APP_NAME
         );
     }
 
@@ -140,10 +143,11 @@ fn get_schema_version(conn: &Connection) -> Result<u32> {
         |row| row.get(0),
     )?;
     if version < 0 {
-        panic!(
+        log::error!(
             "{} database schema version is negative ({}) — the database file is corrupt",
             APP_NAME, version
         );
+        panic!("The {} database file appears to be corrupt", APP_NAME);
     }
     Ok(version as u32)
 }

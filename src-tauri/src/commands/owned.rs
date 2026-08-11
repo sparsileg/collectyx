@@ -79,15 +79,15 @@ pub fn get_all_owned(state: State<AppState>) -> Result<Vec<OwnedRecord>, String>
     let db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
 
-    let mut stmt = db.prepare(SELECT_JOINED).map_err(|e| e.to_string())?;
+    let mut stmt = db.prepare(SELECT_JOINED).map_err(common::db_err)?;
     let mut records = stmt
         .query_map(params![owner], |row| row_to_record(row))
-        .map_err(|e| e.to_string())?
+        .map_err(common::db_err)?
         .collect::<Result<Vec<_>>>()
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
     drop(stmt);
 
-    let tag_map = tags_by_item(&db, &owner).map_err(|e| e.to_string())?;
+    let tag_map = tags_by_item(&db, &owner).map_err(common::db_err)?;
     for record in records.iter_mut() {
         if let Some(item_id) = &record.item.item_id {
             record.item.tags = Some(tag_map.get(item_id).cloned().unwrap_or_default());
@@ -100,12 +100,12 @@ pub fn get_all_owned(state: State<AppState>) -> Result<Vec<OwnedRecord>, String>
 #[tauri::command]
 pub fn save_owned(state: State<AppState>, record: OwnedRecord) -> Result<common::SaveResult, String> {
     let mut db = common::lock_db(&state.db);
-    let tx = db.transaction().map_err(|e| e.to_string())?;
+    let tx = db.transaction().map_err(common::db_err)?;
     let now = common::resolve_today(&record.item.client_today);
 
-    let (id, item_id) = write_one(&tx, &record, &now, true).map_err(|e| e.to_string())?;
+    let (id, item_id) = write_one(&tx, &record, &now, true).map_err(common::db_err)?;
 
-    tx.commit().map_err(|e| e.to_string())?;
+    tx.commit().map_err(common::db_err)?;
     Ok(common::SaveResult { id, item_id })
 }
 
@@ -187,7 +187,7 @@ pub fn delete_owned(state: State<AppState>, id: String) -> Result<(), String> {
               WHERE id = ?1 AND item_id IN (SELECT id FROM items WHERE owner = ?2)",
             params![id, owner],
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(common::db_err)?;
     if affected == 0 {
         return Err("Record not found".to_string());
     }
@@ -204,19 +204,19 @@ pub fn replace_all_owned(
     // Whole-collection delete + rewrite, restore's worst-case write
     // contention path — Immediate for the same reason as queued.rs's
     // delete_queued (CTX-SEC-113 / #63).
-    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(common::db_err)?;
     let now = today();
 
     tx.execute(
         "DELETE FROM owned WHERE item_id IN (SELECT id FROM items WHERE owner = ?1)",
         params![owner],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(common::db_err)?;
 
     for record in &records {
-        write_one(&tx, record, &now, false).map_err(|e| e.to_string())?;
+        write_one(&tx, record, &now, false).map_err(common::db_err)?;
     }
 
-    tx.commit().map_err(|e| e.to_string())?;
+    tx.commit().map_err(common::db_err)?;
     Ok(())
 }
