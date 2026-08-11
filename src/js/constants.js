@@ -89,7 +89,6 @@ const CONSTANTS = {
         TITLE: 'Title',
         AUTHOR: 'Author',
         PAGES: 'Pages',
-        RECOMMEND: 'Recommend',
         ISBN: 'ISBN',
         COMMENTS: 'Comments',
         ID: 'id'

@@ -26,9 +26,6 @@ pub struct ConsumedRecord {
     #[serde(rename = "Rating", default)]
     pub rating: Option<i64>,
 
-    #[serde(rename = "Recommend", default)]
-    pub recommend: Option<i64>,
-
     #[serde(rename = "Comments", default)]
     pub comments: Option<String>,
 
@@ -41,7 +38,7 @@ pub struct ConsumedRecord {
 
 const SELECT_JOINED: &str = "
     SELECT c.id, c.item_id, i.owner, i.media_type_id, i.title, i.author,
-           i.author2, i.pages, i.isbn, c.finished, c.rating, c.recommend,
+           i.author2, i.pages, i.isbn, c.finished, c.rating,
            c.comments, c.date_added, c.modified, i.date_added, i.modified
       FROM consumed c
       JOIN items i ON i.id = c.item_id
@@ -61,16 +58,15 @@ fn row_to_record(row: &rusqlite::Row) -> Result<ConsumedRecord> {
             pages: Some(row.get(7)?),
             isbn: Some(row.get(8)?),
             tags: Some(Vec::new()),
-            item_date_added: row.get(15)?,
-            item_modified: row.get(16)?,
+            item_date_added: row.get(14)?,
+            item_modified: row.get(15)?,
             client_today: None,
         },
         finished: row.get(9)?,
         rating: row.get(10)?,
-        recommend: row.get(11)?,
-        comments: row.get(12)?,
-        date_added: row.get(13)?,
-        modified: row.get(14)?,
+        comments: row.get(11)?,
+        date_added: row.get(12)?,
+        modified: row.get(13)?,
     })
 }
 
@@ -157,13 +153,12 @@ fn write_one(
 
     tx.execute(
         "INSERT INTO consumed
-           (id, item_id, finished, rating, recommend, comments, date_added, modified)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8)
+           (id, item_id, finished, rating, comments, date_added, modified)
+         VALUES (?1,?2,?3,?4,?5,?6,?7)
          ON CONFLICT(id) DO UPDATE SET
             item_id   = excluded.item_id,
             finished  = excluded.finished,
             rating    = excluded.rating,
-            recommend = excluded.recommend,
             comments  = excluded.comments,
             modified  = excluded.modified",
         params![
@@ -171,7 +166,6 @@ fn write_one(
             item_id,
             record.finished,
             record.rating,
-            record.recommend,
             record.comments,
             date_added,
             now

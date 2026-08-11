@@ -43,7 +43,6 @@ CREATE TABLE IF NOT EXISTS consumed (
     item_id     TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
     finished    TEXT NOT NULL,
     rating      INTEGER,
-    recommend   INTEGER,
     comments    TEXT,
     date_added  TEXT,
     modified    TEXT

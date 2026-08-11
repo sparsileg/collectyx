@@ -1,5 +1,7 @@
 // ── Rating (1–5, stars + word) ──────────────────────────────────────────────
-// Replaces the old 1–10 numeric Rating and the separate Recommend field.
+// Replaces the old 1–10 numeric Rating. The separate 0/1 Recommend field
+// it also superseded was dropped entirely (CTX-SEC-121) — no UI writer,
+// no reader, no migration ever built for it.
 // Numbers 1–5 are what's actually stored; stars/words are display-only.
 
 const RatingUtils = {
@@ -25,18 +27,6 @@ const RatingUtils = {
             `<option value="${r.value}"${selectedValue === r.value ? ' selected' : ''}>${r.stars} ${r.word}</option>`
         ).join('');
         return blank + opts;
-    },
-
-    // Recommend (0/1) -> Rating (1-5) mapping for the future one-time data
-    // migration (No -> 1, Yes -> 4, confirmed with Stan). Not called
-    // anywhere yet — there's no existing Recommend data in Collectyx to
-    // convert until that migration is actually built. Recorded here so the
-    // rule lives next to the rest of the rating logic rather than only in
-    // chat history.
-    fromRecommend(recommend) {
-        if (recommend === 1) return 4;
-        if (recommend === 0) return 1;
-        return null;
     }
 };
 

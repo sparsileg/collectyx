@@ -34,7 +34,6 @@ const COLLECTION_FIELD_MAPS = {
     consumed: {
         Finished:  'finished',
         Rating:    'rating',
-        Recommend: 'recommend',
         Comments:  'comments',
     },
     queued: {
@@ -90,6 +89,18 @@ const Validation = {
         }
     },
 
+    // Bounds only. No FK on this backend to catch a value that passes this
+    // but names no real media_types row — see the explicit existence check
+    // in _saveCollectionRecordImpl/replaceCollection/saveItem instead
+    // (CTX-SEC-121).
+    mediaTypeId(value) {
+        if (value == null) return;
+        const n = Number(value);
+        if (!Number.isInteger(n) || n < 1) {
+            throw new Error('MediaTypeId out of range');
+        }
+    },
+
     rating(value) {
         if (value == null) return;
         const n = Number(value);
@@ -136,6 +147,7 @@ const Validation = {
         if (has('Author2')) this.shortText(record.Author2, 'Author2');
         if (has('ISBN')) this.shortText(record.ISBN, 'ISBN');
         if (has('Pages')) this.pages(record.Pages);
+        if (has('MediaTypeId')) this.mediaTypeId(record.MediaTypeId);
         if (has('ItemDateAdded')) this.date(record.ItemDateAdded, 'ItemDateAdded');
         if (has('ItemModified')) this.date(record.ItemModified, 'ItemModified');
         if (has('DateAdded')) this.date(record.DateAdded, 'DateAdded');
@@ -690,6 +702,7 @@ const DBManagerWeb = {
             this._load(S.ITEM_TAGS),
             this._load(S.ITEMS),
             this._load(collection),
+            this._load(S.MEDIA_TYPES),
         ]);
         const tags = loaded[0];
         const itemTags = loaded[1];
@@ -719,6 +732,13 @@ const DBManagerWeb = {
 
         const split = JoinHelpers.splitRecord(collection, prepared, defaults, existing);
         const item = split.item;
+
+        // No FK on this backend — an item whose MediaTypeId names no real
+        // media_types row would otherwise render with fallback labels
+        // instead of failing the write (CTX-SEC-121).
+        if (!loaded[4].some(t => t.id === item.media_type_id)) {
+            throw new Error('Unknown MediaTypeId');
+        }
 
         const ops = [
             { store: S.ITEMS, action: 'put', value: item },
@@ -799,11 +819,13 @@ const DBManagerWeb = {
             this._load(S.ITEM_TAGS),
             this._load(S.ITEMS),
             this._load(collection),
+            this._load(S.MEDIA_TYPES),
         ]);
         const workingTags = loaded[0].slice();
         const itemTags = loaded[1];
         const existingItems = JoinHelpers.indexById(loaded[2]);
         const existingMemberships = loaded[3];
+        const validMediaTypeIds = new Set(loaded[4].map(t => t.id));
 
         // Scoped to the active owner only — 'clear' would wipe every
         // owner's rows in this store, not just the one being restored.
@@ -849,6 +871,12 @@ const DBManagerWeb = {
                 membership: null,
             });
             const item = split.item;
+
+            // Same check as _saveCollectionRecordImpl — a restore file is
+            // exactly the untrusted-input path this backstops (CTX-SEC-121).
+            if (!validMediaTypeIds.has(item.media_type_id)) {
+                throw new Error('Unknown MediaTypeId');
+            }
 
             ops.push({ store: S.ITEMS, action: 'put', value: item });
             ops.push({ store: collection, action: 'put', value: split.membership });
@@ -934,6 +962,12 @@ const DBManagerWeb = {
         row.owner = (existing && existing.owner) || this._owner();
         row.media_type_id = item.MediaTypeId || (existing && existing.media_type_id) ||
                             CONSTANTS.MEDIA_TYPE_BOOKS;
+        // Same check as the collection save paths — this is the third,
+        // bare-item write path and gets no FK backstop either (CTX-SEC-121).
+        const mediaTypes = await this._load(S.MEDIA_TYPES);
+        if (!mediaTypes.some(t => t.id === row.media_type_id)) {
+            throw new Error('Unknown MediaTypeId');
+        }
         row.date_added = item.DateAdded ||
                          (existing && existing.date_added) || today;
         row.modified = today;

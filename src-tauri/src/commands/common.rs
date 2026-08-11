@@ -154,6 +154,16 @@ pub fn validate_item_fields(fields: &ItemFields) -> std::result::Result<(), Stri
             return Err(format!("Pages out of range ({}-{})", MIN_PAGES, MAX_PAGES));
         }
     }
+    // Bounds only — existence against media_types is enforced by the FK
+    // (media_type_id INTEGER NOT NULL REFERENCES media_types(id), PRAGMA
+    // foreign_keys = ON), so a value that passes this check but names no
+    // real row still fails the INSERT/UPDATE, just with a real error
+    // instead of skipping validation outright (CTX-SEC-121).
+    if let Some(id) = fields.media_type_id {
+        if id < 1 {
+            return Err("MediaTypeId out of range".to_string());
+        }
+    }
     if let Some(d) = &fields.item_date_added {
         if !d.is_empty() {
             validate_date(d, "ItemDateAdded")?;

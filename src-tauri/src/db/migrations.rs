@@ -30,6 +30,10 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         migrate_v2(conn)?;
         version = 2;
     }
+    if version < 3 {
+        migrate_v3(conn)?;
+        version = 3;
+    }
     let _ = version;
 
     Ok(())
@@ -90,6 +94,39 @@ fn migrate_v2(conn: &Connection) -> Result<()> {
     ))?;
 
     log::info!("Migration v2 complete");
+    Ok(())
+}
+
+/// Migration v3 — drops consumed.recommend. Legacy field: superseded by
+/// the 1-5 Rating column, never had a UI writer or reader in Collectyx,
+/// and no data migration was ever built for it (CTX-SEC-121).
+///
+/// Guarded on the column actually existing: a fresh install runs
+/// migrate_v1 against the current schema.rs, which no longer creates
+/// this column at all — nothing to drop there. Only a database that ran
+/// the old migrate_v1 (schema v1 or v2) has the column.
+fn migrate_v3(conn: &Connection) -> Result<()> {
+    log::info!("Running migration v3 — drop consumed.recommend (legacy field)");
+
+    let has_recommend: bool = conn
+        .prepare("SELECT 1 FROM pragma_table_info('consumed') WHERE name = 'recommend'")?
+        .exists([])?;
+
+    if has_recommend {
+        // Requires SQLite 3.35.0+ (ALTER TABLE ... DROP COLUMN). rusqlite's
+        // bundled SQLite is well past this; flagging for the record since
+        // it's the first DROP COLUMN in this codebase.
+        conn.execute_batch(
+            "BEGIN;
+            ALTER TABLE consumed DROP COLUMN recommend;
+            PRAGMA user_version = 3;
+            COMMIT;",
+        )?;
+    } else {
+        conn.execute("PRAGMA user_version = 3", [])?;
+    }
+
+    log::info!("Migration v3 complete");
     Ok(())
 }
 
