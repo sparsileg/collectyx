@@ -228,3 +228,5 @@ const OwnedView = {
         }
     }
 };
+
+window.OwnedView = OwnedView;

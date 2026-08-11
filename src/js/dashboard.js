@@ -365,3 +365,20 @@ async function loadDashboardOrder() {
 
     return true;
 }
+
+// renderDashboard is called from core.js's window.onload/showView() and
+// settings.js's _refreshActiveView(). The rest aren't currently called
+// from outside this file, but exported anyway rather than tracked
+// individually — cheap insurance against a future caller silently getting
+// undefined (#66 / CTX-SEC-116).
+window.renderDashboard = renderDashboard;
+window.renderQuickStats = renderQuickStats;
+window.renderTopTags = renderTopTags;
+window.renderRecentBooks = renderRecentBooks;
+window.renderReadingGoals = renderReadingGoals;
+window.renderReadingGoalChart = renderReadingGoalChart;
+window.renderWhatsNext = renderWhatsNext;
+window.renderLibraryStats = renderLibraryStats;
+window.enableDashboardDragDrop = enableDashboardDragDrop;
+window.saveDashboardOrder = saveDashboardOrder;
+window.loadDashboardOrder = loadDashboardOrder;

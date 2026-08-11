@@ -60,3 +60,5 @@ const DateUtils = {
         return format || this.DEFAULT_FORMAT;
     }
 };
+
+window.DateUtils = DateUtils;

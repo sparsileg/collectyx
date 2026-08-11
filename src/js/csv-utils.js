@@ -109,3 +109,6 @@ function downloadFile(filename, content, mimeType) {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 }
+
+window.CsvUtils = CsvUtils;
+window.downloadFile = downloadFile;

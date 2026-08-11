@@ -121,3 +121,5 @@ const QueuedView = {
         );
     }
 };
+
+window.QueuedView = QueuedView;

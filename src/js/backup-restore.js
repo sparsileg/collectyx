@@ -14,6 +14,8 @@
 // piece of work — a standalone conversion script producing a file in
 // *this* format, then restored through this same UI. Not part of this file.
 
+import { invoke as tauriInvoke, isTauri } from './vendor/tauri-api/core.js';
+
 const BackupRestore = {
     _parsedData: null,
     _fileName: null,
@@ -154,7 +156,7 @@ const BackupRestore = {
     // ── Export ───────────────────────────────────────────────────────────────
 
     async backupDatabase() {
-        const isTauri = typeof window.__TAURI__ !== 'undefined';
+        const isTauriBuild = isTauri();
 
         try {
             const data = await this._gatherAllData();
@@ -164,7 +166,7 @@ const BackupRestore = {
                 ? `collectyx-backup-${this._timestamp()}.json.gz`
                 : `collectyx-backup-${this._timestamp()}.json`;
 
-            if (isTauri) {
+            if (isTauriBuild) {
                 // _gatherAllData()'s Settings has backupFolder stripped
                 // (CTX-SEC-101 — never written into the backup payload), so
                 // the folder check reads settings directly instead.
@@ -185,7 +187,7 @@ const BackupRestore = {
                     : Array.from(new TextEncoder().encode(json));
 
                 try {
-                    await window.__TAURI__.core.invoke('save_backup_file', { filename: filename, contents: contents });
+                    await tauriInvoke('save_backup_file', { filename: filename, contents: contents });
                 } catch (writeErr) {
                     console.error('BackupRestore.backupDatabase: write to backup folder failed', writeErr);
                     showMessage('Backup folder is missing or inaccessible — set it again in Settings.', CONSTANTS.MESSAGE_TYPES.ERROR);
@@ -545,4 +547,6 @@ const BackupRestore = {
         this._fileSize = null;
     }
 };
+
+window.BackupRestore = BackupRestore;
 

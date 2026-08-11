@@ -297,5 +297,13 @@ function destroyCharts() {
     }
 }
 
+// renderStatistics/destroyCharts are called from core.js's showView() and
+// settings.js's _refreshActiveView(); generateStatistics/chart renderers
+// exported alongside for the same reason as dashboard.js (#66 /
+// CTX-SEC-116).
+window.generateStatistics = generateStatistics;
+window.renderStatistics = renderStatistics;
+window.renderTopTagsChart = renderTopTagsChart;
+window.renderYearlyChart = renderYearlyChart;
 // Make destroyCharts globally accessible
 window.destroyCharts = destroyCharts;

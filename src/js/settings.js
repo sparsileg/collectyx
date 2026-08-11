@@ -5,6 +5,9 @@
 // settings.data alongside them — no schema change needed for any of the
 // three fields this modal owns.
 
+import { isTauri } from './vendor/tauri-api/core.js';
+import { open as tauriDialogOpen } from './vendor/tauri-plugin-dialog/index.js';
+
 const SettingsModal = {
     // #settingsModal and its form are static markup, never rebuilt — bind
     // once, guarded, same pattern as the collection views.
@@ -47,11 +50,11 @@ const SettingsModal = {
         // Same pattern as Scriptum's Settings view: folder picker only
         // means anything in Tauri; the web build has no filesystem access
         // and always saves to the system Downloads folder (issue 43).
-        const isTauri = typeof window.__TAURI__ !== 'undefined';
-        document.getElementById('settingsBackupActions').style.display = isTauri ? '' : 'none';
+        const isTauriBuild = isTauri();
+        document.getElementById('settingsBackupActions').style.display = isTauriBuild ? '' : 'none';
         const folderField = document.getElementById('settingsBackupFolder');
-        folderField.disabled = !isTauri;
-        if (!isTauri) folderField.value = 'Your Downloads folder';
+        folderField.disabled = !isTauriBuild;
+        if (!isTauriBuild) folderField.value = 'Your Downloads folder';
 
         // Owner (Testing) row is gated behind a build flag (COLLECTYX-
         // SEC-35) — hidden entirely, not just disabled, so it doesn't
@@ -70,9 +73,9 @@ const SettingsModal = {
     },
 
     async browseBackupFolder() {
-        if (typeof window.__TAURI_PLUGIN_DIALOG__ === 'undefined') return;
+        if (!isTauri()) return;
         try {
-            const selected = await window.__TAURI_PLUGIN_DIALOG__.open({ directory: true });
+            const selected = await tauriDialogOpen({ directory: true });
             if (selected) document.getElementById('settingsBackupFolder').value = selected;
         } catch (e) {
             console.error('SettingsModal.browseBackupFolder failed', e);
@@ -248,3 +251,6 @@ const OwnerTestModal = {
         }
     }
 };
+
+window.SettingsModal = SettingsModal;
+window.OwnerTestModal = OwnerTestModal;

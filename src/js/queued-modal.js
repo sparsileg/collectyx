@@ -152,3 +152,5 @@ const QueuedModal = {
         }
     }
 };
+
+window.QueuedModal = QueuedModal;

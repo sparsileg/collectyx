@@ -36,3 +36,5 @@ const RatingUtils = {
         return null;
     }
 };
+
+window.RatingUtils = RatingUtils;

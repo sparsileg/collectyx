@@ -159,3 +159,5 @@ const ConsumedModal = {
         }
     }
 };
+
+window.ConsumedModal = ConsumedModal;

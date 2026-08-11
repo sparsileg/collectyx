@@ -175,3 +175,6 @@ const DASHBOARD_CONSTANTS = {
         DRAG_OVER: 'dashboard-card-drag-over'
     }
 };
+
+window.CONSTANTS = CONSTANTS;
+window.DASHBOARD_CONSTANTS = DASHBOARD_CONSTANTS;

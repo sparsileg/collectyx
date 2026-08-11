@@ -114,3 +114,5 @@ const OwnedModal = {
         }
     }
 };
+
+window.OwnedModal = OwnedModal;

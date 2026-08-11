@@ -9,6 +9,12 @@
  * references either backend directly.
  */
 
-const DBManager = typeof window.__TAURI__ !== 'undefined'
-    ? DBManagerTauri
-    : DBManagerWeb;
+// isTauri() is @tauri-apps/api's own detection function — reading
+// globalThis.isTauri, a flag Tauri sets independent of withGlobalTauri.
+// Sniffing window.__TAURI__ stopped working once withGlobalTauri went
+// false (#66 / CTX-SEC-116); that global no longer exists at all.
+import { isTauri } from './vendor/tauri-api/core.js';
+
+const DBManager = isTauri() ? DBManagerTauri : DBManagerWeb;
+
+window.DBManager = DBManager;

@@ -18,8 +18,10 @@
  * so there is nothing to invalidate and no staleness to get wrong.
  */
 
+import { invoke as tauriInvoke } from './vendor/tauri-api/core.js';
+
 function invoke(command, args) {
-    return window.__TAURI__.core.invoke(command, args || {});
+    return tauriInvoke(command, args || {});
 }
 
 /** Rust command names are per-collection; this keeps the mapping in one place. */
@@ -212,3 +214,5 @@ const DBManagerTauri = {
         return invoke('reorder_queued', { id: id, newRank: newRank });
     },
 };
+
+window.DBManagerTauri = DBManagerTauri;

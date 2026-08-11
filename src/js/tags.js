@@ -505,4 +505,17 @@ const TagDeleteModal = {
     }
 };
 
+// initTagChipInput is called from consumed-modal.js and owned-modal.js;
+// TagsView from core.js's showView(). Rest exported alongside for the
+// same reason as dashboard.js/statistics.js (#66 / CTX-SEC-116).
+window.parseTagsFromString = parseTagsFromString;
+window.tagsToString = tagsToString;
+window.getAllLibraryTags = getAllLibraryTags;
+window.initTagChipInput = initTagChipInput;
+window.validateTagName = validateTagName;
+window.tagLiveFormatError = tagLiveFormatError;
+window.TagsView = TagsView;
+window.TagFormModal = TagFormModal;
+window.TagDeleteModal = TagDeleteModal;
+
 

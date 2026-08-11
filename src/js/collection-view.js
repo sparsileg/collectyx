@@ -206,3 +206,5 @@ const CollectionView = {
         return state ? state.data : [];
     }
 };
+
+window.CollectionView = CollectionView;

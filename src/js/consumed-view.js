@@ -57,3 +57,5 @@ const ConsumedView = {
         }
     }
 };
+
+window.ConsumedView = ConsumedView;

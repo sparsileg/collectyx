@@ -319,3 +319,14 @@ function updateHamburgerContextualSection(viewName) {
         <div class="hamburger-menu-item" data-action="import-csv" data-collection="${viewName}">${escapeHtml(label)} Import CSV</div>
     `;
 }
+
+// initSidebarChrome/initNavigation are called from core.js's window.onload;
+// applyFontSize/adjustFontSize/updateHamburgerContextualSection are called
+// from settings.js, sidebar's own theme handlers, and core.js's showView().
+// Module scope no longer leaks these automatically (#66 / CTX-SEC-116).
+window.SIDEBAR_CONSTANTS = SIDEBAR_CONSTANTS;
+window.initSidebarChrome = initSidebarChrome;
+window.initNavigation = initNavigation;
+window.applyFontSize = applyFontSize;
+window.adjustFontSize = adjustFontSize;
+window.updateHamburgerContextualSection = updateHamburgerContextualSection;

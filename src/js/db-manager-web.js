@@ -1328,3 +1328,5 @@ const DBManagerWeb = {
         this._invalidate(S.QUEUED);
     },
 };
+
+window.DBManagerWeb = DBManagerWeb;

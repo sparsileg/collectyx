@@ -63,3 +63,5 @@ const Confirm = {
         if (resolve) resolve(result);
     }
 };
+
+window.Confirm = Confirm;

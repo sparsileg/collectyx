@@ -194,3 +194,5 @@ const CollectionIO = {
         else if (collection === 'owned' && typeof OwnedView !== 'undefined') OwnedView.load(spec.containerId);
     }
 };
+
+window.CollectionIO = CollectionIO;

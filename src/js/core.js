@@ -350,3 +350,25 @@ function getThemeColors() {
 // clearBackupFolder() removed — they targeted settingsView, which no longer
 // exists. Settings is a modal (confirmed decision); Phase 10 builds it with
 // its own implementation rather than adapting these.
+
+// core.js's declarations are read as globals throughout the rest of the
+// app (e.g. escapeHtml in every *-view.js row renderer, MediaLabels in
+// every modal) — module scope no longer leaks these automatically, so
+// every one used outside this file is attached explicitly (#66 /
+// CTX-SEC-116).
+window.showView = showView;
+window.showMessage = showMessage;
+window.clearMessage = clearMessage;
+window.getYearFromFinishedDate = getYearFromFinishedDate;
+window.validateDateInput = validateDateInput;
+window.dateFromStorage = dateFromStorage;
+window.dateToStorage = dateToStorage;
+window.escapeHtml = escapeHtml;
+window.formatAuthorName = formatAuthorName;
+window.splitAuthorName = splitAuthorName;
+window.MediaLabels = MediaLabels;
+window.generateBookId = generateBookId;
+window.sanitiseThemePath = sanitiseThemePath;
+window.loadTheme = loadTheme;
+window.changeTheme = changeTheme;
+window.getThemeColors = getThemeColors;
