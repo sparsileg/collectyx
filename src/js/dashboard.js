@@ -174,7 +174,7 @@ function renderReadingGoalChart(dailyGoal, consumed) {
                 {
                     label: 'Goal Progress',
                     data: goalLineData,
-                    borderColor: colors.secondary,
+                    borderColor: colors.chart2,
                     backgroundColor: 'transparent',
                     borderWidth: 2,
                     pointRadius: 0,
@@ -183,7 +183,7 @@ function renderReadingGoalChart(dailyGoal, consumed) {
                 {
                     label: 'Current Day',
                     data: verticalLineData,
-                    borderColor: colors.primary,
+                    borderColor: colors.chart1,
                     backgroundColor: 'transparent',
                     borderWidth: 2,
                     pointRadius: 0,
@@ -193,7 +193,7 @@ function renderReadingGoalChart(dailyGoal, consumed) {
                 {
                     label: 'Actual Progress',
                     data: horizontalLineData,
-                    borderColor: colors.primary,
+                    borderColor: colors.chart1,
                     backgroundColor: 'transparent',
                     borderWidth: 2,
                     pointRadius: 0,
@@ -373,8 +373,8 @@ function renderYearlyStatsCard(consumed) {
                     {
                         label: 'Books Read',
                         data: booksData,
-                        borderColor: colors.primary,
-                        backgroundColor: colors.primary,
+                        borderColor: colors.chart1,
+                        backgroundColor: colors.chart1,
                         fill: false,
                         tension: 0.1,
                         type: 'line',
@@ -383,8 +383,8 @@ function renderYearlyStatsCard(consumed) {
                     {
                         label: 'Pages (÷1000)',
                         data: pagesData,
-                        borderColor: colors.secondary,
-                        backgroundColor: colors.secondary,
+                        borderColor: colors.chart2,
+                        backgroundColor: colors.chart2,
                         fill: false,
                         tension: 0.1,
                         type: 'line',

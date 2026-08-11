@@ -32,6 +32,15 @@
 
     --color-label:          #00ff00;
 
+    /* ── Charts (#82) — dedicated to Chart.js line colors, read live by
+       core.js's getThemeColors() via getComputedStyle(). Cyan, not
+       yellow — green+yellow was a near-collision for red-green color
+       vision deficiency (reported directly). Deliberately separate from
+       primary/secondary above so this choice never touches what those
+       mean anywhere else that reads them. ──────────────────────────── */
+    --chart1: #00ff00;
+    --chart2: #00ffff;
+
     /* ── Borders ────────────────────────────────────────────────────────────── */
     --border-color:         #00ff00;
     --border-color-light:  rgba(0, 255, 0, 0.3);

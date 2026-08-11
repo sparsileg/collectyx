@@ -298,6 +298,27 @@ async function loadTheme() {
 async function changeTheme(themePath) {
     const themeLink = document.getElementById('themeLink');
     themeLink.href = themePath;
+
+    // The stylesheet loads asynchronously — reading --chart1/--chart2 (or
+    // re-rendering charts) immediately after setting href can still see
+    // the previous theme's CSS until the new stylesheet finishes loading.
+    // A short timeout backstops browsers that don't fire 'load' when href
+    // is set to an already-cached or unchanged value, so this can never
+    // block indefinitely (#82).
+    await new Promise((resolve) => {
+        let settled = false;
+        const done = () => {
+            if (settled) return;
+            settled = true;
+            themeLink.removeEventListener('load', done);
+            themeLink.removeEventListener('error', done);
+            resolve();
+        };
+        themeLink.addEventListener('load', done);
+        themeLink.addEventListener('error', done);
+        setTimeout(done, 300);
+    });
+
     let current = {};
     let loaded = true;
     try {
@@ -318,28 +339,56 @@ async function changeTheme(themePath) {
         }
     }
 
-    // Dashboard (including the relocated Yearly Statistics card) does not
-    // currently re-render on a theme change while visible — same
-    // pre-existing behavior the Reading Goals chart already had before
-    // this card moved here. Re-render on the next view switch instead.
+    // Dashboard's two Chart.js charts (Reading Goals, Yearly Statistics)
+    // bake their colors into each dataset at construction time — Chart.js
+    // doesn't watch CSS variables, so nothing updates until something
+    // explicitly rebuilds the chart. Full renderDashboard() rather than a
+    // targeted per-chart call — same helper settings.js's
+    // _refreshActiveView() already uses after a Settings save, so any
+    // future dashboard chart is covered by this same call without
+    // needing its own wire-up later (#82).
+    const dashboardView = document.getElementById('dashboardView');
+    if (dashboardView && dashboardView.classList.contains('active') && typeof renderDashboard === 'function') {
+        try {
+            await renderDashboard();
+        } catch (e) {
+            console.error('changeTheme: could not re-render dashboard', e);
+        }
+    }
 }
 
 function getThemeColors() {
     const themeLink = document.getElementById('themeLink');
     const current   = themeLink.href;
 
+    let base;
     if (current.includes('nordic.css')) {
-        return { primary: '#88c0d0', secondary: '#ebcb8b', tertiary: '#a3be8c', background: '#2e3440' };
+        base = { primary: '#88c0d0', secondary: '#ebcb8b', tertiary: '#a3be8c', background: '#2e3440' };
     } else if (current.includes('dark.css')) {
-        return { primary: '#4fc3f7', secondary: '#ffa726', tertiary: '#66bb6a', background: '#1a1f2e' };
+        base = { primary: '#4fc3f7', secondary: '#ffa726', tertiary: '#66bb6a', background: '#1a1f2e' };
     } else if (current.includes('light.css')) {
-        return { primary: '#0d6efd', secondary: '#fd7e14', tertiary: '#198754', background: '#f8f9fa' };
+        base = { primary: '#0d6efd', secondary: '#fd7e14', tertiary: '#198754', background: '#f8f9fa' };
     } else if (current.includes('matrix.css')) {
-        return { primary: '#00ff00', secondary: '#ffff00', tertiary: '#00ffff', background: '#000000' };
+        base = { primary: '#00ff00', secondary: '#ffff00', tertiary: '#00ffff', background: '#000000' };
     } else if (current.includes('flat.css')) {
-        return { primary: '#d4982e', secondary: '#72a85a', tertiary: '#c04848', background: '#4e4035' };
+        base = { primary: '#d4982e', secondary: '#72a85a', tertiary: '#c04848', background: '#4e4035' };
+    } else {
+        base = { primary: '#4a90e2', secondary: '#f5a623', tertiary: '#bd10e0', background: '#0f0f0f' };
     }
-    return { primary: '#4a90e2', secondary: '#f5a623', tertiary: '#bd10e0', background: '#0f0f0f' };
+
+    // chart1/chart2 (#82) are read live from the active theme's own CSS
+    // custom properties, not a third hardcoded copy like base above —
+    // base itself already had one real-world drift (matrix's hardcoded
+    // secondary here is yellow; matrix.css's actual --secondary-color is
+    // an unrelated dark green never used for charts — two different
+    // values under the same name, no connection between them). Falls
+    // back to base.primary/secondary if a theme file predates --chart1/
+    // --chart2 (e.g. a cached stylesheet from before this fix).
+    const rootStyle = getComputedStyle(document.documentElement);
+    const chart1 = rootStyle.getPropertyValue('--chart1').trim() || base.primary;
+    const chart2 = rootStyle.getPropertyValue('--chart2').trim() || base.secondary;
+
+    return { ...base, chart1, chart2 };
 }
 
 // ── Settings ──────────────────────────────────────────────────────────────────

@@ -38,6 +38,14 @@
 
     --focus-ring: rgba(13, 110, 253, 0.25);
 
+    /* ── Charts (#82) — dedicated to Chart.js line colors, read live by
+       core.js's getThemeColors() via getComputedStyle(). Deliberately
+       separate from primary/secondary/tertiary above so a color chosen
+       for chart-line contrast never changes what those mean anywhere
+       else that reads them. ──────────────────────────────────────────── */
+    --chart1: #0d6efd;
+    --chart2: #fd7e14;
+
     /* ── Collectyx-specific (no Astryx equivalent) ─────────────────────────── */
     --color-bg-raised:   #e9ecef;
     --color-text-muted:  #adb5bd;
