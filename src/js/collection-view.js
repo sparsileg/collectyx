@@ -147,6 +147,15 @@ const CollectionView = {
         }
         const hasFilters = !!this._filterFieldSets[state.collection];
 
+        // Preserve scroll position across a reload — this rebuilds the
+        // whole subtree including the scrollable .collection-list div
+        // (a brand new element defaults to scrollTop 0), which otherwise
+        // snapped a scrolled list back to the top after every save/delete/
+        // row action, even ones that don't change the filtered result set
+        // (e.g. editing a tag on a book mid-list while a search is active).
+        const existingList = document.getElementById(`${containerId}-list`);
+        const savedScrollTop = existingList ? existingList.scrollTop : 0;
+
         container.innerHTML = `
             <div class="collection-view-header">
                 <h2>${escapeHtml(this._labelFor(state.collection))}
@@ -164,6 +173,11 @@ const CollectionView = {
             <div class="collection-list" id="${containerId}-list"></div>
         `;
         this._renderRows(containerId);
+
+        if (savedScrollTop) {
+            const newList = document.getElementById(`${containerId}-list`);
+            if (newList) newList.scrollTop = savedScrollTop;
+        }
     },
 
     // ── Advanced filter panel ────────────────────────────────────────────────

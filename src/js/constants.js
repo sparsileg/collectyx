@@ -132,7 +132,7 @@ const CONSTANTS = {
     ROW_LIMITS: {
         RECENT_FINISHED: 4,
         WHATS_NEXT: 4,
-        TOP_TAGS: 5
+        CHECKED_OUT: 5
     },
 
     // External metadata fetch (metadata-fetcher.js) — OpenLibrary +

@@ -248,6 +248,20 @@ function splitAuthorName(combined) {
     };
 }
 
+// Display-only inverse of splitAuthorName — reverses a stored
+// "Surname, Given" string to "Given Surname" for rendering (row lists,
+// dashboard cards). Entry forms keep collecting Given/Surname as two
+// separate fields via splitAuthorName above and are unaffected; this
+// never touches storage. Formerly private to QueuedDiscovery
+// (queued-view.js) as _authorGivenFirst() — promoted here so every
+// author-displaying row/card shares one implementation instead of
+// re-deriving the same reversal (#88).
+function authorGivenFirst(name) {
+    if (!name) return '';
+    const { given, surname } = splitAuthorName(name);
+    return [given, surname].filter(Boolean).join(' ');
+}
+
 // ── media_types labels ──────────────────────────────────────────────────────
 // Shared by sidebar nav and the three collection modals/views so there's
 // one fetch, one source of truth. Defaults here are the fallback if the
@@ -414,6 +428,7 @@ window.dateToStorage = dateToStorage;
 window.escapeHtml = escapeHtml;
 window.formatAuthorName = formatAuthorName;
 window.splitAuthorName = splitAuthorName;
+window.authorGivenFirst = authorGivenFirst;
 window.MediaLabels = MediaLabels;
 window.generateBookId = generateBookId;
 window.sanitiseThemePath = sanitiseThemePath;

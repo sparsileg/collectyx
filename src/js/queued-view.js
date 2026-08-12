@@ -25,7 +25,7 @@
                     <div class="stacked-title">${escapeHtml(record.Title || '')}
                         <button type="button" class="tbr-lookup-icon" data-action="lookup-book" title="Show in discovery card">?</button>
                     </div>
-                    <div class="stacked-author">by ${escapeHtml(record.Author || '')}${record.Author2 ? ' &amp; ' + escapeHtml(record.Author2) : ''}</div>
+                    <div class="stacked-author">by ${escapeHtml(authorGivenFirst(record.Author))}${record.Author2 ? ' &amp; ' + escapeHtml(authorGivenFirst(record.Author2)) : ''}</div>
                     <div class="stacked-source">${reading ? '<span class="currently-reading-badge">Currently Reading</span> ' : ''}Source: ${escapeHtml(record.Source || '')}</div>
                 </div>
                 <div class="col-actions">
@@ -64,14 +64,6 @@
 const QueuedDiscovery = {
     _lastFeatured: null,
 
-    // Author is stored "Surname, Given" — discovery card displays it
-    // given-first instead, per Stan.
-    _authorGivenFirst(name) {
-        if (!name) return '';
-        const { given, surname } = splitAuthorName(name);
-        return [given, surname].filter(Boolean).join(' ');
-    },
-
     // Renders directly into discoveryContainerId — a plain div, not a
     // CollectionView-managed container. No delegated click listener is
     // ever bound here, so the card genuinely does nothing when clicked.
@@ -94,7 +86,7 @@ const QueuedDiscovery = {
         container.innerHTML = `
             <div class="tbr-discovery-card">
                 <div class="tbr-featured-title">${escapeHtml(featured.Title || '')}</div>
-                <div class="tbr-featured-author">by ${escapeHtml(this._authorGivenFirst(featured.Author))}${featured.Author2 ? ' &amp; ' + escapeHtml(this._authorGivenFirst(featured.Author2)) : ''}</div>
+                <div class="tbr-featured-author">by ${escapeHtml(authorGivenFirst(featured.Author))}${featured.Author2 ? ' &amp; ' + escapeHtml(authorGivenFirst(featured.Author2)) : ''}</div>
                 ${featured.Source ? `<div class="tbr-featured-source">Source: ${escapeHtml(featured.Source)}</div>` : ''}
                 <div class="tbr-featured-synopsis" data-role="discovery-synopsis">${comments ? escapeHtml(comments) : 'Loading synopsis…'}</div>
             </div>

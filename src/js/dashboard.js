@@ -1,11 +1,10 @@
 // functions that create and display the dashboard
 
 async function renderDashboard() {
-    const [consumed, queued, owned, tags] = await Promise.all([
+    const [consumed, queued, owned] = await Promise.all([
         DBManager.getCollection(CONSTANTS.COLLECTIONS.CONSUMED),
         DBManager.getCollection(CONSTANTS.COLLECTIONS.QUEUED),
         DBManager.getCollection(CONSTANTS.COLLECTIONS.OWNED),
-        DBManager.getAllTags(),
     ]);
 
     renderQuickStats(consumed);
@@ -14,7 +13,7 @@ async function renderDashboard() {
     await loadDashboardOrder();
 
     // ALWAYS render the dynamic content, regardless of saved order
-    renderTopTags(tags);
+    renderCheckedOut(owned);
     renderRecentBooks(consumed);
     await renderReadingGoals(consumed);
     renderWhatsNext(queued);
@@ -53,26 +52,43 @@ function renderQuickStats(consumed) {
 }
 
 
-function renderTopTags(tags) {
-    const container = document.getElementById('topTagsContent');
+function renderCheckedOut(owned) {
+    const container = document.getElementById('checkedOutContent');
 
-    const sorted = [...tags]
-        .sort((a, b) => b.Count - a.Count)
-        .slice(0, CONSTANTS.ROW_LIMITS.TOP_TAGS);
+    const checkedOut = owned
+        .filter(book => book.CheckedOutDate)
+        .sort((a, b) => (a.CheckedOutDate || '').localeCompare(b.CheckedOutDate || ''))
+        .slice(0, CONSTANTS.ROW_LIMITS.CHECKED_OUT);
 
-    if (sorted.length === 0) {
-        container.innerHTML = '<p class="goal-placeholder">No tags yet</p>';
+    if (checkedOut.length === 0) {
+        container.innerHTML = '<p class="goal-placeholder">Nothing checked out</p>';
         return;
     }
 
-    const html = sorted.map(tag => `
-        <div class="top-tags-item">
-            <span class="top-tags-name">${escapeHtml(String(tag.Name || ''))}</span>
-            <span class="top-tags-count">${escapeHtml(String(tag.Count))}</span>
+    const html = checkedOut.map(book => `
+        <div class="checked-out-item" data-id="${escapeHtml(String(book.id))}">
+            <div class="checked-out-details">
+                <div class="checked-out-title">${escapeHtml(String(book.Title || ''))}</div>
+                <div class="checked-out-author">by ${escapeHtml(authorGivenFirst(book.Author))}</div>
+            </div>
+            <div class="checked-out-patron">${escapeHtml(String(book.Patron || ''))}</div>
         </div>
     `).join('');
 
     container.innerHTML = html;
+
+    // Delegated click, bound once (guarded via a dataset flag) — rows are
+    // replaced wholesale on every renderCheckedOut() call, so this can't
+    // rely on a closure over `checkedOut` staying current; OwnedView.
+    // checkInById() re-fetches the record fresh by id instead.
+    if (!container.dataset.bound) {
+        container.addEventListener('click', (e) => {
+            const row = e.target.closest('.checked-out-item');
+            if (!row) return;
+            if (typeof OwnedView !== 'undefined') OwnedView.checkInById(row.dataset.id);
+        });
+        container.dataset.bound = 'true';
+    }
 }
 
 
@@ -95,7 +111,7 @@ function renderRecentBooks(consumed) {
     const html = recentBooks.map(book => `
         <div class="recent-book-item">
             <div class="recent-book-title">${escapeHtml(String(book.Title || ''))}</div>
-            <div class="recent-book-author">by ${escapeHtml(String(book.Author || ''))}</div>
+            <div class="recent-book-author">by ${escapeHtml(authorGivenFirst(book.Author))}</div>
         </div>
     `).join('');
 
@@ -267,7 +283,7 @@ function renderWhatsNext(queued) {
                 <div class="whats-next-rank">${escapeHtml(String(rankDisplay))}</div>
                 <div class="whats-next-details">
                     <div class="whats-next-title">${escapeHtml(String(book.Title || ''))}</div>
-                    <div class="whats-next-author">by ${escapeHtml(String(book.Author || ''))}</div>
+                    <div class="whats-next-author">by ${escapeHtml(authorGivenFirst(book.Author))}</div>
                 </div>
             </div>
         `;
@@ -526,7 +542,7 @@ async function loadDashboardOrder() {
 // undefined (#66 / CTX-SEC-116).
 window.renderDashboard = renderDashboard;
 window.renderQuickStats = renderQuickStats;
-window.renderTopTags = renderTopTags;
+window.renderCheckedOut = renderCheckedOut;
 window.renderRecentBooks = renderRecentBooks;
 window.renderReadingGoals = renderReadingGoals;
 window.renderReadingGoalChart = renderReadingGoalChart;

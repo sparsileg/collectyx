@@ -107,8 +107,8 @@
           </div>
 
           <div class="dashboard-card" id="top-tags">
-            <h3>Top Tags</h3>
-            <div id="topTagsContent"></div>
+            <h3>Books Checked Out</h3>
+            <div id="checkedOutContent"></div>
           </div>
 
           <div class="dashboard-card" id="recent-books">
@@ -260,18 +260,18 @@
                 <input type="number" id="cbrPages" min="1">
               </div>
               <div class="form-group">
-                <label for="cbrISBN">ISBN:</label>
-                <div class="isbn-row">
-                  <input type="text" id="cbrISBN">
-                  <button type="button" class="btn btn-secondary" data-action="find-isbn">Find ISBN</button>
-                </div>
-                <span id="cbrIsbnStatus" class="isbn-find-status" style="display:block; font-size:0.85em; margin-top:4px;"></span>
+                <label for="cbrRating">Rating:</label>
+                <select id="cbrRating"></select>
               </div>
             </div>
 
             <div class="form-group">
-              <label for="cbrRating">Rating:</label>
-              <select id="cbrRating"></select>
+              <label for="cbrISBN">ISBN:</label>
+              <div class="isbn-row">
+                <input type="text" id="cbrISBN">
+                <button type="button" class="btn btn-secondary" data-action="find-isbn">Find ISBN</button>
+              </div>
+              <span id="cbrIsbnStatus" class="isbn-find-status" style="display:block; font-size:0.85em; margin-top:4px;"></span>
             </div>
 
             <div class="form-group">
@@ -404,18 +404,31 @@
               <input type="text" id="mlAuthor2Surname" placeholder="Surname">
             </div>
 
-            <div class="form-row">
+            <div class="form-group">
+              <label for="mlPages">Pages:</label>
+              <input type="number" id="mlPages" min="1">
+            </div>
+
+            <div class="form-group">
+              <label for="mlISBN">ISBN:</label>
+              <div class="isbn-row">
+                <input type="text" id="mlISBN">
+                <button type="button" class="btn btn-secondary" data-action="find-isbn">Find ISBN</button>
+              </div>
+              <span id="mlIsbnStatus" class="isbn-find-status" style="display:block; font-size:0.85em; margin-top:4px;"></span>
+            </div>
+
+            <!-- Read-only checkout display (#88) — never in the save
+                 payload; hidden entirely on an available book. Toggled by
+                 OwnedModal.open() in owned-modal.js. -->
+            <div class="form-row" id="mlCheckoutStatusRow" style="display: none;">
               <div class="form-group">
-                <label for="mlPages">Pages:</label>
-                <input type="number" id="mlPages" min="1">
+                <label>Checked Out By:</label>
+                <div id="mlCheckedOutBy"></div>
               </div>
               <div class="form-group">
-                <label for="mlISBN">ISBN:</label>
-                <div class="isbn-row">
-                  <input type="text" id="mlISBN">
-                  <button type="button" class="btn btn-secondary" data-action="find-isbn">Find ISBN</button>
-                </div>
-                <span id="mlIsbnStatus" class="isbn-find-status" style="display:block; font-size:0.85em; margin-top:4px;"></span>
+                <label>Checkout Date:</label>
+                <div id="mlCheckoutDate"></div>
               </div>
             </div>
 

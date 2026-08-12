@@ -126,26 +126,47 @@
 .reading-progress-chart { height: 200px; }
 #readingGoalChart { max-height: 200px; }
 
-/* ── Top Tags card ──────────────────────────────────────────────────────────── */
+/* ── Books Checked Out card (issue #88, replaces Top Tags) ────────────────── */
 
-.top-tags-item {
+.checked-out-item {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
+    gap: 15px;
     padding: 8px 0;
     border-bottom: 1px solid var(--border-color-light);
     font-size: 0.9em;
+    cursor: pointer;
 }
 
-.top-tags-item:last-child { border-bottom: none; }
+.checked-out-item:last-child { border-bottom: none; }
 
-.top-tags-name {
+.checked-out-item:hover {
+    background: var(--color-table-row-hover, transparent);
+}
+
+.checked-out-details { flex: 1; min-width: 0; }
+
+.checked-out-title {
     color: var(--text-color);
     font-weight: 500;
+    margin-bottom: 2px;
+    text-shadow: var(--text-shadow-subtle, none);
 }
 
-.top-tags-count {
+.checked-out-author {
     color: var(--text-secondary);
+    font-size: 0.9em;
+    text-shadow: var(--text-shadow-subtle, none);
+}
+
+.checked-out-patron {
+    color: var(--primary-color);
+    font-weight: 500;
+    font-size: 0.85em;
+    text-align: right;
+    white-space: nowrap;
+    text-shadow: var(--text-shadow-subtle, none);
 }
 
 /* ── What's Next card ───────────────────────────────────────────────────────── */

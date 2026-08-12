@@ -42,7 +42,7 @@
             <div class="collection-list-row owned-columns" data-id="${escapeHtml(record.id)}">
                 <div class="col-stacked">
                     <div class="stacked-title">${escapeHtml(record.Title || '')}</div>
-                    <div class="stacked-author">by ${escapeHtml(record.Author || '')}${record.Author2 ? ' &amp; ' + escapeHtml(record.Author2) : ''}</div>
+                    <div class="stacked-author">by ${escapeHtml(authorGivenFirst(record.Author))}${record.Author2 ? ' &amp; ' + escapeHtml(authorGivenFirst(record.Author2)) : ''}</div>
                 </div>
                 <span class="col-tags">${escapeHtml((record.Tags || []).join(', '))}</span>
                 <span class="col-status">${statusText}</span>
@@ -241,24 +241,56 @@ const OwnedView = {
         }
     },
 
-    async checkIn(recordId, containerId) {
-        const record = CollectionView.getRecord(containerId, recordId);
+    // Shared by both check-in entry points below. dashboardActive check
+    // means this can be called from the Dashboard's Books Checked Out
+    // card (no My Library containerId to reload) or from My Library's own
+    // row (reloadContainerId set) without either path needing to know
+    // about the other.
+    async checkInRecord(record, reloadContainerId) {
         if (!record) return;
         if (!await Confirm.open(`Check in "${record.Title}" from ${record.Patron}?`, 'Check In')) return;
 
         try {
             await DBManager.saveCollectionRecord('owned', {
-                id: recordId,
+                id: record.id,
                 ItemId: record.ItemId,
                 Patron: null,
                 CheckedOutDate: null
             });
             showMessage('Checked in', CONSTANTS.MESSAGE_TYPES.SUCCESS);
-            this.load(containerId);
+            if (reloadContainerId) this.load(reloadContainerId);
+            const dashboardView = document.getElementById('dashboardView');
+            if (dashboardView && dashboardView.classList.contains('active') && typeof renderDashboard === 'function') {
+                renderDashboard();
+            }
         } catch (e) {
-            console.error('OwnedView.checkIn failed', e);
+            console.error('OwnedView.checkInRecord failed', e);
             showMessage('Could not check in — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
         }
+    },
+
+    async checkIn(recordId, containerId) {
+        const record = CollectionView.getRecord(containerId, recordId);
+        if (!record) return;
+        await this.checkInRecord(record, containerId);
+    },
+
+    // Entry point for the Dashboard's Books Checked Out card (#88) — My
+    // Library may not have been loaded this session, so there's nothing
+    // in CollectionView's state to look the record up against. Fetches
+    // fresh instead.
+    async checkInById(recordId) {
+        let record;
+        try {
+            const data = await DBManager.getCollection('owned');
+            record = data.find(r => r.id === recordId);
+        } catch (e) {
+            console.error('OwnedView.checkInById: could not load record', e);
+            showMessage('Could not check in — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
+            return;
+        }
+        if (!record) return;
+        await this.checkInRecord(record, null);
     }
 };
 

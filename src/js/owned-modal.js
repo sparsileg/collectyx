@@ -75,6 +75,22 @@ const OwnedModal = {
         if (mlIsbnStatusEl) { mlIsbnStatusEl.textContent = ''; mlIsbnStatusEl.className = 'isbn-find-status'; }
         document.getElementById('mlLocation').value = record ? (record.Location || '') : '';
 
+        // Read-only checkout display (#88) — never part of the save
+        // payload, same design rule the top-of-file comment already
+        // states (checkout state only changes through checkout/check-in).
+        // Only shown when the book is actually checked out.
+        const checkoutStatusRow = document.getElementById('mlCheckoutStatusRow');
+        if (checkoutStatusRow) {
+            if (record && record.CheckedOutDate) {
+                document.getElementById('mlCheckedOutBy').textContent = record.Patron || '';
+                const format = CollectionView._dateFormat();
+                document.getElementById('mlCheckoutDate').textContent = DateUtils.formatDate(record.CheckedOutDate, format);
+                checkoutStatusRow.style.display = '';
+            } else {
+                checkoutStatusRow.style.display = 'none';
+            }
+        }
+
         this._tagsController.setTags(record ? (record.Tags || []) : []);
         this._tagsController.refreshSuggestions();
 
