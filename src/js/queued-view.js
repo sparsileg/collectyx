@@ -93,11 +93,6 @@ const QueuedDiscovery = {
 
         container.innerHTML = `
             <div class="tbr-discovery-card">
-                <div class="tbr-cover-wrap">
-                    <img class="tbr-cover" data-role="discovery-cover" style="display: none;"
-                         alt="${escapeHtml(featured.Title || '')} cover">
-                    <div class="tbr-cover-placeholder" data-role="discovery-cover-placeholder">📚</div>
-                </div>
                 <div class="tbr-featured-title">${escapeHtml(featured.Title || '')}</div>
                 <div class="tbr-featured-author">by ${escapeHtml(this._authorGivenFirst(featured.Author))}${featured.Author2 ? ' &amp; ' + escapeHtml(this._authorGivenFirst(featured.Author2)) : ''}</div>
                 ${featured.Source ? `<div class="tbr-featured-source">Source: ${escapeHtml(featured.Source)}</div>` : ''}
@@ -108,28 +103,15 @@ const QueuedDiscovery = {
         this._afterRender(discoveryContainerId, featured);
     },
 
-    // Populates cover art + (if no self-authored comment) synopsis once
-    // the card is in the DOM. Guards against a stale fetch resolving
-    // after a newer random pick has already replaced this card — checks
-    // object identity against the featured record this fetch was for,
-    // not just DOM presence, since the container id is stable across
-    // reloads.
+    // Populates the synopsis (if no self-authored comment) once the card
+    // is in the DOM. Guards against a stale fetch resolving after a newer
+    // random pick has already replaced this card — checks object identity
+    // against the featured record this fetch was for, not just DOM
+    // presence, since the container id is stable across reloads.
     async _afterRender(discoveryContainerId, featured) {
         const container = document.getElementById(discoveryContainerId);
         if (!container) return;
         const isbn = featured.ISBN;
-
-        if (isbn) {
-            const img = container.querySelector('[data-role="discovery-cover"]');
-            const placeholder = container.querySelector('[data-role="discovery-cover-placeholder"]');
-            const url = await MetadataFetcher.fetchCoverArt(isbn);
-            if (this._lastFeatured !== featured) return;
-            if (url && img && placeholder) {
-                img.src = url;
-                img.style.display = '';
-                placeholder.style.display = 'none';
-            }
-        }
 
         const hasComments = (featured.Comments || '').trim().length > 0;
         if (!hasComments) {

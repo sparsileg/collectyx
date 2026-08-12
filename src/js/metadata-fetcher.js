@@ -1,24 +1,26 @@
-// ── External metadata fetch (OpenLibrary) ────────────────────────────────────
-// Cover art + synopsis lookup by ISBN, for discovery-mode cards (TBR
-// prototype). Public APIs, no auth. Session-scoped in-memory cache only —
-// no persistence, since discovery cards pick a new random item on every
-// view load anyway. Every call is timeout-guarded so a slow/unreachable
-// API degrades to a placeholder instead of blocking the card render.
+// ── External metadata fetch (OpenLibrary + Google Books) ─────────────────────
+// Synopsis lookup by ISBN, for discovery-mode cards (TBR prototype). Cover
+// art dropped (#87) — unreliable across sessions, and a keyed Google Books
+// call isn't safe to ship in a distributed client-side app. Google Books
+// is called keyless/anonymous now — the API key that used to raise the
+// quota has been deleted from Google Cloud Console. Public APIs, no auth.
+// Session-scoped in-memory cache only — no persistence, since discovery
+// cards pick a new random item on every view load anyway. Every call is
+// timeout-guarded so a slow/unreachable API degrades to "no synopsis"
+// instead of blocking the card render.
 
 const MetadataFetcher = {
-    COVER_URL: (isbn) => `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-L.jpg`,
     DETAILS_URL: (isbn) => `https://openlibrary.org/api/books?bibkeys=ISBN:${encodeURIComponent(isbn)}&jscmd=details&format=json`,
     SEARCH_URL: (title, author) => `https://openlibrary.org/search.json?title=${encodeURIComponent(title)}${author ? `&author=${encodeURIComponent(author)}` : ''}&limit=1&fields=isbn,title,author_name`,
-    // Free-tier key, Books API only. Raises the request quota well past
-    // the anonymous per-IP limit that was 429ing during testing.
-    GOOGLE_BOOKS_API_KEY: 'AIzaSyBBfvFafpGq5nF_JEnA2OKWrXvS50iBWRo',
-    GOOGLE_BOOKS_URL: (isbn) => `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}&key=${MetadataFetcher.GOOGLE_BOOKS_API_KEY}`,
+    // Keyless/anonymous lookup — volumes.get-by-ISBN supports this. Lower,
+    // shared quota than a keyed call, acceptable for this app's call
+    // volume; no key to leak from a distributed client-side app.
+    GOOGLE_BOOKS_URL: (isbn) => `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}`,
 
     // Fallback if constants.js hasn't picked these up yet.
     FETCH_TIMEOUT_MS: (typeof CONSTANTS !== 'undefined' && CONSTANTS.METADATA && CONSTANTS.METADATA.FETCH_TIMEOUT_MS) || 2000,
     SYNOPSIS_MAX_CHARS: (typeof CONSTANTS !== 'undefined' && CONSTANTS.METADATA && CONSTANTS.METADATA.SYNOPSIS_MAX_CHARS) || 200,
 
-    _coverCache: new Map(),   // isbn -> url string | null (null = confirmed no cover)
     _synopsisCache: new Map(), // isbn -> string | null
     _googleBooksCache: new Map(), // isbn -> volumeInfo object | null
 
@@ -28,7 +30,7 @@ const MetadataFetcher = {
     // between them rather than fired in parallel; a single-featured-book
     // load never needed more than one anyway, so this only slows down
     // rapid-fire testing, not normal use.
-    _googleBooksMinIntervalMs: (typeof CONSTANTS !== 'undefined' && CONSTANTS.METADATA && CONSTANTS.METADATA.GOOGLE_BOOKS_MIN_INTERVAL_MS) || 1100,
+    _googleBooksMinIntervalMs: (typeof CONSTANTS !== 'undefined' && CONSTANTS.METADATA && CONSTANTS.METADATA.GOOGLE_BOOKS_MIN_INTERVAL_MS) || 2000,
     _googleBooksLastCallAt: 0,
     _googleBooksQueue: Promise.resolve(),
 
@@ -90,103 +92,6 @@ const MetadataFetcher = {
             return volumeInfo;
         } catch (e) {
             // Malformed JSON — also transient, don't cache.
-            return null;
-        }
-    },
-
-    // Resolves once an <img> either loads or fails/times out. No
-    // naturalWidth check here — unlike OpenLibrary, Google Books doesn't
-    // return a placeholder pixel for a missing cover, it just omits
-    // imageLinks entirely, so a load success is trustworthy on its own.
-    _verifyImageLoads(url) {
-        return this._withTimeout(
-            new Promise((resolve, reject) => {
-                const img = new Image();
-                img.onload = () => resolve();
-                img.onerror = () => reject(new Error('image failed to load'));
-                img.src = url;
-            }),
-            this.FETCH_TIMEOUT_MS
-        );
-    },
-
-    // Resolves to a usable <img> src, or null if no cover is available
-    // anywhere (missing ISBN, both sources fail/time out/placeholder).
-    // Caller renders a placeholder on null — never throws.
-    //
-    // Tries OpenLibrary first (fast, broadest general coverage), then
-    // falls back to Google Books — needed for recent/small-press titles
-    // OpenLibrary's community-sourced covers haven't caught up to yet.
-    //
-    // Uses Image() load/error, not fetch(), for the OpenLibrary check. A
-    // fetch()+CORS precheck fails whenever OpenLibrary 302s to an
-    // archive.org mirror that doesn't send Access-Control-Allow-Origin —
-    // CORS applies to fetch's cross-origin byte access, not to a plain
-    // <img> render, so the image is often loadable even when the fetch()
-    // check reports failure. This matches what actually renders instead
-    // of a stricter, unrelated check.
-    //
-    // OpenLibrary returns HTTP 200 with a 1x1 placeholder pixel when no
-    // cover exists for an ISBN, rather than a 404 — a plain load-success
-    // check treats that as a real cover. naturalWidth/Height catch it:
-    // real covers are never 1px in either dimension.
-    async fetchCoverArt(isbn) {
-        if (!isbn) return null;
-        if (this._coverCache.has(isbn)) return this._coverCache.get(isbn);
-
-        const openLibraryUrl = this.COVER_URL(isbn);
-        try {
-            await this._withTimeout(
-                new Promise((resolve, reject) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        if (img.naturalWidth <= 1 || img.naturalHeight <= 1) {
-                            reject(new Error('placeholder cover (1x1)'));
-                        } else {
-                            resolve();
-                        }
-                    };
-                    img.onerror = () => reject(new Error('cover image failed to load'));
-                    img.src = openLibraryUrl;
-                }),
-                this.FETCH_TIMEOUT_MS
-            );
-            this._coverCache.set(isbn, openLibraryUrl);
-            return openLibraryUrl;
-        } catch (e) {
-            // fall through to Google Books
-        }
-
-        try {
-            const volumeInfo = await this._fetchGoogleBooksVolumeInfo(isbn);
-            const links = volumeInfo && volumeInfo.imageLinks;
-            // Larger sizes aren't always present — most editions only ever
-            // populate thumbnail/smallThumbnail — so fall down the chain
-            // rather than requiring the biggest one to exist.
-            let googleUrl = links && (
-                links.extraLarge || links.large || links.medium ||
-                links.small || links.thumbnail || links.smallThumbnail
-            );
-            if (!googleUrl) {
-                this._coverCache.set(isbn, null);
-                return null;
-            }
-            // Google Books sometimes returns http:// links — an https
-            // page (Tauri's tauri://localhost, or a web deploy over
-            // https) blocks mixed-content image loads, so upgrade it.
-            googleUrl = googleUrl.replace(/^http:\/\//, 'https://');
-            // thumbnail/smallThumbnail URLs carry zoom= and edge=curl
-            // params — most editions never populate the larger named
-            // sizes above, so this is the size lever that actually fires
-            // in practice. zoom=3 is a meaningfully bigger render; the
-            // curl decoration is dropped since it's just a page-corner
-            // graphic overlay, not resolution.
-            googleUrl = googleUrl.replace(/([?&])zoom=\d+/, '$1zoom=3').replace(/[?&]edge=curl/, '');
-            await this._verifyImageLoads(googleUrl);
-            this._coverCache.set(isbn, googleUrl);
-            return googleUrl;
-        } catch (e) {
-            this._coverCache.set(isbn, null);
             return null;
         }
     },
@@ -287,7 +192,6 @@ const MetadataFetcher = {
     // Test/debug hook — clears memoized results so a manual retry can
     // re-hit the network. Not called anywhere in normal app flow.
     clearCache() {
-        this._coverCache.clear();
         this._synopsisCache.clear();
         this._googleBooksCache.clear();
     }

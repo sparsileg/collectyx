@@ -135,11 +135,17 @@ const CONSTANTS = {
         TOP_TAGS: 5
     },
 
-    // External metadata fetch (metadata-fetcher.js) — OpenLibrary cover
-    // art + synopsis for discovery-mode cards (TBR prototype).
+    // External metadata fetch (metadata-fetcher.js) — OpenLibrary +
+    // keyless Google Books synopsis fallback for discovery-mode cards
+    // (TBR prototype). Cover art dropped (#87) — unreliable, and a
+    // keyed Google Books call isn't safe to ship in a distributed
+    // client-side app. GOOGLE_BOOKS_MIN_INTERVAL_MS widened from the
+    // prior 1100ms now that calls are anonymous/keyless — the shared
+    // anonymous quota is tighter than the deleted key's was.
     METADATA: {
         FETCH_TIMEOUT_MS: 2000,
-        SYNOPSIS_MAX_CHARS: 2048
+        SYNOPSIS_MAX_CHARS: 2048,
+        GOOGLE_BOOKS_MIN_INTERVAL_MS: 2000
     },
 
     // "Other books by author" card count, discovery mode (TBR prototype).
