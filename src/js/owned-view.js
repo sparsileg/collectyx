@@ -63,6 +63,39 @@
         else if (action === 'checkout') OwnedView.openCheckout(id, containerId);
         else if (action === 'check-in') OwnedView.checkIn(id, containerId);
     });
+
+    // Advanced filter field set (issue #49). No Finished/Recommend/
+    // MultipleReads/Pages/Rating — none apply to My Library. ISBN is
+    // isEmpty-only, matching Books Read's field.
+    CollectionView.registerFilterFields('owned', [
+        { key: 'Title', label: 'Title', operators: [
+            { key: 'isEmpty', label: 'Is Empty', valueType: 'none' },
+            { key: 'contains', label: 'Contains', valueType: 'text' }
+        ]},
+        { key: 'Author', label: 'Author', operators: [
+            { key: 'isEmpty', label: 'Is Empty', valueType: 'none' },
+            { key: 'contains', label: 'Contains', valueType: 'text' }
+        ]},
+        { key: 'Tag', label: 'Tag', operators: [
+            { key: 'isEmpty', label: 'Is Empty', valueType: 'none' },
+            { key: 'equals', label: 'Equals', valueType: 'tagSelect' }
+        ]},
+        { key: 'ISBN', label: 'ISBN', operators: [
+            { key: 'isEmpty', label: 'Is Empty', valueType: 'none' }
+        ]},
+        { key: 'Location', label: 'Location', operators: [
+            { key: 'isEmpty', label: 'Is Empty', valueType: 'none' },
+            { key: 'contains', label: 'Contains', valueType: 'text' }
+        ]},
+        { key: 'Patron', label: 'Patron', operators: [
+            { key: 'isEmpty', label: 'Is Empty', valueType: 'none' },
+            { key: 'isNotEmpty', label: 'Is Not Empty', valueType: 'none' },
+            { key: 'contains', label: 'Contains', valueType: 'text' }
+        ]},
+        { key: 'CheckedOut', label: 'Checked Out', operators: [
+            { key: 'equals', label: 'Equals', valueType: 'checkedOutSelect', defaultValues: ['checkedout'] }
+        ]}
+    ]);
 })();
 
 const OwnedView = {

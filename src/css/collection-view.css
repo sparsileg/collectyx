@@ -122,6 +122,61 @@
     color: var(--text-secondary);
 }
 
+/* ── Advanced filter panel (issue #49) ──────────────────────────────────── */
+
+.filter-icon {
+    cursor: pointer;
+    margin-left: 6px;
+}
+
+.filter-panel {
+    background: var(--color-table-header-bg);
+    border-radius: var(--border-radius-sm);
+    padding: 12px;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.filter-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.filter-row .filter-field,
+.filter-row .filter-operator {
+    min-width: 140px;
+}
+
+.filter-value {
+    display: flex;
+    align-items: center;
+}
+
+.filter-value .filter-value-input {
+    min-width: 140px;
+}
+
+.filter-value .date-range {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.filter-value .date-range .filter-value-input {
+    min-width: 110px;
+}
+
+.filter-panel-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding-top: 4px;
+}
+
 .collection-list-empty {
     padding: 30px 12px;
     text-align: center;

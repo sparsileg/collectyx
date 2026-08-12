@@ -93,7 +93,7 @@
     --color-message-text: #00ff00;
 
     /* ── Modal ──────────────────────────────────────────────────────────────── */
-    --color-modal-overlay: rgba(0, 0, 0, 0.95);
+    --color-modal-overlay: rgba(0, 0, 0, 0.5);
 
     /* ── Sticky headers ─────────────────────────────────────────────────────── */
     --color-sticky-header-bg: #000000;

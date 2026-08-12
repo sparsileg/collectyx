@@ -28,6 +28,44 @@
     CollectionView.registerRenderer('consumed', headerHtml, rowFn);
     CollectionView.registerAddHandler('consumed', (containerId) => ConsumedModal.open(null, containerId));
     CollectionView.registerRowOpenHandler('consumed', (id, containerId) => ConsumedModal.open(id, containerId));
+
+    // Advanced filter field set (issue #49). ISBN is isEmpty-only — Stan's
+    // call, partial-ISBN search isn't a real use case here.
+    CollectionView.registerFilterFields('consumed', [
+        { key: 'Finished', label: 'Finished', operators: [
+            { key: 'isEmpty', label: 'Is Empty', valueType: 'none' },
+            { key: 'between', label: 'Between', valueType: 'dateRange' }
+        ]},
+        { key: 'Title', label: 'Title', operators: [
+            { key: 'isEmpty', label: 'Is Empty', valueType: 'none' },
+            { key: 'contains', label: 'Contains', valueType: 'text' }
+        ]},
+        { key: 'Author', label: 'Author', operators: [
+            { key: 'isEmpty', label: 'Is Empty', valueType: 'none' },
+            { key: 'contains', label: 'Contains', valueType: 'text' }
+        ]},
+        { key: 'Pages', label: 'Pages', operators: [
+            { key: 'isEmpty', label: 'Is Empty', valueType: 'none' },
+            { key: 'gte', label: 'Greater than or equal to', valueType: 'number' },
+            { key: 'lt', label: 'Less than', valueType: 'number' }
+        ]},
+        { key: 'Tag', label: 'Tag', operators: [
+            { key: 'isEmpty', label: 'Is Empty', valueType: 'none' },
+            { key: 'equals', label: 'Equals', valueType: 'tagSelect' }
+        ]},
+        { key: 'Rating', label: 'Rating', operators: [
+            { key: 'isEmpty', label: 'Is Empty', valueType: 'none' },
+            { key: 'equals', label: 'Equals', valueType: 'ratingSelect' },
+            { key: 'gte', label: 'Greater than or equal to', valueType: 'ratingSelect' },
+            { key: 'lt', label: 'Less than', valueType: 'ratingSelect' }
+        ]},
+        { key: 'ISBN', label: 'ISBN', operators: [
+            { key: 'isEmpty', label: 'Is Empty', valueType: 'none' }
+        ]},
+        { key: 'MultipleReads', label: 'Multiple Reads', operators: [
+            { key: 'gte', label: 'Greater than or equal to', valueType: 'number', defaultValues: ['2'] }
+        ]}
+    ]);
 })();
 
 const ConsumedView = {

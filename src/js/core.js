@@ -38,6 +38,8 @@ window.onload = async function () {
 // Read/To Be Read/My Library lists, Dashboard cards, Statistics charts)
 // arrives in Phase 5/7/8 as each view is built out for real.
 function showView(viewName, buttonElement) {
+    clearMessage();
+
     document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
 
     const target = document.getElementById(viewName + 'View');
