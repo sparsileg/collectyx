@@ -50,6 +50,34 @@ const CollectionView = {
         return this._dateFormatCache || DateUtils.DEFAULT_FORMAT;
     },
 
+    // Records-per-page pager (#47) — shared with TagsView, which calls
+    // getRecordsPerPage()/pagerHtml() directly rather than duplicating
+    // this. Same cache/harness pattern as _dateFormat() above. 0 means
+    // unlimited.
+    _recordsPerPageCache: null,
+    getRecordsPerPage() {
+        if (typeof window !== 'undefined' && window.__testRecordsPerPage != null) return window.__testRecordsPerPage;
+        return this._recordsPerPageCache != null ? this._recordsPerPageCache : CONSTANTS.DEFAULT_RECORDS_PER_PAGE;
+    },
+    setRecordsPerPage(value) {
+        this._recordsPerPageCache = value;
+    },
+
+    // Shared by CollectionView's own _renderRows() and TagsView.render() —
+    // one pager look everywhere records are paginated. Returns '' when
+    // there's nothing to page through (totalPages <= 1), so callers can
+    // append the result unconditionally.
+    pagerHtml(page, totalPages) {
+        if (totalPages <= 1) return '';
+        return `
+            <div class="collection-pager" style="display: flex; align-items: center; justify-content: center; gap: 16px; padding: 10px 0;">
+                <button type="button" class="btn btn-secondary" data-action="prev-page" ${page === 0 ? 'disabled' : ''}>Previous</button>
+                <span class="collection-pager-info">Page ${page + 1} of ${totalPages}</span>
+                <button type="button" class="btn btn-secondary" data-action="next-page" ${page >= totalPages - 1 ? 'disabled' : ''}>Next</button>
+            </div>
+        `;
+    },
+
     // First mount (nav click into a view with no state yet) creates fresh
     // state. A reload of an already-mounted container (post-mutation calls
     // like OwnedView.confirmCheckout/checkIn/refreshAll, QueuedView's
@@ -63,7 +91,7 @@ const CollectionView = {
         } else {
             this._state[containerId] = {
                 collection, data, filter: '', searchOpen: false,
-                filterRows: [], filterPanelOpen: false
+                filterRows: [], filterPanelOpen: false, page: 0
             };
         }
         this._renderShell(containerId);
@@ -93,6 +121,8 @@ const CollectionView = {
                 if (action === 'remove-filter-row') { this.removeFilterRow(containerId, parseInt(actionEl.dataset.rowIndex, 10)); return; }
                 if (action === 'clear-filters') { this.clearFilters(containerId); return; }
                 if (action === 'close-filter-panel') { this.closeFilterPanel(containerId); return; }
+                if (action === 'prev-page') { this.prevPage(containerId); return; }
+                if (action === 'next-page') { this.nextPage(containerId); return; }
                 if (action === 'noop') { return; }
                 // Row-level action button (e.g. queued's Start Reading /
                 // Finished) — resolved before row-open below, so hitting
@@ -367,6 +397,7 @@ const CollectionView = {
             operator: operatorDef ? operatorDef.key : '',
             values: this._defaultValuesFor(operatorDef)
         };
+        state.page = 0;
         this._renderShell(containerId);
     },
 
@@ -380,6 +411,7 @@ const CollectionView = {
         const fieldDef = this._fieldDef(containerId, row.field);
         const operatorDef = fieldDef ? fieldDef.operators.find(o => o.key === row.operator) : null;
         row.values = this._defaultValuesFor(operatorDef);
+        state.page = 0;
         this._renderShell(containerId);
     },
 
@@ -392,6 +424,8 @@ const CollectionView = {
         this._captureFilterValue(containerId, inputEl);
         clearTimeout(this._filterDebounceTimers[containerId]);
         this._filterDebounceTimers[containerId] = setTimeout(() => {
+            const state = this._state[containerId];
+            if (state) state.page = 0;
             this._renderRows(containerId);
         }, 300);
     },
@@ -403,6 +437,8 @@ const CollectionView = {
     _captureFilterValueImmediate(containerId, inputEl) {
         this._captureFilterValue(containerId, inputEl);
         clearTimeout(this._filterDebounceTimers[containerId]);
+        const state = this._state[containerId];
+        if (state) state.page = 0;
         this._renderRows(containerId);
     },
 
@@ -423,6 +459,7 @@ const CollectionView = {
         state.filterRows = [{ field: '', operator: '', values: [] }];
         state.filter = '';
         state.searchOpen = false;
+        state.page = 0;
         // Panel visibility is untouched — Clear Filters resets the
         // criteria back to native (no filters active), not the panel's
         // open/closed state. Hide is the only action that closes it.
@@ -601,14 +638,50 @@ const CollectionView = {
             return;
         }
 
-        list.innerHTML = rows.map(r => renderer.rowFn(r, containerId)).join('');
+        // Pager (#47) — slices the already-filtered `rows`, so search
+        // results are capped the same way the unfiltered list is. 0 (or
+        // a page size larger than the result set) means no cap, no
+        // controls — same code path as a small collection needs no
+        // pager at all.
+        const pageSize = this.getRecordsPerPage();
+        let pageRows = rows;
+        let totalPages = 1;
+        if (pageSize > 0 && rows.length > pageSize) {
+            totalPages = Math.ceil(rows.length / pageSize);
+            if (state.page >= totalPages) state.page = totalPages - 1;
+            if (state.page < 0) state.page = 0;
+            const start = state.page * pageSize;
+            pageRows = rows.slice(start, start + pageSize);
+        } else {
+            state.page = 0;
+        }
+
+        list.innerHTML = pageRows.map(r => renderer.rowFn(r, containerId)).join('') + this.pagerHtml(state.page, totalPages);
+    },
+
+    prevPage(containerId) {
+        const state = this._state[containerId];
+        if (!state || state.page <= 0) return;
+        state.page -= 1;
+        this._renderRows(containerId);
+        const list = document.getElementById(`${containerId}-list`);
+        if (list) list.scrollTop = 0;
+    },
+
+    nextPage(containerId) {
+        const state = this._state[containerId];
+        if (!state) return;
+        state.page += 1; // clamped against totalPages inside _renderRows
+        this._renderRows(containerId);
+        const list = document.getElementById(`${containerId}-list`);
+        if (list) list.scrollTop = 0;
     },
 
     toggleSearch(containerId) {
         const state = this._state[containerId];
         if (!state) return;
         state.searchOpen = !state.searchOpen;
-        if (!state.searchOpen) state.filter = '';
+        if (!state.searchOpen) { state.filter = ''; state.page = 0; }
         this._renderShell(containerId);
         if (state.searchOpen) {
             const input = document.getElementById(`${containerId}-search-input`);
@@ -620,6 +693,7 @@ const CollectionView = {
         const state = this._state[containerId];
         if (!state) return;
         state.filter = value;
+        state.page = 0;
         this._renderRows(containerId);
     },
 

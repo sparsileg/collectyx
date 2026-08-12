@@ -15,6 +15,7 @@ const TagsView = {
     _tags: [],
     _sortKey: 'Name',
     _sortDir: 'asc',
+    _page: 0,
 
     async load(containerId) {
         this._bindEvents();
@@ -46,6 +47,8 @@ const TagsView = {
             const action = btn.dataset.action;
             if (action === 'add-tag') { TagFormModal.openAdd(); return; }
             if (action === 'toggle-sort-dir') { this.toggleSortDir(); return; }
+            if (action === 'prev-page') { this.prevPage(); return; }
+            if (action === 'next-page') { this.nextPage(); return; }
             const item = btn.closest('.tag-item');
             const tagId = item && item.dataset.id;
             if (!tagId) return;
@@ -59,6 +62,7 @@ const TagsView = {
 
     setSort(key) {
         this._sortKey = key;
+        this._page = 0;
         this.render();
     },
 
@@ -66,7 +70,23 @@ const TagsView = {
         this._sortDir = this._sortDir === 'asc' ? 'desc' : 'asc';
         const btn = document.getElementById('tagsSortDirBtn');
         if (btn) btn.textContent = this._sortDir === 'asc' ? '▲' : '▼';
+        this._page = 0;
         this.render();
+    },
+
+    prevPage() {
+        if (this._page <= 0) return;
+        this._page -= 1;
+        this.render();
+        const list = document.getElementById('tagsList');
+        if (list) list.scrollTop = 0;
+    },
+
+    nextPage() {
+        this._page += 1; // clamped against totalPages inside render()
+        this.render();
+        const list = document.getElementById('tagsList');
+        if (list) list.scrollTop = 0;
     },
 
     getTag(tagId) {
@@ -100,7 +120,23 @@ const TagsView = {
             return;
         }
 
-        container.innerHTML = sorted.map(tag => `
+        // Pager (#47) — shares CollectionView's getRecordsPerPage()/
+        // pagerHtml() rather than a second copy of the same logic; one
+        // setting, one implementation, used by both.
+        const pageSize = CollectionView.getRecordsPerPage();
+        let pageTags = sorted;
+        let totalPages = 1;
+        if (pageSize > 0 && sorted.length > pageSize) {
+            totalPages = Math.ceil(sorted.length / pageSize);
+            if (this._page >= totalPages) this._page = totalPages - 1;
+            if (this._page < 0) this._page = 0;
+            const start = this._page * pageSize;
+            pageTags = sorted.slice(start, start + pageSize);
+        } else {
+            this._page = 0;
+        }
+
+        container.innerHTML = pageTags.map(tag => `
             <div class="tag-item" data-id="${escapeHtml(tag.id)}">
                 <span class="tag-name">${escapeHtml(tag.Name)}</span>
                 <span class="tag-count">${tag.Count || 0}</span>
@@ -109,7 +145,7 @@ const TagsView = {
                     <button type="button" class="btn btn-small btn-danger" data-action="delete">Delete</button>
                 </div>
             </div>
-        `).join('');
+        `).join('') + CollectionView.pagerHtml(this._page, totalPages);
     },
 
     // Called after any Add/Rename/Delete. Refreshes this view, the chip-

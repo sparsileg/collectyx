@@ -45,6 +45,8 @@ const SettingsModal = {
         document.getElementById('settingsDailyGoal').value =
             settings.dailyReadingGoal != null ? settings.dailyReadingGoal : CONSTANTS.DEFAULT_DAILY_READING_GOAL;
         document.getElementById('settingsDateFormat').value = settings.dateFormat || DateUtils.DEFAULT_FORMAT;
+        document.getElementById('settingsRecordsPerPage').value =
+            settings.recordsPerPage != null ? settings.recordsPerPage : CONSTANTS.DEFAULT_RECORDS_PER_PAGE;
         document.getElementById('settingsBackupFolder').value = settings.backupFolder || '';
 
         // Same pattern as Scriptum's Settings view: folder picker only
@@ -133,6 +135,8 @@ const SettingsModal = {
         const goalInput = document.getElementById('settingsDailyGoal').value;
         const goal = goalInput ? parseInt(goalInput, 10) : CONSTANTS.DEFAULT_DAILY_READING_GOAL;
         const dateFormat = document.getElementById('settingsDateFormat').value;
+        const recordsPerPageInput = document.getElementById('settingsRecordsPerPage').value;
+        const recordsPerPage = recordsPerPageInput !== '' ? parseInt(recordsPerPageInput, 10) : CONSTANTS.DEFAULT_RECORDS_PER_PAGE;
         const backupFolder = document.getElementById('settingsBackupFolder').value.trim();
 
         try {
@@ -140,13 +144,19 @@ const SettingsModal = {
                 ...current,
                 dailyReadingGoal: goal,
                 dateFormat: dateFormat,
+                recordsPerPage: recordsPerPage,
                 backupFolder: backupFolder
             });
 
-            // CollectionView reads this synchronously on every render — same
-            // cache sidebar.js's initSidebarChrome() populates at startup.
+            // CollectionView reads both synchronously on every render —
+            // same cache sidebar.js's initSidebarChrome() populates at
+            // startup for dateFormat. recordsPerPage has the same
+            // startup-staleness window (nothing seeds it before the first
+            // Settings save this session) until sidebar.js does the same
+            // for it — not touched here, outside this patch's files.
             if (typeof CollectionView !== 'undefined') {
                 CollectionView._dateFormatCache = dateFormat;
+                CollectionView.setRecordsPerPage(recordsPerPage);
             }
 
             this.close();

@@ -128,6 +128,11 @@ const CONSTANTS = {
     // daily reading goal.
     DEFAULT_DAILY_READING_GOAL: 30,
 
+    // Records-per-page pager (#47) for Books Read/To Be Read/My Library/
+    // Tags. 0 means "unlimited" — no cap, no Previous/Next controls.
+    DEFAULT_RECORDS_PER_PAGE: 50,
+    RECORDS_PER_PAGE_OPTIONS: [10, 50, 250, 0],
+
     // # rows in dashboard cards
     ROW_LIMITS: {
         RECENT_FINISHED: 4,
