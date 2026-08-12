@@ -85,16 +85,27 @@ try {
     // ── #52 / CTX-SEC-101 — save_item ignores payload Owner ────────────
     console.log('\n#52 (CTX-SEC-101) — save_item: owner never from payload');
 
-    ok('save_item resolves owner via current_owner(), not item.owner',
-       /let owner = common::current_owner\(&db\);/.test(sliceFrom(itemsSrc, 'pub fn save_item')));
-    ok('save_item no longer binds item.owner as a SQL param',
-       !/params!\[\s*id,\s*item\.owner/.test(sliceFrom(itemsSrc, 'pub fn save_item')));
+    // #40 extracted save_item's insert/validation logic into a shared
+    // write_item(tx, item, now) — save_item is now a thin transaction
+    // wrapper that delegates to it, restore_all's own per-item writes go
+    // through the same function. Owner resolution and validation now live
+    // in write_item's body, which precedes save_item in the file, so the
+    // checks are scoped there instead of to save_item itself.
+    const writeItemSlice = sliceFrom(itemsSrc, 'pub(crate) fn write_item');
+    const saveItemSlice = sliceFrom(itemsSrc, 'pub fn save_item');
+
+    ok('write_item (shared by save_item and restore_all, #40) resolves owner via current_owner(), not item.owner',
+       /let owner = common::current_owner\(tx\);/.test(writeItemSlice));
+    ok('save_item delegates to write_item rather than duplicating insert logic',
+       /write_item\(&tx, &item, &now\)/.test(saveItemSlice));
+    ok('save_item no longer binds item.owner as a SQL param anywhere in items.rs',
+       !/params!\[\s*id,\s*item\.owner/.test(itemsSrc));
     ok('ItemRecord.owner is serialize-only (skip_deserializing)',
        /rename = "Owner", default, skip_deserializing\)\]\s*\n\s*pub owner: String/.test(itemsSrc));
     ok('title CASE WHEN guard present (blank payload title cannot blank stored title)',
        /title\s*=\s*CASE WHEN excluded\.title != '' THEN excluded\.title ELSE items\.title END/.test(itemsSrc));
-    ok('save_item validates Title/Author/Author2/ISBN/Pages/DateAdded',
-       /Title cannot be empty/.test(sliceFrom(itemsSrc, 'pub fn save_item')) &&
+    ok('write_item validates Title/Author/Author2/ISBN/Pages/DateAdded',
+       /Title cannot be empty/.test(writeItemSlice) &&
        /validate_short_text\(&item\.author, "Author"\)/.test(itemsSrc) &&
        /validate_short_text\(&item\.isbn, "ISBN"\)/.test(itemsSrc));
 

@@ -50,9 +50,10 @@ const tests = [
     ['rust-sql-test.js',    'SQL from the Rust modules, issues #23/#24/#27'],
     ['dashboard-xss-test.js', 'dashboard.js escapes hostile record data (issue #20)'],
     ['csp-test.js',           'CSP present in both builds and in sync (issue #21)'],
-    ['backup-restore-test.js', 'restore validation + snapshot/rollback (issue #22)'],
+    ['backup-restore-test.js', 'restore validation + atomic restoreAll (issues #22, #40)'],
     ['csv-import-test.js',    'CSV import hardening — prototype safety, row cap, re-entry guard (issue #68)'],
     ['queued-rank-test.js',   'rank validation and shift overflow guard (issue #72)'],
+    ['restore-all-test.js',   'atomic full-database restore_all / restoreAll (issue #40)'],
     ['security-audit-52-58-test.js', 'owner-from-payload / membership BOLA (issues #52-#58)'],
 ];
 

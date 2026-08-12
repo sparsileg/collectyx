@@ -125,7 +125,8 @@ pub fn save_queued(state: State<AppState>, record: QueuedRecord) -> Result<commo
 /// Restore (replace_all_queued) is the one caller that must honor the
 /// incoming rank verbatim, since it is reproducing exact prior state, not
 /// performing a live reorder.
-fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_modified_on_new_link: bool, apply_rank: bool) -> Result<(String, String)> {
+/// pub(crate): also called directly by restore.rs's restore_all (#40).
+pub(crate) fn write_one(tx: &rusqlite::Transaction, record: &QueuedRecord, now: &str, bump_modified_on_new_link: bool, apply_rank: bool) -> Result<(String, String)> {
     if let Err(msg) = common::validate_short_text(&record.source, "Source") {
         return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
     }

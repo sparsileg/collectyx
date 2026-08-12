@@ -111,6 +111,10 @@ pub fn run() {
         commands::settings::save_settings,
         // backup (Tauri-only, writes to the user-configured backup folder)
         commands::backup::save_backup_file,
+        // restore_all: atomic full-database restore (#40). Coexists with the
+        // per-collection replace_all_* commands above, which still cover
+        // single-collection use cases that do not need cross-table atomicity.
+        commands::restore::restore_all,
         // app_meta (not owner-scoped — current_owner testing switch)
         commands::app_meta::get_app_meta,
         commands::app_meta::set_app_meta,
@@ -160,6 +164,10 @@ pub fn run() {
         commands::settings::save_settings,
         // backup (Tauri-only, writes to the user-configured backup folder)
         commands::backup::save_backup_file,
+        // restore_all: atomic full-database restore (#40). Coexists with the
+        // per-collection replace_all_* commands above, which still cover
+        // single-collection use cases that do not need cross-table atomicity.
+        commands::restore::restore_all,
         // app_meta (not owner-scoped — current_owner testing switch).
         // set_app_meta is NOT registered here — see owner-test-switch
         // feature gate above (#59 / CTX-SEC-109).

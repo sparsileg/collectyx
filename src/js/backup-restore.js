@@ -583,79 +583,15 @@ const BackupRestore = {
     },
 
     // ── Execute ──────────────────────────────────────────────────────────────
-    // Not a real transaction (see COLLECTYX-SEC-21, filed to move this into
-    // one Rust/IndexedDB transaction) — this is a JS-level snapshot-and-
-    // rollback simulation. It closes the practical data-loss risk today;
-    // it does not make the wipe-then-write sequence atomic at the database
-    // level. _validate() above is what actually keeps garbage out — a
-    // rollback that can itself fail is not a substitute for not writing
-    // garbage in the first place.
-
-    // Deletes every item (cascades memberships + item_tags via the
-    // documented deleteItem() contract) and every tag row. Shared by the
-    // real restore and by rollback, which wipes back to empty before
-    // replaying the snapshot.
-    async _wipeAll() {
-        const currentItems = await DBManager.getAllItems();
-        for (const item of currentItems) {
-            await DBManager.deleteItem(item.id);
-        }
-        const currentTags = await DBManager.getAllTags();
-        for (const tag of currentTags) {
-            await DBManager.deleteTag(tag.id);
-        }
-    },
-
-    // Writes a full data set (a parsed backup, or a snapshot taken for
-    // rollback) into an already-wiped database. Shared by the real restore
-    // and by rollback.
-    async _writeAll(data) {
-        // Items first — memberships reference them by ItemId. IDs are
-        // preserved verbatim from the source, so those references resolve
-        // correctly with no remapping step. No bulk endpoint exists for
-        // items, so this stays one call per item.
-        for (const item of (data.Items || [])) {
-            await DBManager.saveItem(item);
-        }
-
-        // One call per collection instead of one call per record —
-        // replaceCollection wraps the whole thing in a single transaction
-        // on the backend (replace_all_consumed etc.), rather than each
-        // record crossing the Tauri IPC boundary (or hitting IndexedDB)
-        // separately. Tags get created/attached automatically by the same
-        // per-record Tags handling saveCollectionRecord already uses — no
-        // separate pass needed.
-        await DBManager.replaceCollection('consumed', data.Consumed || []);
-        await DBManager.replaceCollection('queued', data.Queued || []);
-        await DBManager.replaceCollection('owned', data.Owned || []);
-
-        if (data.Settings) {
-            // backupFolder is never restored from a backup file — a shared
-            // or malicious backup could otherwise redirect where future
-            // backups get written (CTX-SEC-101). Every other setting
-            // restores normally.
-            //
-            // Beyond that one field, restore an explicit allow-list rather
-            // than the object as-is — a corrupted or malicious Settings
-            // blob otherwise reaches saveSettings() verbatim and drives a
-            // CSS sink (fontSize), a DOM update (dashboardCardOrder), or
-            // an unknown key nothing here has ever validated (CTX-SEC-111
-            // / #61). Any key not in this list is silently dropped, not
-            // logged — it was never a real setting to begin with.
-            const ALLOWED_SETTINGS_KEYS = [
-                'dailyReadingGoal',
-                'dateFormat',
-                'fontSize',
-                'displayTheme',
-                'dashboardCardOrder'
-            ];
-            const restoredSettings = {};
-            ALLOWED_SETTINGS_KEYS.forEach(key => {
-                if (data.Settings[key] !== undefined) restoredSettings[key] = data.Settings[key];
-            });
-            await DBManager.saveSettings(restoredSettings);
-        }
-    },
+    // Restore is a single atomic call (#40) — DBManager.restoreAll wraps
+    // the whole wipe-and-write in one Rust transaction / one IndexedDB
+    // transaction. A failure partway through leaves the pre-restore state
+    // completely unchanged, so there is nothing to roll back to: the
+    // JS-level snapshot-and-rollback simulation this file used to run in
+    // front of a non-atomic wipe-then-write sequence (COLLECTYX-SEC-21)
+    // is gone. _validate() above is still what keeps garbage out in the
+    // first place — restoreAll's atomicity is what happens after that,
+    // not a substitute for it.
 
     _showRestoreError(message) {
         document.getElementById('restoreError').textContent = message;
@@ -668,20 +604,8 @@ const BackupRestore = {
         if (!this._parsedData) return;
         const data = this._parsedData;
 
-        // Snapshot the current library before touching anything, so a
-        // failure partway through the write has something to roll back to.
-        let snapshot = null;
         try {
-            snapshot = await this._gatherAllData();
-        } catch (e) {
-            console.error('BackupRestore.executeRestore: could not snapshot current data, aborting before any wipe', e);
-            this._showRestoreError('Restore aborted before making any changes — could not read the current library: ' + e.message);
-            return;
-        }
-
-        try {
-            await this._wipeAll();
-            await this._writeAll(data);
+            await DBManager.restoreAll(data);
 
             this.close();
             showMessage(
@@ -701,21 +625,11 @@ const BackupRestore = {
                 if (el && el.classList.contains('active') && view) view.load(containerId);
             });
         } catch (e) {
-            console.error('BackupRestore.executeRestore failed, attempting rollback to the pre-restore snapshot', e);
-            try {
-                await this._wipeAll();
-                await this._writeAll(snapshot);
-                this._showRestoreError(`Restore failed (${e.message}) — your previous data has been restored.`);
-            } catch (rollbackErr) {
-                console.error('BackupRestore.executeRestore: rollback also failed. Your data has NOT been restored.', rollbackErr);
-                console.error('BackupRestore.executeRestore: last-resort snapshot of your pre-restore library follows — save this output:');
-                console.error(JSON.stringify(snapshot));
-                this._showRestoreError(
-                    `Restore failed (${e.message}) and automatic recovery also failed (${rollbackErr.message}). ` +
-                    `Your data has NOT been restored. A snapshot of your library from just before this restore ` +
-                    `has been written to the console — do not close it until you've saved that output.`
-                );
-            }
+            // Nothing committed — restoreAll's transaction guarantees the
+            // pre-restore state is untouched on any failure, so this is a
+            // plain error, not a rollback attempt.
+            console.error('BackupRestore.executeRestore failed — no changes were made', e);
+            this._showRestoreError(`Restore failed (${e.message}) — your previous data is unchanged.`);
         }
     },
 

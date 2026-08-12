@@ -416,6 +416,19 @@ await DBManager.replaceAllTags(tags)
 // Merge (§3.3)
 await DBManager.mergeItems(survivorId, loserId, fieldResolutions)
 
+// Restore (§5, §11) — atomic full-database replace in one transaction
+// (one Rust transaction / one IndexedDB transaction). Wipes and rewrites
+// items/consumed/queued/owned/tags/item_tags and settings (filtered
+// through an allow-list) as a single unit; a failure partway through
+// leaves the pre-restore state completely unchanged. data is the same
+// {Items, Consumed, Queued, Owned, Settings} shape produced by gathering
+// getAllItems()/getCollection()/getAllTags()/getSettings() together, or
+// by parsing a backup file. Coexists with the per-collection
+// replaceCollection() above, which still covers single-collection use
+// cases (e.g. CSV import into one collection) that don't need
+// cross-table atomicity.
+await DBManager.restoreAll(data)
+
 // Media types, settings
 await DBManager.getAllMediaTypes()
 await DBManager.getSettings()           // → object, or null if never set

@@ -149,45 +149,59 @@ pub fn detach_tag(state: State<AppState>, item_id: String, tag_id: String) -> Re
     Ok(())
 }
 
-/// Creates a bare item with no collection membership. Rarely needed
-/// directly — the collection save commands upsert their own item — but
-/// useful for the importer and for tests.
-#[tauri::command]
-pub fn save_item(state: State<AppState>, item: ItemRecord) -> Result<String, String> {
-    let db = common::lock_db(&state.db);
-    let now = today();
-    // Never taken from the payload (CTX-SEC-101 / #52) — same rule
-    // upsert_item applies to the item row on every collection save path.
-    let owner = common::current_owner(&db);
+/// Transaction-scoped core of save_item, shared with restore.rs's
+/// restore_all (#40) so both apply identical validation/insert rules.
+/// Returns a rusqlite::Result — validation errors are smuggled through
+/// via ToSqlConversionFailure (common.rs's own documented pattern) so
+/// callers building a larger transaction can `?`-propagate through
+/// several of these in a row before converting to a String once at the
+/// command boundary, same convention as consumed/queued/owned's
+/// write_one.
+pub(crate) fn write_item(tx: &rusqlite::Transaction, item: &ItemRecord, now: &str) -> Result<String> {
+    let owner = common::current_owner(tx);
 
     if item.title.trim().is_empty() {
-        return Err("Title cannot be empty".to_string());
+        return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(
+            "Title cannot be empty".to_string(),
+        )));
     }
-    common::validate_short_text(&Some(item.title.clone()), "Title")?;
-    common::validate_short_text(&item.author, "Author")?;
-    common::validate_short_text(&item.author2, "Author2")?;
-    common::validate_short_text(&item.isbn, "ISBN")?;
+    if let Err(msg) = common::validate_short_text(&Some(item.title.clone()), "Title") {
+        return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
+    }
+    if let Err(msg) = common::validate_short_text(&item.author, "Author") {
+        return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
+    }
+    if let Err(msg) = common::validate_short_text(&item.author2, "Author2") {
+        return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
+    }
+    if let Err(msg) = common::validate_short_text(&item.isbn, "ISBN") {
+        return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
+    }
     if let Some(p) = item.pages {
         if p < common::MIN_PAGES || p > common::MAX_PAGES {
-            return Err(format!(
+            return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(format!(
                 "Pages out of range ({}-{})",
                 common::MIN_PAGES,
                 common::MAX_PAGES
-            ));
+            ))));
         }
     }
     if let Some(d) = &item.date_added {
         if !d.is_empty() {
-            common::validate_date(d, "DateAdded")?;
+            if let Err(msg) = common::validate_date(d, "DateAdded") {
+                return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
+            }
         }
     }
 
     let id = if item.id.is_empty() { new_uuid() } else { item.id.clone() };
     if !item.id.is_empty() {
-        common::assert_item_id_writable(&db, &item.id)?;
+        if let Err(msg) = common::assert_item_id_writable(tx, &item.id) {
+            return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
+        }
     }
 
-    db.execute(
+    tx.execute(
         "INSERT INTO items
            (id, owner, media_type_id, title, author, author2, pages, isbn,
             date_added, modified)
@@ -209,11 +223,24 @@ pub fn save_item(state: State<AppState>, item: ItemRecord) -> Result<String, Str
             item.author2,
             item.pages,
             item.isbn,
-            item.date_added.clone().unwrap_or_else(|| now.clone()),
+            item.date_added.clone().unwrap_or_else(|| now.to_string()),
             now
         ],
-    )
-    .map_err(common::db_err)?;
+    )?;
 
+    Ok(id)
+}
+
+/// Creates a bare item with no collection membership. Rarely needed
+/// directly — the collection save commands upsert their own item — but
+/// useful for the importer and for tests. Thin wrapper around write_item
+/// (#40) so save_item and restore_all's per-item writes can never drift.
+#[tauri::command]
+pub fn save_item(state: State<AppState>, item: ItemRecord) -> Result<String, String> {
+    let mut db = common::lock_db(&state.db);
+    let now = today();
+    let tx = db.transaction().map_err(common::db_err)?;
+    let id = write_item(&tx, &item, &now).map_err(common::db_err)?;
+    tx.commit().map_err(common::db_err)?;
     Ok(id)
 }

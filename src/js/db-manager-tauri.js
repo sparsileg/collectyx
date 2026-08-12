@@ -119,6 +119,19 @@ const DBManagerTauri = {
         return invoke(this._commands(collection).replaceAll, { records: records || [] });
     },
 
+    /**
+     * Atomic full-database restore (#40). One Rust transaction spanning
+     * items/consumed/queued/owned/tags/item_tags/settings — replaces the
+     * old per-collection replaceCollection() sequence backup-restore.js
+     * drove individually, plus its JS-level snapshot/rollback simulation.
+     * data is the same {Items, Consumed, Queued, Owned, Settings} shape
+     * _gatherAllData()/a parsed backup file already produces — no
+     * transform needed before this call.
+     */
+    async restoreAll(data) {
+        return invoke('restore_all', { payload: data });
+    },
+
     // ── Items ─────────────────────────────────────────────────────────────────
 
     async getAllItems() {

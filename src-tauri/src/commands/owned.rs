@@ -109,7 +109,8 @@ pub fn save_owned(state: State<AppState>, record: OwnedRecord) -> Result<common:
     Ok(common::SaveResult { id, item_id })
 }
 
-fn write_one(tx: &rusqlite::Transaction, record: &OwnedRecord, now: &str, bump_modified_on_new_link: bool) -> Result<(String, String)> {
+/// pub(crate): also called directly by restore.rs's restore_all (#40).
+pub(crate) fn write_one(tx: &rusqlite::Transaction, record: &OwnedRecord, now: &str, bump_modified_on_new_link: bool) -> Result<(String, String)> {
     if let Err(msg) = common::validate_short_text(&record.location, "Location") {
         return Err(rusqlite::Error::ToSqlConversionFailure(Box::from(msg)));
     }

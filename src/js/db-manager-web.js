@@ -913,6 +913,164 @@ const DBManagerWeb = {
         this._invalidate(S.ITEMS, collection, S.TAGS, S.ITEM_TAGS);
     },
 
+    /**
+     * Atomic full-database restore (#40). One _rawWrite spanning every
+     * affected store — items, all three collections, tags, item_tags,
+     * settings — so a forced mid-write failure leaves nothing partially
+     * committed, matching Rust's restore_all's single-transaction
+     * guarantee. Replaces the old per-collection replaceCollection()
+     * sequence backup-restore.js drove individually, plus its JS-level
+     * snapshot/rollback simulation.
+     *
+     * Ops are all computed synchronously before the one _rawWrite call —
+     * IndexedDB transactions auto-close if control leaves the current
+     * event loop turn, same constraint _rawWrite's own doc comment
+     * states. restoredItemsById tracks items as they're built here so a
+     * Consumed/Queued/Owned record referencing an item earlier in this
+     * same restore sees that item's just-restored fields, not its stale
+     * pre-wipe ones — mirroring how Rust's restore_all sees its own
+     * uncommitted writes within one real SQL transaction.
+     *
+     * Tags: same contract as before (#80) — data.Tags is never written
+     * directly; tags are recreated implicitly through each record's own
+     * embedded Tags list, via reconcileTags(), same as replaceCollection()
+     * already did per collection.
+     */
+    async restoreAll(data) {
+        const S = CONSTANTS.STORES;
+        const defaults = this._defaults();
+        const owner = defaults.owner;
+
+        const loaded = await Promise.all([
+            this._load(S.ITEMS),
+            this._load('consumed'),
+            this._load('queued'),
+            this._load('owned'),
+            this._load(S.TAGS),
+            this._load(S.ITEM_TAGS),
+            this._load(S.MEDIA_TYPES),
+        ]);
+        const existingItems = loaded[0];
+        const existingByCollection = { consumed: loaded[1], queued: loaded[2], owned: loaded[3] };
+        const workingTags = loaded[4].slice();
+        const itemTags = loaded[5];
+        const validMediaTypeIds = new Set(loaded[6].map(t => t.id));
+        const existingItemsById = JoinHelpers.indexById(existingItems);
+
+        const ownerItemIds = new Set(existingItems.filter(i => i.owner === owner).map(i => i.id));
+        const ops = [];
+
+        // Wipe, scoped to the active owner — same scope _wipeAll() used.
+        existingItems.filter(i => i.owner === owner)
+            .forEach(i => ops.push({ store: S.ITEMS, action: 'delete', key: i.id }));
+        ['consumed', 'queued', 'owned'].forEach(collection => {
+            existingByCollection[collection]
+                .filter(m => ownerItemIds.has(m.item_id))
+                .forEach(m => ops.push({ store: collection, action: 'delete', key: m.id }));
+        });
+        workingTags.filter(t => t.owner === owner)
+            .forEach(t => ops.push({ store: S.TAGS, action: 'delete', key: t.id }));
+        itemTags.filter(l => ownerItemIds.has(l.item_id))
+            .forEach(l => ops.push({ store: S.ITEM_TAGS, action: 'delete', key: [l.item_id, l.tag_id] }));
+
+        // Items first — memberships reference them by ItemId, ids
+        // preserved verbatim so those references resolve with no
+        // remapping step. Mirrors saveItem()'s own validation/row-shape.
+        const restoredItemsById = new Map();
+        (data.Items || []).forEach(input => {
+            Validation.itemFields(input, true);
+            const row = {
+                id: input.id || this._newId(),
+                owner: owner,
+                media_type_id: input.MediaTypeId || defaults.mediaTypeId,
+                date_added: input.DateAdded || defaults.today,
+                modified: defaults.today,
+            };
+            Object.keys(ITEM_FIELD_MAP).forEach(js => {
+                const col = ITEM_FIELD_MAP[js];
+                row[col] = input[js] != null ? input[js] : null;
+            });
+            if (!validMediaTypeIds.has(row.media_type_id)) {
+                throw new Error('Unknown MediaTypeId');
+            }
+            restoredItemsById.set(row.id, row);
+            ops.push({ store: S.ITEMS, action: 'put', value: row });
+        });
+
+        // Consumed/Queued/Owned — mirrors replaceCollection()'s per-record
+        // logic, run for all three collections against the same ops array
+        // so the whole restore is one transaction instead of three.
+        const collectionData = { consumed: data.Consumed, queued: data.Queued, owned: data.Owned };
+        ['consumed', 'queued', 'owned'].forEach(collection => {
+            (collectionData[collection] || []).forEach(input => {
+                const isNewItem = !input.ItemId;
+                Validation.itemFields(input, isNewItem);
+                Validation.collectionFields(collection, input);
+
+                const prepared = {};
+                Object.keys(input).forEach(k => { prepared[k] = input[k]; });
+                if (!prepared.id) prepared.id = this._newId();
+                if (!prepared.ItemId) prepared.ItemId = this._newId();
+
+                // Prefer an item already restored earlier in this same
+                // call over the stale pre-wipe snapshot — see doc comment
+                // above.
+                const prevItem = restoredItemsById.get(prepared.ItemId)
+                    || existingItemsById.get(prepared.ItemId) || null;
+                if (prevItem && prevItem.owner !== owner) {
+                    throw new Error('Item not found');
+                }
+
+                const split = JoinHelpers.splitRecord(collection, prepared, defaults, {
+                    item: prevItem, membership: null,
+                });
+                const item = split.item;
+                if (!validMediaTypeIds.has(item.media_type_id)) {
+                    throw new Error('Unknown MediaTypeId');
+                }
+
+                restoredItemsById.set(item.id, item);
+                ops.push({ store: S.ITEMS, action: 'put', value: item });
+                ops.push({ store: collection, action: 'put', value: split.membership });
+
+                if (split.tagNames !== null) {
+                    const rec = JoinHelpers.reconcileTags(
+                        item.id, split.tagNames, workingTags, item.owner,
+                        () => this._newId(), defaults.today
+                    );
+                    rec.newTags.forEach(t => {
+                        workingTags.push(t);
+                        ops.push({ store: S.TAGS, action: 'put', value: t });
+                    });
+                    rec.links.forEach(l => ops.push({ store: S.ITEM_TAGS, action: 'put', value: l }));
+                }
+            });
+        });
+
+        if (data.Settings) {
+            // backupFolder is never restored from a file (CTX-SEC-101);
+            // beyond that, an explicit allow-list only, same as the old
+            // JS restore path (CTX-SEC-111 / #61).
+            const ALLOWED_SETTINGS_KEYS = [
+                'dailyReadingGoal', 'dateFormat', 'fontSize', 'displayTheme', 'dashboardCardOrder',
+            ];
+            const restoredSettings = {};
+            ALLOWED_SETTINGS_KEYS.forEach(key => {
+                if (data.Settings[key] !== undefined) restoredSettings[key] = data.Settings[key];
+            });
+            ops.push({
+                store: S.SETTINGS, action: 'put',
+                value: { owner: owner, data: JSON.stringify(restoredSettings) },
+            });
+        }
+
+        await this._rawWrite(
+            [S.ITEMS, 'consumed', 'queued', 'owned', S.TAGS, S.ITEM_TAGS, S.SETTINGS],
+            ops
+        );
+        this._invalidate(S.ITEMS, 'consumed', 'queued', 'owned', S.TAGS, S.ITEM_TAGS, S.SETTINGS);
+    },
+
     // ── Items ─────────────────────────────────────────────────────────────────
 
     async getAllItems() {

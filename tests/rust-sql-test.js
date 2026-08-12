@@ -142,9 +142,9 @@ try {
              VALUES ('i-survive',?,1,'Dune','Herbert, Frank',412,'9780441013593',?,?),
                     ('i-loser',?,1,'Dune','Herbert, Frank',NULL,NULL,?,?)`)
       .run(OWNER, now, now, OWNER, now, now);
-    db.prepare(`INSERT INTO consumed (id,item_id,finished,rating,recommend,date_added,modified)
-             VALUES ('c1','i-survive','2020-06-01',9,1,?,?),
-                    ('c2','i-loser','2018-01-01',8,1,?,?)`).run(now, now, now, now);
+    db.prepare(`INSERT INTO consumed (id,item_id,finished,rating,date_added,modified)
+             VALUES ('c1','i-survive','2020-06-01',9,?,?),
+                    ('c2','i-loser','2018-01-01',8,?,?)`).run(now, now, now, now);
     db.prepare(`INSERT INTO queued (id,item_id,"rank",source,date_added,modified)
              VALUES ('q1','i-loser',3,'a friend',?,?)`).run(now, now);
     db.prepare(`INSERT INTO owned (id,item_id,location,date_added,modified)

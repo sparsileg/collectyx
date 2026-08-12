@@ -1,13 +1,19 @@
 /**
- * Regression test for issue #22. Loads the real backup-restore.js
- * and exercises it two ways:
+ * Regression test for issue #22 (validation) and #40 (atomic restore).
+ * Loads the real backup-restore.js and exercises it two ways:
  *
- *   1. _validate() against the malformed-file corpus from the issue —
- *      pure function, no DB involved.
- *   2. executeRestore() against a mock, in-memory DBManager, forcing
- *      write failures to prove the snapshot-and-rollback path actually
- *      restores the prior state, and that a rollback failure logs a
- *      recoverable snapshot rather than silently losing data.
+ *   1. _validate() against the malformed-file corpus from #22, updated for
+ *      #74's { fatal, skippable } return shape — structural problems
+ *      (not an object, a section not an array, a record not an object)
+ *      are still fatal; per-record content problems (missing Title, a
+ *      dangling ItemId, an invalid optional field per #80) are skippable,
+ *      not fatal.
+ *   2. executeRestore() against a mock, in-memory DBManager exposing
+ *      restoreAll(), proving a failure leaves the pre-restore state
+ *      completely untouched — restoreAll is atomic (one Rust transaction
+ *      / one IndexedDB transaction, #40), so there is no separate
+ *      rollback step to test and no snapshot-logging last resort; both
+ *      were removed from backup-restore.js when #40 landed.
  *
  * This cannot verify the real DBManagerTauri/DBManagerWeb backends, real
  * IPC failure modes, or gzip/truncated-file handling in a real browser —
@@ -65,11 +71,11 @@ function freshDom() {
 }
 
 // ── in-memory mock DBManager ──────────────────────────────────────────────────
-// Tags are not written directly by backup-restore.js — real tag rows are
-// created via replaceCollection()'s per-record Tags reconciliation (design
-// doc §6.3; already covered by web-backend-test.js / rust-sql-test.js), so
-// this mock simulates that minimally: any record's Tags array causes a
-// matching tag entry to exist, the same contract the real backends provide.
+// restoreAll is the only write surface executeRestore() calls (#40) — it
+// must behave atomically, same as both real backends: compute the full new
+// state first, only assign it to the mock's variables at the very end, so
+// a forced failure (via _failRestoreAll) never leaves a half-applied state
+// for the test to observe.
 function makeDB(initial) {
     let items = new Map((initial.items || []).map(i => [i.id, i]));
     let consumed = initial.consumed ? initial.consumed.slice() : [];
@@ -77,13 +83,13 @@ function makeDB(initial) {
     let owned = initial.owned ? initial.owned.slice() : [];
     let tags = new Map((initial.tags || []).map(t => [t.id, t]));
     let settings = initial.settings || null;
-    let failSaveItemIds = new Set();
+    let restoreAllShouldFail = false;
 
-    function reconcileTags(records) {
+    function reconcileTagsInto(records, tagsMap) {
         (records || []).forEach(r => {
             (r.Tags || []).forEach(name => {
                 const id = 't-' + name;
-                if (!tags.has(id)) tags.set(id, { id, Name: name });
+                if (!tagsMap.has(id)) tagsMap.set(id, { id, Name: name });
             });
         });
     }
@@ -97,25 +103,27 @@ function makeDB(initial) {
         getCollection: async (c) => (c === 'consumed' ? consumed : c === 'queued' ? queued : owned),
         getAllTags: async () => [...tags.values()],
         getSettings: async () => settings,
-        deleteItem: async (id) => {
-            items.delete(id);
-            consumed = consumed.filter(r => r.ItemId !== id);
-            queued = queued.filter(r => r.ItemId !== id);
-            owned = owned.filter(r => r.ItemId !== id);
+        restoreAll: async (data) => {
+            if (restoreAllShouldFail) throw new Error('simulated restoreAll failure');
+
+            const newItems = new Map((data.Items || []).map(i => [i.id, i]));
+            const newConsumed = (data.Consumed || []).slice();
+            const newQueued = (data.Queued || []).slice();
+            const newOwned = (data.Owned || []).slice();
+            const newTags = new Map();
+            reconcileTagsInto(newConsumed, newTags);
+            reconcileTagsInto(newQueued, newTags);
+            reconcileTagsInto(newOwned, newTags);
+            const newSettings = data.Settings || {};
+
+            items = newItems;
+            consumed = newConsumed;
+            queued = newQueued;
+            owned = newOwned;
+            tags = newTags;
+            settings = newSettings;
         },
-        deleteTag: async (id) => { tags.delete(id); },
-        saveItem: async (item) => {
-            if (failSaveItemIds.has(item.id)) throw new Error('simulated write failure on ' + item.id);
-            items.set(item.id, item);
-        },
-        replaceCollection: async (c, recs) => {
-            if (c === 'consumed') consumed = recs.slice();
-            else if (c === 'queued') queued = recs.slice();
-            else owned = recs.slice();
-            reconcileTags(recs);
-        },
-        saveSettings: async (s) => { settings = s; },
-        _failSaveItemOn: (id) => failSaveItemIds.add(id),
+        _failRestoreAll: () => { restoreAllShouldFail = true; },
     };
 }
 
@@ -126,7 +134,7 @@ function loadBackupRestore(dom, db) {
         CONSTANTS: { APP_VERSION: '0.1.0', MESSAGE_TYPES: { SUCCESS: 'success', ERROR: 'error' } },
         MediaLabels: { ConsumedLabel: 'Books Read', QueuedLabel: 'To Be Read', OwnedLabel: 'My Library' },
         // A real implementation, not a passthrough — CTX-SEC-117's test
-        // (section 7) needs to see actual escaping happen at the sink, not
+        // (section 6) needs to see actual escaping happen at the sink, not
         // just that some string reached innerHTML.
         escapeHtml: (s) => String(s).replace(/[&<>"']/g, (c) => ({
             '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -144,55 +152,93 @@ function loadBackupRestore(dom, db) {
     return sandbox.BackupRestore;
 }
 
-// ── 1. _validate() against the issue's malformed-file corpus ─────────────────
+// ── 1. _validate() against the malformed/skippable-file corpus ───────────────
 (async function run() {
 
-console.log("\n1. _validate() — malformed-file corpus (COLLECTYX-SEC-03's own test list)");
+console.log("\n1. _validate() — { fatal, skippable } contract (#74)");
 {
     const dom = freshDom();
     const db = makeDB({});
     const BR = loadBackupRestore(dom, db);
 
-    function v(label, data, expectSubstring) {
-        const err = BR._validate(data);
-        if (expectSubstring === null) {
-            ok(label, err === null, 'expected valid, got error: ' + err);
-        } else {
-            ok(label, err !== null && err.includes(expectSubstring),
-               'expected error containing ' + JSON.stringify(expectSubstring) + ', got: ' + JSON.stringify(err));
-        }
+    // fatal: expects _validate() to halt with a fatal message containing
+    // expectSubstring, and no partial skippable review possible.
+    function vFatal(label, data, expectSubstring) {
+        const { fatal } = BR._validate(data);
+        ok(label, fatal !== null && fatal.includes(expectSubstring),
+           'expected fatal containing ' + JSON.stringify(expectSubstring) + ', got: ' + JSON.stringify(fatal));
     }
 
-    v('a valid backup passes', {
-        Header: {}, Items: [{ id: 'i1', Title: 'Dune' }],
-        Consumed: [{ ItemId: 'i1', Title: 'Dune' }], Queued: [], Owned: [], Tags: [{ Name: 'scifi' }],
+    // clean: expects no fatal error and zero skippable entries — a
+    // genuinely restorable-as-is file.
+    function vClean(label, data) {
+        const { fatal, skippable } = BR._validate(data);
+        ok(label, fatal === null && skippable.length === 0,
+           'expected clean (fatal: null, skippable: []), got: fatal=' + JSON.stringify(fatal) +
+           ' skippable=' + JSON.stringify(skippable));
+    }
+
+    // skippable: expects no fatal error, but at least one skippable entry
+    // for the given label/index whose reason contains expectReasonSubstring.
+    function vSkippable(label, data, expectLabel, expectIndex, expectReasonSubstring) {
+        const { fatal, skippable } = BR._validate(data);
+        ok(label + ' — not fatal', fatal === null, 'got fatal: ' + JSON.stringify(fatal));
+        const entry = skippable.find(s => s.label === expectLabel && s.index === expectIndex);
+        ok(label + ' — flagged skippable', !!entry && entry.reason.includes(expectReasonSubstring),
+           'expected a skippable ' + expectLabel + '[' + expectIndex + '] entry containing ' +
+           JSON.stringify(expectReasonSubstring) + ', got: ' + JSON.stringify(skippable));
+    }
+
+    vClean('a fully valid backup has no fatal error and nothing skippable', {
+        Header: {},
+        Items: [{ id: 'i1', MediaTypeId: 1, Title: 'Dune' }],
+        Consumed: [{ ItemId: 'i1', Title: 'Dune', Finished: '2020-06-01' }],
+        Queued: [], Owned: [], Tags: [{ Name: 'scifi' }],
         Settings: {},
-    }, null);
+    });
 
-    v('Items as a string instead of an array', { Items: 'not-an-array' },
-      "Items must be an array, got string");
+    vFatal('Items as a string instead of an array', { Items: 'not-an-array' },
+      'Items must be an array, got string');
 
-    v('Consumed present but Items absent', { Consumed: [] },
-      "Items must be an array, got undefined");
+    vFatal('Consumed present but Items absent', { Consumed: [] },
+      'Items must be an array, got undefined');
 
-    v('one Consumed record missing Title', {
-        Items: [{ id: 'i1', Title: 'Dune' }],
-        Consumed: [{ ItemId: 'i1', Title: 'Dune' }, { ItemId: 'i1' }],
-    }, 'Consumed[1] is missing Title');
+    // Missing Title used to be a fatal, whole-file-halting error (#22).
+    // Under #74 it's per-record skippable instead — the rest of the file
+    // still restores, this one record is offered for skip review.
+    vSkippable('one Consumed record missing Title', {
+        Items: [{ id: 'i1', MediaTypeId: 1, Title: 'Dune' }],
+        Consumed: [
+            { ItemId: 'i1', Title: 'Dune', Finished: '2020-01-01' },
+            { ItemId: 'i1', Finished: '2020-01-01' },
+        ],
+    }, 'Consumed', 1, 'missing Title');
 
-    v('valid JSON but not a Collectyx backup', { hello: 'world' },
-      "Items must be an array, got undefined");
+    vFatal('valid JSON but not a Collectyx backup', { hello: 'world' },
+      'Items must be an array, got undefined');
 
     // Not part of the issue's six-file corpus (those two — .gz and
     // truncated — are encoding/parse-level, exercised by the existing
     // try/catch around JSON.parse, not by _validate()) but worth covering
-    // since _validate() is the new surface this issue adds:
-    v('an Items entry that is not an object', { Items: ['a', 'b'] },
+    // since _validate() is the surface #22/#74/#80 all extend:
+    vFatal('an Items entry that is not an object', { Items: ['a', 'b'] },
       'Items[0] must be an object, got string');
-    v('a Tags entry missing Name', { Items: [], Tags: [{}] },
-      'Tags[0] is missing Name');
-    v('Settings present but not an object', { Items: [], Settings: [] },
-      "Settings must be an object, got array");
+
+    // A Tags entry missing Name is skippable too, not fatal — and (#40)
+    // data.Tags is never written directly during restore anyway, so a
+    // malformed standalone Tags entry can never crash the write phase;
+    // this only affects the pre-restore display corpus.
+    vSkippable('a Tags entry missing Name', { Items: [], Tags: [{}] },
+      'Tags', 0, 'missing Name');
+
+    vFatal('Settings present but not an object', { Items: [], Settings: [] },
+      'Settings must be an object, got array');
+
+    // A representative #80 case — a present-but-wrong-typed optional
+    // field is skippable, not a Rust deserialize crash after the wipe.
+    vSkippable('an Items entry with Pages as the wrong type', {
+        Items: [{ id: 'i1', MediaTypeId: 1, Title: 'Dune', Pages: '412' }],
+    }, 'Items', 0, 'invalid Pages');
 }
 
     console.log('\n2. a file failing validation cannot reach the confirmation checkbox');
@@ -204,12 +250,12 @@ console.log("\n1. _validate() — malformed-file corpus (COLLECTYX-SEC-03's own 
         BR._fileSize = '1 KB';
         BR.showScreen1 = () => {};
         BR._parsedData = { hello: 'world' };
-        const err = BR._validate(BR._parsedData);
-        ok('validation rejects this file', err !== null);
-        await BR.showScreen2(null, err);
+        const { fatal } = BR._validate(BR._parsedData);
+        ok('validation rejects this file', fatal !== null);
+        await BR.showScreen2(null, fatal);
         ok('checkbox row hidden on validation failure',
            dom.getElementById('restoreCheckboxRow').style.display === 'none');
-        contains('error banner names the specific problem', dom.getElementById('restoreError').textContent, err);
+        contains('error banner names the specific problem', dom.getElementById('restoreError').textContent, fatal);
     }
 
     console.log('\n3. executeRestore() — clean restore');
@@ -236,7 +282,7 @@ console.log("\n1. _validate() — malformed-file corpus (COLLECTYX-SEC-03's own 
         ok('no error banner shown', dom.getElementById('restoreError').textContent === '');
     }
 
-    console.log('\n4. executeRestore() — write fails partway, rollback restores prior state');
+    console.log('\n4. executeRestore() — restoreAll fails, pre-restore state is untouched (#40, no rollback needed)');
     {
         const dom = freshDom();
         const db = makeDB({
@@ -246,69 +292,35 @@ console.log("\n1. _validate() — malformed-file corpus (COLLECTYX-SEC-03's own 
             settings: { dailyReadingGoal: 20 },
         });
         const BR = loadBackupRestore(dom, db);
-        db._failSaveItemOn('new2');
-        BR._parsedData = {
-            Header: {}, Items: [{ id: 'new1', Title: 'New Book' }, { id: 'new2', Title: 'Boom' }],
-            Consumed: [], Queued: [], Owned: [], Tags: [], Settings: {},
-        };
-        await BR.executeRestore();
-        const state = db._state();
-        check('items rolled back to the pre-restore snapshot', state.items.map(i => i.id), ['old1']);
-        check('consumed record rolled back, Tags included', state.consumed,
-              [{ ItemId: 'old1', Title: 'Old Book', Tags: ['oldtag'] }]);
-        check('tag from the rolled-back record present again', state.tags.map(t => t.Name), ['oldtag']);
-        check('settings rolled back', state.settings, { dailyReadingGoal: 20 });
-        contains('error banner explains failure and names the rollback',
-                 dom.getElementById('restoreError').textContent, 'your previous data has been restored');
-        ok('confirm button disabled after failure', dom.getElementById('restoreConfirmBtn').disabled === true);
-    }
-
-    console.log('\n5. executeRestore() — write fails AND rollback fails, snapshot logged');
-    {
-        const dom = freshDom();
-        const db = makeDB({ items: [{ id: 'old1', Title: 'Old Book' }], tags: [], settings: null });
-        const BR = loadBackupRestore(dom, db);
-        // Every saveItem call fails — both the real write and the rollback
-        // replay hit this, so rollback cannot succeed either.
-        db.saveItem = async (item) => { throw new Error('total failure on ' + item.id); };
+        db._failRestoreAll();
         BR._parsedData = {
             Header: {}, Items: [{ id: 'new1', Title: 'New Book' }],
             Consumed: [], Queued: [], Owned: [], Tags: [], Settings: {},
         };
-
-        const originalError = console.error;
-        let loggedSnapshot = null;
-        console.error = (...args) => {
-            const joined = args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
-            if (joined.includes('"Header"') && joined.includes('old1')) loggedSnapshot = joined;
-        };
-        try {
-            await BR.executeRestore();
-        } finally {
-            console.error = originalError;
-        }
-
-        contains('error banner says data was NOT restored',
-                 dom.getElementById('restoreError').textContent, 'has NOT been restored');
-        contains('error banner points to the console snapshot',
-                 dom.getElementById('restoreError').textContent, 'console');
-        ok('the pre-restore snapshot was actually logged to console for manual recovery',
-           loggedSnapshot !== null);
+        await BR.executeRestore();
+        const state = db._state();
+        check('items untouched by a failed restore — nothing was ever written', state.items.map(i => i.id), ['old1']);
+        check('consumed record untouched, Tags included', state.consumed,
+              [{ ItemId: 'old1', Title: 'Old Book', Tags: ['oldtag'] }]);
+        check('tag untouched', state.tags.map(t => t.Name), ['oldtag']);
+        check('settings untouched', state.settings, { dailyReadingGoal: 20 });
+        contains('error banner explains the failure and confirms data is unchanged',
+                 dom.getElementById('restoreError').textContent, 'your previous data is unchanged');
+        ok('confirm button disabled after failure', dom.getElementById('restoreConfirmBtn').disabled === true);
     }
 
-    console.log('\n6. executeRestore() — snapshot failure aborts before any wipe');
+    console.log('\n5. executeRestore() — no parsed data is a no-op');
     {
         const dom = freshDom();
         const db = makeDB({ items: [{ id: 'old1', Title: 'Old Book' }] });
         const BR = loadBackupRestore(dom, db);
-        db.getAllItems = async () => { throw new Error('cannot read current library'); };
-        BR._parsedData = { Header: {}, Items: [{ id: 'new1', Title: 'New Book' }] };
+        BR._parsedData = null;
         await BR.executeRestore();
-        contains('error banner explains nothing was changed',
-                 dom.getElementById('restoreError').textContent, 'before making any changes');
+        const state = db._state();
+        check('nothing changed when there is no parsed data to restore', state.items.map(i => i.id), ['old1']);
     }
 
-    console.log('\n7. showScreen2 — malicious non-array Consumed cannot reach the DOM (CTX-SEC-117)');
+    console.log('\n6. showScreen2 — malicious non-array Consumed cannot reach the DOM (CTX-SEC-117)');
     {
         // Bypasses continueToScreen2()/_validate() on purpose — the fix's
         // whole point is that the sink must be safe on its own, not only
@@ -345,7 +357,7 @@ console.log("\n1. _validate() — malformed-file corpus (COLLECTYX-SEC-03's own 
         }
     }
 
-    console.log('\n8. showScreen2 — a genuine array count still renders correctly');
+    console.log('\n7. showScreen2 — a genuine array count still renders correctly');
     {
         const dom = freshDom();
         const db = makeDB({});

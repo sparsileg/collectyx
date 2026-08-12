@@ -116,7 +116,10 @@ pub fn save_consumed(state: State<AppState>, record: ConsumedRecord) -> Result<c
 /// the latter lets callers report a real ItemId for a brand-new record
 /// rather than echoing back whatever the caller sent in (COLLECTYX-SEC-39
 /// finding 5).
-fn write_one(
+/// pub(crate): also called directly by restore.rs's restore_all (#40),
+/// which needs every collection's write_one inside its own single
+/// transaction rather than going through a separate command.
+pub(crate) fn write_one(
     tx: &rusqlite::Transaction,
     record: &ConsumedRecord,
     now: &str,
