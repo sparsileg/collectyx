@@ -33,6 +33,7 @@ const OwnedModal = {
             const action = btn.dataset.action;
             if (action === 'close') this.close();
             else if (action === 'delete') this.deleteRecord();
+            else if (action === 'find-isbn') this.findIsbn(btn);
         });
         this._wired = true;
     },
@@ -70,6 +71,8 @@ const OwnedModal = {
         document.getElementById('mlAuthor2Surname').value = author2.surname;
         document.getElementById('mlPages').value = record && record.Pages != null ? record.Pages : '';
         document.getElementById('mlISBN').value = record ? (record.ISBN || '') : '';
+        const mlIsbnStatusEl = document.getElementById('mlIsbnStatus');
+        if (mlIsbnStatusEl) { mlIsbnStatusEl.textContent = ''; mlIsbnStatusEl.className = 'isbn-find-status'; }
         document.getElementById('mlLocation').value = record ? (record.Location || '') : '';
 
         this._tagsController.setTags(record ? (record.Tags || []) : []);
@@ -115,6 +118,44 @@ const OwnedModal = {
             console.error('OwnedModal.save failed', e);
             showMessage('Could not save — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
             this._showError('Could not save — see console for details');
+        }
+    },
+
+    async findIsbn(btn) {
+        const statusEl = document.getElementById('mlIsbnStatus');
+        const setStatus = (msg, cls) => {
+            if (!statusEl) return;
+            statusEl.textContent = msg;
+            statusEl.className = 'isbn-find-status' + (cls ? ' ' + cls : '');
+        };
+
+        const title = document.getElementById('mlTitle').value.trim();
+        if (!title) {
+            setStatus('Enter a title first.', 'error');
+            return;
+        }
+        const given = document.getElementById('mlAuthorGiven').value.trim();
+        const surname = document.getElementById('mlAuthorSurname').value.trim();
+        const author = [given, surname].filter(Boolean).join(' ');
+
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Searching…';
+        setStatus('Searching…');
+        try {
+            const isbn = await MetadataFetcher.searchISBN(title, author);
+            if (isbn) {
+                document.getElementById('mlISBN').value = isbn;
+                setStatus('ISBN found.', 'success');
+            } else {
+                setStatus('No ISBN match found.', 'info');
+            }
+        } catch (e) {
+            console.error('OwnedModal.findIsbn failed', e);
+            setStatus('Search failed — see console for details', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = original;
         }
     },
 

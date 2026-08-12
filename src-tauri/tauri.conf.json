@@ -18,7 +18,7 @@
             }
         ],
         "security": {
-            "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'"
+            "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://covers.openlibrary.org https://archive.org https://*.archive.org https://books.google.com https://books.googleusercontent.com; connect-src 'self' ipc: http://ipc.localhost https://openlibrary.org https://covers.openlibrary.org https://archive.org https://*.archive.org https://www.googleapis.com https://books.google.com https://books.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'none'"
         }
     },
     "bundle": {

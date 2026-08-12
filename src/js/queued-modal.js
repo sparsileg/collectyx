@@ -37,6 +37,7 @@ const QueuedModal = {
             const action = btn.dataset.action;
             if (action === 'close') this.close();
             else if (action === 'delete') this.deleteRecord();
+            else if (action === 'find-isbn') this.findIsbn(btn);
         });
         this._wired = true;
     },
@@ -71,6 +72,9 @@ const QueuedModal = {
         document.getElementById('tbrSaveBtn').textContent = record ? 'Save' : `Add to ${MediaLabels.QueuedLabel}`;
 
         document.getElementById('tbrTitle').value = record ? (record.Title || '') : '';
+        document.getElementById('tbrISBN').value = record ? (record.ISBN || '') : '';
+        const isbnStatusEl = document.getElementById('tbrIsbnStatus');
+        if (isbnStatusEl) { isbnStatusEl.textContent = ''; isbnStatusEl.className = 'isbn-find-status'; }
         document.getElementById('tbrOrder').value = record && record.Rank != null ? record.Rank : '';
         const author = splitAuthorName(record ? record.Author : '');
         document.getElementById('tbrAuthorGiven').value = author.given;
@@ -123,6 +127,7 @@ const QueuedModal = {
         // (COLLECTYX-SEC-32), atomically and in one backend call.
         const payload = {
             Title: title,
+            ISBN: document.getElementById('tbrISBN').value.trim() || null,
             Author: formatAuthorName(document.getElementById('tbrAuthorSurname').value, document.getElementById('tbrAuthorGiven').value),
             Author2: formatAuthorName(document.getElementById('tbrAuthor2Surname').value, document.getElementById('tbrAuthor2Given').value),
             Source: document.getElementById('tbrSource').value.trim()
@@ -137,11 +142,49 @@ const QueuedModal = {
             await DBManager.reorderQueued(result.id, newRank);
             this.close();
             showMessage(`Saved to ${MediaLabels.QueuedLabel}`, CONSTANTS.MESSAGE_TYPES.SUCCESS);
-            if (typeof QueuedView !== 'undefined') QueuedView.load(containerId);
+            if (typeof QueuedView !== 'undefined') QueuedView.load(QueuedView._outerIdFrom(containerId));
         } catch (e) {
             console.error('QueuedModal.save failed', e);
             showMessage('Could not save — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
             this._showError('Could not save — see console for details');
+        }
+    },
+
+    async findIsbn(btn) {
+        const statusEl = document.getElementById('tbrIsbnStatus');
+        const setStatus = (msg, cls) => {
+            if (!statusEl) return;
+            statusEl.textContent = msg;
+            statusEl.className = 'isbn-find-status' + (cls ? ' ' + cls : '');
+        };
+
+        const title = document.getElementById('tbrTitle').value.trim();
+        if (!title) {
+            setStatus('Enter a title first.', 'error');
+            return;
+        }
+        const given = document.getElementById('tbrAuthorGiven').value.trim();
+        const surname = document.getElementById('tbrAuthorSurname').value.trim();
+        const author = [given, surname].filter(Boolean).join(' ');
+
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Searching…';
+        setStatus('Searching…');
+        try {
+            const isbn = await MetadataFetcher.searchISBN(title, author);
+            if (isbn) {
+                document.getElementById('tbrISBN').value = isbn;
+                setStatus('ISBN found.', 'success');
+            } else {
+                setStatus('No ISBN match found.', 'info');
+            }
+        } catch (e) {
+            console.error('QueuedModal.findIsbn failed', e);
+            setStatus('Search failed — see console for details', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = original;
         }
     },
 
@@ -163,7 +206,7 @@ const QueuedModal = {
 
             this.close();
             showMessage('Removed', CONSTANTS.MESSAGE_TYPES.SUCCESS);
-            if (typeof QueuedView !== 'undefined') QueuedView.load(containerId);
+            if (typeof QueuedView !== 'undefined') QueuedView.load(QueuedView._outerIdFrom(containerId));
             if (wasFromLibrary && typeof OwnedView !== 'undefined') {
                 OwnedView.load(OwnedView.OWNED_CONTAINER_ID);
             }

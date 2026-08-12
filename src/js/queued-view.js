@@ -1,11 +1,17 @@
 // ── To Be Read (queued) view ─────────────────────────────────────────────────
+// Two-panel layout (TBR prototype): left panel is the normal CollectionView
+// list (Tags column dropped — Stan's call, keep the row lean); right panel
+// is a static synopsis card for one random queued book, rendered directly
+// (NOT through CollectionView — it takes no clicks, no row-open, no
+// row-action, so none of that shared plumbing applies to it). The two
+// panels live in separate DOM containers under a shared wrapper — see
+// index.html's #queuedView markup.
 
 (function registerQueuedView() {
     const headerHtml = `
         <div class="collection-list-header queued-columns">
             <span>Order</span>
             <span>Book</span>
-            <span>Tags</span>
             <span></span>
         </div>
     `;
@@ -16,11 +22,12 @@
             <div class="collection-list-row queued-columns${reading ? ' currently-reading' : ''}" data-id="${escapeHtml(record.id)}">
                 <span class="col-extra">${record.Rank != null ? escapeHtml(String(record.Rank)) : 'Unranked'}</span>
                 <div class="col-stacked">
-                    <div class="stacked-title">${escapeHtml(record.Title || '')}</div>
+                    <div class="stacked-title">${escapeHtml(record.Title || '')}
+                        <button type="button" class="tbr-lookup-icon" data-action="lookup-book" title="Show in discovery card">?</button>
+                    </div>
                     <div class="stacked-author">by ${escapeHtml(record.Author || '')}${record.Author2 ? ' &amp; ' + escapeHtml(record.Author2) : ''}</div>
                     <div class="stacked-source">${reading ? '<span class="currently-reading-badge">Currently Reading</span> ' : ''}Source: ${escapeHtml(record.Source || '')}</div>
                 </div>
-                <span class="col-tags">${escapeHtml((record.Tags || []).join(', '))}</span>
                 <div class="col-actions">
                     <button type="button" class="btn btn-secondary queued-reading-btn"
                             data-action="toggle-reading">${reading ? 'Stop Reading' : 'Start Reading'}</button>
@@ -40,29 +47,125 @@
             QueuedView.toggleCurrentlyReading(id, containerId, !(record && record.CurrentlyReading));
         } else if (action === 'mark-finished') {
             QueuedView.markFinished(id, containerId);
+        } else if (action === 'lookup-book') {
+            const record = CollectionView.getRecord(containerId, id);
+            if (!record) return;
+            const outerContainerId = QueuedView._outerIdFrom(containerId);
+            QueuedDiscovery.renderInto(`${outerContainerId}-discovery`, record);
         }
     });
 })();
 
+// ── TBR synopsis card (prototype) ────────────────────────────────────────────
+// One queued book — random on view load, or a specific one when the person
+// clicks a row's lookup icon. Stacked: cover, title, author, source,
+// synopsis. Fully static otherwise — no click handling of its own, per
+// Stan; only the left-list row icon drives what's shown here.
+const QueuedDiscovery = {
+    _lastFeatured: null,
+
+    // Author is stored "Surname, Given" — discovery card displays it
+    // given-first instead, per Stan.
+    _authorGivenFirst(name) {
+        if (!name) return '';
+        const { given, surname } = splitAuthorName(name);
+        return [given, surname].filter(Boolean).join(' ');
+    },
+
+    // Renders directly into discoveryContainerId — a plain div, not a
+    // CollectionView-managed container. No delegated click listener is
+    // ever bound here, so the card genuinely does nothing when clicked.
+    // featured is the explicit record to show — QueuedView.load() picks
+    // one randomly on initial view load; a row's lookup icon passes a
+    // specific record instead (see QueuedView's row-action handler).
+    renderInto(discoveryContainerId, featured) {
+        const container = document.getElementById(discoveryContainerId);
+        if (!container) return;
+
+        this._lastFeatured = featured;
+
+        if (!featured) {
+            container.innerHTML = `<div class="tbr-discovery-empty">Nothing queued yet.</div>`;
+            return;
+        }
+
+        const comments = (featured.Comments || '').trim();
+
+        container.innerHTML = `
+            <div class="tbr-discovery-card">
+                <div class="tbr-cover-wrap">
+                    <img class="tbr-cover" data-role="discovery-cover" style="display: none;"
+                         alt="${escapeHtml(featured.Title || '')} cover">
+                    <div class="tbr-cover-placeholder" data-role="discovery-cover-placeholder">📚</div>
+                </div>
+                <div class="tbr-featured-title">${escapeHtml(featured.Title || '')}</div>
+                <div class="tbr-featured-author">by ${escapeHtml(this._authorGivenFirst(featured.Author))}${featured.Author2 ? ' &amp; ' + escapeHtml(this._authorGivenFirst(featured.Author2)) : ''}</div>
+                ${featured.Source ? `<div class="tbr-featured-source">Source: ${escapeHtml(featured.Source)}</div>` : ''}
+                <div class="tbr-featured-synopsis" data-role="discovery-synopsis">${comments ? escapeHtml(comments) : 'Loading synopsis…'}</div>
+            </div>
+        `;
+
+        this._afterRender(discoveryContainerId, featured);
+    },
+
+    // Populates cover art + (if no self-authored comment) synopsis once
+    // the card is in the DOM. Guards against a stale fetch resolving
+    // after a newer random pick has already replaced this card — checks
+    // object identity against the featured record this fetch was for,
+    // not just DOM presence, since the container id is stable across
+    // reloads.
+    async _afterRender(discoveryContainerId, featured) {
+        const container = document.getElementById(discoveryContainerId);
+        if (!container) return;
+        const isbn = featured.ISBN;
+
+        if (isbn) {
+            const img = container.querySelector('[data-role="discovery-cover"]');
+            const placeholder = container.querySelector('[data-role="discovery-cover-placeholder"]');
+            const url = await MetadataFetcher.fetchCoverArt(isbn);
+            if (this._lastFeatured !== featured) return;
+            if (url && img && placeholder) {
+                img.src = url;
+                img.style.display = '';
+                placeholder.style.display = 'none';
+            }
+        }
+
+        const hasComments = (featured.Comments || '').trim().length > 0;
+        if (!hasComments) {
+            const synEl = container.querySelector('[data-role="discovery-synopsis"]');
+            const synopsis = isbn ? await MetadataFetcher.fetchSynopsis(isbn) : null;
+            if (this._lastFeatured !== featured) return;
+            if (synEl) synEl.textContent = synopsis || '(No synopsis available)';
+        }
+    }
+};
+
 const QueuedView = {
     CONSUMED_CONTAINER_ID: 'consumedView',
 
-    // Multiple books may be marked Currently Reading at once — no
-    // single-book enforcement, per Stan. Direct write (setCurrentlyReading)
-    // rather than a round trip through the Edit modal, matching the
-    // "do one thing and leave" per-row-button pattern already used for
-    // Finished.
-    async toggleCurrentlyReading(id, containerId, value) {
+    // core.js calls QueuedView.load('queuedView') — the outer wrapper id.
+    // List and discovery panels live in '{outer}-list' / '{outer}-discovery'
+    // (see index.html). Row-level handlers below receive the *list*
+    // container id back from CollectionView, so they convert back to the
+    // outer id before calling load() again — see _outerIdFrom().
+    _outerIdFrom(listContainerId) {
+        return listContainerId.endsWith('-list') ? listContainerId.slice(0, -5) : listContainerId;
+    },
+
+    async toggleCurrentlyReading(id, listContainerId, value) {
         try {
             await DBManager.setCurrentlyReading(id, value);
-            this.load(containerId);
+            this.load(this._outerIdFrom(listContainerId));
         } catch (e) {
             console.error('QueuedView.toggleCurrentlyReading failed', e);
             showMessage('Could not update Currently Reading — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
         }
     },
 
-    async load(containerId) {
+    async load(outerContainerId) {
+        const listContainerId = `${outerContainerId}-list`;
+        const discoveryContainerId = `${outerContainerId}-discovery`;
         try {
             const data = await DBManager.getCollection('queued');
             // Same discrepancy as consumed/owned — the web backend's join
@@ -76,13 +179,17 @@ const QueuedView = {
                 if (aUnranked === 0) return a.Rank - b.Rank;
                 return (a.Title || '').localeCompare(b.Title || '');
             });
-            CollectionView.render(containerId, 'queued', data);
+            CollectionView.render(listContainerId, 'queued', data);
+            const featured = data.length ? data[Math.floor(Math.random() * data.length)] : null;
+            QueuedDiscovery.renderInto(discoveryContainerId, featured);
         } catch (e) {
             console.error('QueuedView.load: could not load To Be Read', e);
             if (typeof showMessage === 'function') {
                 showMessage('Could not load To Be Read — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
             }
-            CollectionView.render(containerId, 'queued', []);
+            CollectionView.render(listContainerId, 'queued', []);
+            const discoveryEl = document.getElementById(discoveryContainerId);
+            if (discoveryEl) discoveryEl.innerHTML = '';
         }
     },
 
@@ -90,9 +197,10 @@ const QueuedView = {
     // reusing its ItemId (design doc's "mark finished" cross-collection
     // action). Only removes the queued entry after Save actually succeeds
     // — if the save fails, the book correctly stays on To Be Read.
-    markFinished(queuedRecordId, queuedContainerId) {
-        const queuedRecord = CollectionView.getRecord(queuedContainerId, queuedRecordId);
+    markFinished(queuedRecordId, listContainerId) {
+        const queuedRecord = CollectionView.getRecord(listContainerId, queuedRecordId);
         if (!queuedRecord) return;
+        const outerContainerId = this._outerIdFrom(listContainerId);
 
         ConsumedModal.open(
             null,
@@ -113,7 +221,7 @@ const QueuedView = {
                     console.error('markFinished: saved to Books Read but could not remove the To Be Read entry', e);
                     showMessage('Saved, but could not remove it from To Be Read — see console', CONSTANTS.MESSAGE_TYPES.ERROR);
                 }
-                this.load(queuedContainerId);
+                this.load(outerContainerId);
                 if (queuedRecord.Source === 'My Library' && typeof OwnedView !== 'undefined') {
                     OwnedView.load(OwnedView.OWNED_CONTAINER_ID);
                 }

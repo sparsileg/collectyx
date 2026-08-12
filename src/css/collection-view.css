@@ -41,6 +41,16 @@
     flex-shrink: 0;
 }
 
+/* TBR prototype: CollectionView's shell now renders one level deeper
+   (#queuedView > .tbr-layout > .tbr-list-col), so the direct-child
+   selector above doesn't reach it — same rule, re-scoped. See
+   queued-discovery.css for .tbr-layout/.tbr-list-col's own flex setup. */
+.tbr-list-col > .collection-view-header,
+.tbr-list-col > .quick-search,
+.tbr-list-col > .collection-list-header {
+    flex-shrink: 0;
+}
+
 .collection-list {
     display: flex;
     flex-direction: column;
@@ -125,10 +135,12 @@
     grid-template-columns: 110px 3.5fr 1.5fr 140px;
 }
 
-/* ── To Be Read (queued): Order | stacked Title/Author/Source | Tags | Finished-btn ── */
+/* ── To Be Read (queued): Order | stacked Title/Author/Source | Finished-btn ── */
+/* Tags column dropped for the TBR prototype layout (Stan's call — left
+   panel stays lean now that a synopsis card lives alongside it). */
 
 .queued-columns {
-    grid-template-columns: 80px 2.5fr 1.5fr 220px;
+    grid-template-columns: 80px 1fr 220px;
 }
 
 .col-stacked {

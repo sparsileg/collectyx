@@ -1,0 +1,134 @@
+/* ── TBR two-panel layout (prototype) ─────────────────────────────────────
+   #queuedView > .tbr-layout > { .tbr-list-col, .tbr-discovery-col }
+   Left: normal CollectionView list (Tags column dropped, see
+   collection-view.css). Right: one static synopsis card, no interaction.
+   base.css isn't in scope for this session — .view.active is assumed to
+   already establish a flex/height context (it did before this change,
+   driving .collection-list's flex:1/min-height:0). .tbr-layout takes over
+   that "fill remaining height" role since it's now the direct child. */
+
+.tbr-layout {
+    display: flex;
+    gap: var(--spacing-lg, 24px);
+    flex: 1;
+    min-height: 0;
+}
+
+.tbr-list-col {
+    flex: 1 1 60%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.tbr-discovery-col {
+    flex: 1 1 40%;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* ── Static synopsis card ──────────────────────────────────────────────── */
+
+.tbr-discovery-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs, 4px);
+    padding: var(--spacing-md, 16px);
+    background: var(--color-surface, #1e1e1e);
+    border: 1px solid var(--color-border, #333);
+    border-radius: var(--radius-md, 8px);
+    /* Static per Stan — no hover/click affordance of any kind. */
+    cursor: default;
+}
+
+.tbr-discovery-empty {
+    padding: var(--spacing-md, 16px);
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.tbr-cover-wrap {
+    align-self: center;
+    width: 170px;
+    height: 255px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface-alt, #2a2a2a);
+    border-radius: var(--radius-sm, 4px);
+    overflow: hidden;
+    margin-bottom: var(--spacing-sm, 8px);
+}
+
+.tbr-cover {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.tbr-cover-placeholder {
+    font-size: 3rem;
+    opacity: 0.4;
+}
+
+.tbr-featured-title {
+    font-weight: 600;
+    font-size: 1.15rem;
+    text-align: center;
+}
+
+.tbr-featured-author {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.tbr-featured-source {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.tbr-featured-synopsis {
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--text-color);
+    margin-top: var(--spacing-sm, 8px);
+    max-height: 120px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+/* Small circled "?" lookup icon, left-list row title — click to show that
+   book in the discovery card instead of whatever's currently random. */
+.tbr-lookup-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1px solid var(--color-border, #333);
+    background: var(--color-surface-alt, #2a2a2a);
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+.tbr-lookup-icon:hover {
+    color: var(--text-color);
+    border-color: var(--text-secondary);
+}
+
+/* Narrow viewport — stack the two panels rather than squeeze side by side */
+@media (max-width: 720px) {
+    .tbr-layout {
+        flex-direction: column;
+    }
+    .tbr-discovery-col {
+        overflow-y: visible;
+    }
+}

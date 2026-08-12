@@ -310,6 +310,9 @@ function hamburgerAction(action) {
         case 'restore':
             BackupRestore.showScreen1();
             break;
+        case 'isbn-lookup':
+            BulkIsbnModal.open();
+            break;
         case 'duplicates':
             showMessage('Find Duplicates — coming in a later phase', CONSTANTS.MESSAGE_TYPES.INFO);
             break;

@@ -135,6 +135,16 @@ const CONSTANTS = {
         TOP_TAGS: 5
     },
 
+    // External metadata fetch (metadata-fetcher.js) — OpenLibrary cover
+    // art + synopsis for discovery-mode cards (TBR prototype).
+    METADATA: {
+        FETCH_TIMEOUT_MS: 2000,
+        SYNOPSIS_MAX_CHARS: 2048
+    },
+
+    // "Other books by author" card count, discovery mode (TBR prototype).
+    TOP_RELATED_COUNT: 3,
+
     // Rejected before any read — a CSV import or restore file beyond this
     // is almost certainly not a legitimate personal library/backup, and
     // reading it whole into memory (file.text()/file.arrayBuffer()) with

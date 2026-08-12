@@ -50,6 +50,7 @@ const ConsumedModal = {
             const action = btn.dataset.action;
             if (action === 'close') this.close();
             else if (action === 'delete') this.deleteRecord();
+            else if (action === 'find-isbn') this.findIsbn(btn);
         });
         this._wired = true;
     },
@@ -107,6 +108,8 @@ const ConsumedModal = {
         document.getElementById('cbrAuthor2Surname').value = author2.surname;
         document.getElementById('cbrPages').value = source.Pages != null ? source.Pages : '';
         document.getElementById('cbrISBN').value = source.ISBN || '';
+        const cbrIsbnStatusEl = document.getElementById('cbrIsbnStatus');
+        if (cbrIsbnStatusEl) { cbrIsbnStatusEl.textContent = ''; cbrIsbnStatusEl.className = 'isbn-find-status'; }
 
         // Default to today when adding — whether from scratch or pre-filled
         // from a To Be Read item, this is still a new Books Read entry.
@@ -175,6 +178,44 @@ const ConsumedModal = {
             console.error('ConsumedModal.save failed', e);
             showMessage('Could not save — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
             this._showError('Could not save — see console for details');
+        }
+    },
+
+    async findIsbn(btn) {
+        const statusEl = document.getElementById('cbrIsbnStatus');
+        const setStatus = (msg, cls) => {
+            if (!statusEl) return;
+            statusEl.textContent = msg;
+            statusEl.className = 'isbn-find-status' + (cls ? ' ' + cls : '');
+        };
+
+        const title = document.getElementById('cbrTitle').value.trim();
+        if (!title) {
+            setStatus('Enter a title first.', 'error');
+            return;
+        }
+        const given = document.getElementById('cbrAuthorGiven').value.trim();
+        const surname = document.getElementById('cbrAuthorSurname').value.trim();
+        const author = [given, surname].filter(Boolean).join(' ');
+
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Searching…';
+        setStatus('Searching…');
+        try {
+            const isbn = await MetadataFetcher.searchISBN(title, author);
+            if (isbn) {
+                document.getElementById('cbrISBN').value = isbn;
+                setStatus('ISBN found.', 'success');
+            } else {
+                setStatus('No ISBN match found.', 'info');
+            }
+        } catch (e) {
+            console.error('ConsumedModal.findIsbn failed', e);
+            setStatus('Search failed — see console for details', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = original;
         }
     },
 

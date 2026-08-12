@@ -9,7 +9,7 @@
          IPC even though tauri.conf.json allows it (CTX-SEC-101 follow-up).
          connect-src must therefore carry the ipc: / http://ipc.localhost
          sources here too, not just in tauri.conf.json. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://covers.openlibrary.org https://archive.org https://*.archive.org https://books.google.com https://books.googleusercontent.com; connect-src 'self' ipc: http://ipc.localhost https://openlibrary.org https://covers.openlibrary.org https://archive.org https://*.archive.org https://www.googleapis.com https://books.google.com https://books.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'none'">
     <title>Collectyx</title>
 
     <link rel="stylesheet" href="css/themes/nordic.css" id="themeLink">
@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="css/sidebar.css">
     <link rel="stylesheet" href="css/hamburger-menu.css">
     <link rel="stylesheet" href="css/collection-view.css">
+    <link rel="stylesheet" href="css/queued-discovery.css">
     <link rel="stylesheet" href="css/modal-fields.css">
     <link rel="stylesheet" href="css/tags.css">
     <link rel="stylesheet" href="css/dashboard.css">
@@ -43,6 +44,7 @@
                   <div class="hamburger-menu-item" data-action="backup">Backup Database</div>
                   <div class="hamburger-menu-item" data-action="export">Export All Data</div>
                   <div class="hamburger-menu-item" data-action="restore">Restore from Backup</div>
+                  <div class="hamburger-menu-item" data-action="isbn-lookup">Find ISBNs</div>
                   <div class="hamburger-menu-item" data-action="duplicates">Find Duplicates</div>
                 </div>
                 <div class="hamburger-menu-section" id="hamburgerContextualSection"></div>
@@ -151,8 +153,10 @@
 
       <!-- To Be Read View (queued) -->
       <div id="queuedView" class="view view-scroll-locked">
-        <h2>To Be Read</h2>
-        <p class="view-placeholder-note">List and Add/Edit modal arrive in Phase 5.</p>
+        <div class="tbr-layout">
+          <div id="queuedView-list" class="tbr-list-col"></div>
+          <div id="queuedView-discovery" class="tbr-discovery-col"></div>
+        </div>
       </div> <!-- end of queuedView -->
 
       <!-- Tags View -->
@@ -257,7 +261,11 @@
               </div>
               <div class="form-group">
                 <label for="cbrISBN">ISBN:</label>
-                <input type="text" id="cbrISBN">
+                <div class="isbn-row">
+                  <input type="text" id="cbrISBN">
+                  <button type="button" class="btn btn-secondary" data-action="find-isbn">Find ISBN</button>
+                </div>
+                <span id="cbrIsbnStatus" class="isbn-find-status" style="display:block; font-size:0.85em; margin-top:4px;"></span>
               </div>
             </div>
 
@@ -307,6 +315,14 @@
               <input type="text" id="tbrTitle" required>
             </div>
             <div class="form-group">
+              <label for="tbrISBN">ISBN:</label>
+              <div class="isbn-row">
+                <input type="text" id="tbrISBN">
+                <button type="button" class="btn btn-secondary" data-action="find-isbn">Find ISBN</button>
+              </div>
+              <span id="tbrIsbnStatus" class="isbn-find-status" style="display:block; font-size:0.85em; margin-top:4px;"></span>
+            </div>
+            <div class="form-group">
               <label for="tbrOrder">Order:</label>
               <input type="number" id="tbrOrder" min="1" placeholder="Optional">
             </div>
@@ -336,6 +352,31 @@
               <button type="button" id="tbrDeleteBtn" class="btn btn-danger" data-action="delete">Remove</button>
             </div>
           </form>
+        </div>
+      </div>
+
+      <div id="bulkIsbnModal" class="modal">
+        <div class="modal-content">
+          <h3>Find ISBNs</h3>
+          <div class="form-group">
+            <label class="form-group-heading">Collection</label>
+            <div class="isbn-row">
+              <label><input type="radio" name="bulkIsbnCollection" value="consumed" checked> Books Read</label>
+              <label><input type="radio" name="bulkIsbnCollection" value="owned"> My Library</label>
+            </div>
+          </div>
+          <div class="form-group">
+            <span>Records missing an ISBN: <strong id="bulkIsbnRemaining">–</strong></span>
+          </div>
+          <div class="form-group">
+            <span id="bulkIsbnStatus" class="isbn-find-status"></span>
+          </div>
+          <div class="modal-actions">
+            <div class="modal-actions-left">
+              <button type="button" class="btn btn-primary" data-action="execute">Execute</button>
+              <button type="button" class="btn btn-secondary" data-action="close">Close</button>
+            </div>
+          </div>
         </div>
       </div>
       <!-- end of To Be Read modal -->
@@ -370,7 +411,11 @@
               </div>
               <div class="form-group">
                 <label for="mlISBN">ISBN:</label>
-                <input type="text" id="mlISBN">
+                <div class="isbn-row">
+                  <input type="text" id="mlISBN">
+                  <button type="button" class="btn btn-secondary" data-action="find-isbn">Find ISBN</button>
+                </div>
+                <span id="mlIsbnStatus" class="isbn-find-status" style="display:block; font-size:0.85em; margin-top:4px;"></span>
               </div>
             </div>
 
@@ -614,6 +659,8 @@
     <script type="module" src="js/rating-utils.js"></script>
     <script type="module" src="js/csv-utils.js"></script>
     <script type="module" src="js/backup-restore.js"></script>
+    <script type="module" src="js/metadata-fetcher.js"></script>
+    <script type="module" src="js/bulk-isbn-modal.js"></script>
     <script type="module" src="js/collection-view.js"></script>
     <script type="module" src="js/collection-io.js"></script>
     <script type="module" src="js/tag-chip-input.js"></script>
