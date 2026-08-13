@@ -63,17 +63,56 @@ const CollectionView = {
         this._recordsPerPageCache = value;
     },
 
+    // Below this many total pages, Start/‹/›/End alone already reach any
+    // page in a couple of clicks — a slider adds nothing and looks silly
+    // over 3-4 pages. Above it, the slider drags straight to
+    // (approximately) any page in one motion; ‹/› still cover exact
+    // single-page adjustment after a drag lands close but not exact.
+    // Replaces the earlier «/» big-jump buttons, which turned out unable
+    // to hit "≤10 clicks to reach any page" at small page sizes no
+    // matter how the jump size was tuned — a direct-jump control was the
+    // only way to actually satisfy that.
+    SLIDER_MIN_PAGES: 10,
+
     // Shared by CollectionView's own _renderRows() and TagsView.render() —
     // one pager look everywhere records are paginated. Returns '' when
     // there's nothing to page through (totalPages <= 1), so callers can
     // append the result unconditionally.
+    //
+    // Start | < | [slider] | Page X of Y | > | End. Literal < > characters
+    // (not Unicode chevrons) per Stan, enlarged via font-size so they
+    // read as arrows rather than cramped lt/gt glyphs. The slider's
+    // accent-color themes its native thumb/fill from the same
+    // --primary-color every other accent element already uses — no
+    // hand-rolled ::-webkit-slider-thumb/::-moz-range-thumb rules needed,
+    // and it follows theme switches automatically.
     pagerHtml(page, totalPages) {
         if (totalPages <= 1) return '';
+        const atStart = page === 0;
+        const atEnd = page >= totalPages - 1;
+        const arrowStyle = 'font-size: 1.4em; font-weight: 700; line-height: 1; padding: 2px 10px;';
+        const showSlider = totalPages > this.SLIDER_MIN_PAGES;
+        const sliderHtml = showSlider ? `
+                <input type="range" class="collection-pager-slider" data-role="page-slider"
+                       min="1" max="${totalPages}" value="${page + 1}"
+                       style="flex: 1; max-width: 240px; accent-color: var(--primary-color);">
+        ` : '';
+        // The page number gets its own fixed-width span, sized to
+        // totalPages' own digit count (not the current page's) — as the
+        // number climbs from 9 to 10 to 100 while dragging, the digit
+        // count grows and would otherwise reflow everything after it
+        // (the slider itself included) on every threshold crossing.
+        // Reserving width for the widest value totalPages could ever
+        // show means it never shifts again for the life of this pager.
+        const numWidth = String(totalPages).length;
         return `
-            <div class="collection-pager" style="display: flex; align-items: center; justify-content: center; gap: 16px; padding: 10px 0;">
-                <button type="button" class="btn btn-secondary" data-action="prev-page" ${page === 0 ? 'disabled' : ''}>Previous</button>
-                <span class="collection-pager-info">Page ${page + 1} of ${totalPages}</span>
-                <button type="button" class="btn btn-secondary" data-action="next-page" ${page >= totalPages - 1 ? 'disabled' : ''}>Next</button>
+            <div class="collection-pager" style="display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 0; flex-wrap: wrap;">
+                <button type="button" class="btn btn-secondary" data-action="page-start" ${atStart ? 'disabled' : ''} title="First page">Start</button>
+                <button type="button" class="btn btn-secondary" style="${arrowStyle}" data-action="prev-page" ${atStart ? 'disabled' : ''} title="Previous page">&lt;</button>
+                ${sliderHtml}
+                <span class="collection-pager-info">Page <span data-role="page-slider-num" style="display: inline-block; min-width: ${numWidth}ch; text-align: right;">${page + 1}</span> of ${totalPages}</span>
+                <button type="button" class="btn btn-secondary" style="${arrowStyle}" data-action="next-page" ${atEnd ? 'disabled' : ''} title="Next page">&gt;</button>
+                <button type="button" class="btn btn-secondary" data-action="page-end" ${atEnd ? 'disabled' : ''} title="Last page">End</button>
             </div>
         `;
     },
@@ -123,6 +162,8 @@ const CollectionView = {
                 if (action === 'close-filter-panel') { this.closeFilterPanel(containerId); return; }
                 if (action === 'prev-page') { this.prevPage(containerId); return; }
                 if (action === 'next-page') { this.nextPage(containerId); return; }
+                if (action === 'page-start') { this.pageStart(containerId); return; }
+                if (action === 'page-end') { this.pageEnd(containerId); return; }
                 if (action === 'noop') { return; }
                 // Row-level action button (e.g. queued's Start Reading /
                 // Finished) — resolved before row-open below, so hitting
@@ -147,6 +188,16 @@ const CollectionView = {
             const role = e.target && e.target.dataset && e.target.dataset.role;
             if (role === 'quick-search-input') { this.filter(containerId, e.target.value); return; }
             if (role === 'filter-value-input') { this._captureFilterValueDebounced(containerId, e.target); return; }
+            if (role === 'page-slider') {
+                // Live drag feedback only — a cheap text update, not a
+                // full re-render. Only the number itself changes; "Page"
+                // and "of Y" stay put since their fixed-width wrapper
+                // (pagerHtml()) already reserves room for the widest
+                // value the number could reach.
+                const numEl = container.querySelector('[data-role="page-slider-num"]');
+                if (numEl) numEl.textContent = e.target.value;
+                return;
+            }
         });
 
         container.addEventListener('change', (e) => {
@@ -154,6 +205,7 @@ const CollectionView = {
             if (role === 'filter-field') { this._onFilterFieldChange(containerId, e.target); return; }
             if (role === 'filter-operator') { this._onFilterOperatorChange(containerId, e.target); return; }
             if (role === 'filter-value-input') { this._captureFilterValueImmediate(containerId, e.target); return; }
+            if (role === 'page-slider') { this.goToPage(containerId, parseInt(e.target.value, 10) - 1); return; }
         });
 
         this._boundContainers[containerId] = true;
@@ -464,7 +516,7 @@ const CollectionView = {
         // criteria back to native (no filters active), not the panel's
         // open/closed state. Hide is the only action that closes it.
         this._renderShell(containerId);
-        showMessage('No filters', CONSTANTS.MESSAGE_TYPES.INFO);
+        clearMessage();
     },
 
     _refreshTagPool(containerId) {
@@ -628,9 +680,15 @@ const CollectionView = {
         // element — a search's match count is just another status
         // message; it gets overwritten by the next save/delete message
         // and auto-dismisses after 60s like anything else shown here.
+        // "Active Search:" prefix (vs. a bare count) signals this message
+        // specifically reflects a live search/filter still in effect —
+        // toggleSearch() and clearFilters() below both blank it
+        // immediately when that search/filter goes away, rather than
+        // leaving a stale "Active Search: 31 matches" up after there's
+        // nothing active anymore.
         if (q || advanced.length) {
             const n = rows.length;
-            showMessage(`${n} match${n === 1 ? '' : 'es'}`, CONSTANTS.MESSAGE_TYPES.INFO);
+            showMessage(`Active Search: ${n} match${n === 1 ? '' : 'es'}`, CONSTANTS.MESSAGE_TYPES.INFO);
         }
 
         if (rows.length === 0) {
@@ -656,7 +714,10 @@ const CollectionView = {
             state.page = 0;
         }
 
-        list.innerHTML = pageRows.map(r => renderer.rowFn(r, containerId)).join('') + this.pagerHtml(state.page, totalPages);
+        // Pager rendered first (Stan: top of the list, not bottom) —
+        // navigating pages shouldn't require scrolling to the bottom
+        // first to find the controls.
+        list.innerHTML = this.pagerHtml(state.page, totalPages) + pageRows.map(r => renderer.rowFn(r, containerId)).join('');
     },
 
     prevPage(containerId) {
@@ -677,6 +738,35 @@ const CollectionView = {
         if (list) list.scrollTop = 0;
     },
 
+    pageStart(containerId) {
+        const state = this._state[containerId];
+        if (!state || state.page <= 0) return;
+        state.page = 0;
+        this._renderRows(containerId);
+        const list = document.getElementById(`${containerId}-list`);
+        if (list) list.scrollTop = 0;
+    },
+
+    pageEnd(containerId) {
+        const state = this._state[containerId];
+        if (!state) return;
+        state.page = Number.MAX_SAFE_INTEGER; // clamped inside _renderRows
+        this._renderRows(containerId);
+        const list = document.getElementById(`${containerId}-list`);
+        if (list) list.scrollTop = 0;
+    },
+
+    // Direct jump — the slider's 'change' handler (drag release), one
+    // page in one motion regardless of how many pages exist.
+    goToPage(containerId, pageIndex) {
+        const state = this._state[containerId];
+        if (!state) return;
+        state.page = pageIndex; // clamped inside _renderRows
+        this._renderRows(containerId);
+        const list = document.getElementById(`${containerId}-list`);
+        if (list) list.scrollTop = 0;
+    },
+
     toggleSearch(containerId) {
         const state = this._state[containerId];
         if (!state) return;
@@ -686,6 +776,17 @@ const CollectionView = {
         if (state.searchOpen) {
             const input = document.getElementById(`${containerId}-search-input`);
             if (input) input.focus();
+        } else {
+            // _renderRows() (inside _renderShell above) only emits a fresh
+            // "Active Search:" message when a quick search or advanced
+            // filter is still active. If an advanced filter is still on,
+            // it already posted an updated count reflecting that — no
+            // action needed. If nothing's active anymore, the previous
+            // "Active Search: N matches" message would otherwise sit
+            // stale until its 60s auto-dismiss; blank it immediately
+            // instead, matching Clear Filters' own immediate feedback.
+            const advanced = (state.filterRows || []).filter(r => r.field && r.operator);
+            if (advanced.length === 0) clearMessage();
         }
     },
 

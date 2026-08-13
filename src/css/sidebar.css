@@ -25,8 +25,8 @@
 /* ── Sidebar ───────────────────────────────────────────────────────────────── */
 
 .sidebar {
-    width: 240px;
-    min-width: 240px;
+    width: 158px;
+    min-width: 158px;
     display: flex;
     flex-direction: column;
     background: var(--sidebar-bg);
@@ -189,7 +189,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
+    gap: 0;
 }
 
 .font-size-btn {
@@ -199,7 +199,7 @@
     cursor: pointer;
     font-size: 1.4em;
     line-height: 1;
-    padding: 4px 8px;
+    padding: 4px 4px;
     transition: color 0.15s ease;
 }
 
@@ -257,4 +257,97 @@
     color: var(--color-nav-hover-text);
     box-shadow: var(--shadow-nav-active, none);
     text-shadow: var(--text-shadow-nav-active, none);
+}
+
+/* ── Mobile top bar + drawer (#89) ─────────────────────────────────────────── */
+/* --breakpoint-mobile is informational only — CSS custom properties
+   aren't usable inside @media conditions, so 768px is hardcoded in every
+   @media rule below AND in sidebar.js's MOBILE_BREAKPOINT_PX constant.
+   If this value ever changes, all three places need to move together. */
+:root {
+    --breakpoint-mobile: 768px;
+    --mobile-topbar-height: 56px;
+}
+
+.mobile-topbar {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    height: var(--mobile-topbar-height);
+    flex-shrink: 0;
+    padding: 0 16px;
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.mobile-topbar-title {
+    font-weight: var(--font-weight-heading, 700);
+    color: var(--text-color);
+    font-size: 1.05rem;
+}
+
+/* Same visual as .hamburger-btn (sidebar's existing Settings/Export
+   menu button) — different element, different job (toggles the sidebar
+   drawer itself, not a dropdown menu), so kept as its own class rather
+   than reusing .hamburger-btn and risking the two getting entangled
+   later. */
+.mobile-menu-btn {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.mobile-menu-btn:hover {
+    background: var(--card-hover);
+}
+
+.mobile-menu-btn span {
+    display: block;
+    width: 16px;
+    height: 2px;
+    background: var(--text-color);
+}
+
+@media (max-width: 768px) {
+    .app-shell {
+        flex-direction: column;
+    }
+
+    .mobile-topbar {
+        display: flex;
+    }
+
+    /* Sidebar and content are mutually exclusive full-panels below the
+       breakpoint, toggled by #appShell's .mobile-sidebar-open class
+       (sidebar.js's toggleMobileSidebar()) — default (no class) shows
+       content, matching "selecting a nav item collapses back to
+       content" always landing in the same state coming or going. */
+    .sidebar {
+        display: none;
+        width: 100%;
+        min-width: 0;
+        flex: 1;
+        min-height: 0;
+        margin-bottom: 0;
+        border-right: none;
+        border-radius: 0;
+    }
+
+    .app-shell.mobile-sidebar-open .sidebar {
+        display: flex;
+    }
+
+    .app-shell.mobile-sidebar-open .main-content {
+        display: none;
+    }
 }

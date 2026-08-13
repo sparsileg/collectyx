@@ -49,6 +49,8 @@ const TagsView = {
             if (action === 'toggle-sort-dir') { this.toggleSortDir(); return; }
             if (action === 'prev-page') { this.prevPage(); return; }
             if (action === 'next-page') { this.nextPage(); return; }
+            if (action === 'page-start') { this.pageStart(); return; }
+            if (action === 'page-end') { this.pageEnd(); return; }
             const item = btn.closest('.tag-item');
             const tagId = item && item.dataset.id;
             if (!tagId) return;
@@ -57,6 +59,23 @@ const TagsView = {
         });
         const sortSelect = document.getElementById('tagsSortSelect');
         if (sortSelect) sortSelect.addEventListener('change', (e) => this.setSort(e.target.value));
+
+        // Slider: live label update on 'input' (drag), actual page
+        // change on 'change' (drag release) — same split CollectionView
+        // uses, avoids re-rendering the whole tag list on every pixel of
+        // drag.
+        container.addEventListener('input', (e) => {
+            if (e.target && e.target.dataset && e.target.dataset.role === 'page-slider') {
+                const numEl = container.querySelector('[data-role="page-slider-num"]');
+                if (numEl) numEl.textContent = e.target.value;
+            }
+        });
+        container.addEventListener('change', (e) => {
+            if (e.target && e.target.dataset && e.target.dataset.role === 'page-slider') {
+                this.goToPage(parseInt(e.target.value, 10) - 1);
+            }
+        });
+
         this._bound = true;
     },
 
@@ -84,6 +103,37 @@ const TagsView = {
 
     nextPage() {
         this._page += 1; // clamped against totalPages inside render()
+        this.render();
+        const list = document.getElementById('tagsList');
+        if (list) list.scrollTop = 0;
+    },
+
+    // Jump size for << / >> — meant to move by roughly total-tags/20
+    // *tags*, not pages. Was previously treating the tag count as a page
+    // count directly, jumping far too many pages per press. Correct
+    // version: total-tags/20 converted to a page count via page size.
+    // (Superseded — the </> big-jump buttons this fed are gone, replaced
+    // by the slider in CollectionView.pagerHtml(). goToPage() below is
+    // the direct-jump path now.)
+
+    pageStart() {
+        if (this._page <= 0) return;
+        this._page = 0;
+        this.render();
+        const list = document.getElementById('tagsList');
+        if (list) list.scrollTop = 0;
+    },
+
+    pageEnd() {
+        this._page = Number.MAX_SAFE_INTEGER; // clamped inside render()
+        this.render();
+        const list = document.getElementById('tagsList');
+        if (list) list.scrollTop = 0;
+    },
+
+    // Direct jump — the slider's 'change' handler (drag release).
+    goToPage(pageIndex) {
+        this._page = pageIndex; // clamped inside render()
         this.render();
         const list = document.getElementById('tagsList');
         if (list) list.scrollTop = 0;
@@ -136,7 +186,8 @@ const TagsView = {
             this._page = 0;
         }
 
-        container.innerHTML = pageTags.map(tag => `
+        // Pager rendered first (Stan: top of the list, not bottom).
+        container.innerHTML = CollectionView.pagerHtml(this._page, totalPages) + pageTags.map(tag => `
             <div class="tag-item" data-id="${escapeHtml(tag.id)}">
                 <span class="tag-name">${escapeHtml(tag.Name)}</span>
                 <span class="tag-count">${tag.Count || 0}</span>
@@ -145,7 +196,7 @@ const TagsView = {
                     <button type="button" class="btn btn-small btn-danger" data-action="delete">Delete</button>
                 </div>
             </div>
-        `).join('') + CollectionView.pagerHtml(this._page, totalPages);
+        `).join('');
     },
 
     // Called after any Add/Rename/Delete. Refreshes this view, the chip-

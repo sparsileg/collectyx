@@ -58,11 +58,20 @@ async function initSidebarChrome() {
     }
     applyFontSize(settings.fontSize || SIDEBAR_CONSTANTS.FONT_SIZE.DEFAULT);
 
-    // CollectionView reads this synchronously (list/modal date formatting
-    // happens on every render, not worth an async fetch each time) — same
-    // settings object already fetched above, no extra DBManager call.
+    // CollectionView reads both synchronously (list/modal date formatting
+    // and the records-per-page pager happen on every render, not worth
+    // an async fetch each time) — same settings object already fetched
+    // above, no extra DBManager call. recordsPerPage previously had no
+    // startup seed at all — Settings showed the saved value correctly,
+    // but CollectionView kept using CONSTANTS.DEFAULT_RECORDS_PER_PAGE
+    // until Settings was opened and saved once in the session, which
+    // looked like the setting "not sticking" on a fresh launch (#47
+    // follow-up).
     if (typeof CollectionView !== 'undefined') {
         CollectionView._dateFormatCache = settings.dateFormat || DateUtils.DEFAULT_FORMAT;
+        CollectionView.setRecordsPerPage(
+            settings.recordsPerPage != null ? settings.recordsPerPage : CONSTANTS.DEFAULT_RECORDS_PER_PAGE
+        );
     }
 }
 
@@ -87,6 +96,9 @@ function wireSidebarChromeEvents() {
 
     const fontUp = document.getElementById('font-size-up');
     if (fontUp) fontUp.addEventListener('click', () => adjustFontSize(1));
+
+    const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+    if (mobileMenuBtn) mobileMenuBtn.addEventListener('click', toggleMobileSidebar);
 }
 
 function renderSidebarVersion() {
@@ -147,7 +159,13 @@ async function initNavigation() {
         li.className = 'nav-item';
         li.textContent = label;
         li.dataset.view = item.view;
-        li.addEventListener('click', () => showView(item.view, li));
+        li.addEventListener('click', () => {
+            showView(item.view, li);
+            // No-op above the breakpoint (the class does nothing there) —
+            // always safe to call unconditionally rather than checking
+            // window.innerWidth here too.
+            closeMobileSidebar();
+        });
         list.appendChild(li);
     });
 
@@ -251,9 +269,33 @@ async function adjustFontSize(direction) {
 
 // ── Hamburger menu ───────────────────────────────────────────────────────────
 
+// Must match hamburger-menu.css's .hamburger-menu { width: 220px }. Used
+// as a fallback for clamping against the viewport edge before the menu
+// is ever shown (offsetWidth reads 0 on a display:none element, so it
+// can't be read from the DOM at the moment this is needed).
+const HAMBURGER_MENU_WIDTH = 220;
+
+// position: fixed (hamburger-menu.css) needs real coordinates — computed
+// fresh from the button's current on-screen position every time the menu
+// opens, since that position can shift (sidebar width, theme, window
+// resize) between opens. Clamped against the right edge of the viewport
+// so a button sitting near the right side of a wide window can't push
+// the menu off-screen the other direction.
+function positionHamburgerMenu(btn, menu) {
+    const rect = btn.getBoundingClientRect();
+    const maxLeft = window.innerWidth - HAMBURGER_MENU_WIDTH - 8;
+    const left = Math.max(8, Math.min(rect.left, maxLeft));
+    menu.style.top = `${rect.bottom + 8}px`;
+    menu.style.left = `${left}px`;
+}
+
 function toggleHamburgerMenu() {
     const menu = document.getElementById('hamburgerMenu');
-    if (menu) menu.classList.toggle('open');
+    const btn = document.getElementById('hamburger-btn');
+    if (!menu) return;
+    const opening = !menu.classList.contains('open');
+    if (opening && btn) positionHamburgerMenu(btn, menu);
+    menu.classList.toggle('open');
 }
 
 function closeHamburgerMenu() {
@@ -267,6 +309,44 @@ document.addEventListener('click', (event) => {
         closeHamburgerMenu();
     }
 });
+
+// ── Mobile sidebar drawer (#89) ─────────────────────────────────────────────
+// Below the breakpoint, the sidebar and main content area become mutually
+// exclusive full-screen panels under the persistent .mobile-topbar
+// (index.html/sidebar.css). #appShell's .mobile-sidebar-open class is the
+// single source of truth for which one is showing — no class means
+// content is showing, matching the state a nav-item click always leaves
+// things in.
+//
+// MOBILE_BREAKPOINT_PX must match sidebar.css's hardcoded 768px — CSS
+// custom properties aren't usable inside @media conditions, so this is a
+// second copy of the same number by necessity, not an oversight. Move
+// both together if it ever changes.
+const MOBILE_BREAKPOINT_PX = 768;
+
+function toggleMobileSidebar() {
+    const shell = document.getElementById('appShell');
+    if (shell) shell.classList.toggle('mobile-sidebar-open');
+}
+
+function closeMobileSidebar() {
+    const shell = document.getElementById('appShell');
+    if (shell) shell.classList.remove('mobile-sidebar-open');
+}
+
+// Crossing the breakpoint back above 768px while the drawer happened to
+// be open would otherwise leave .mobile-sidebar-open set — harmless under
+// today's desktop CSS (which ignores it), but resizing narrow again would
+// then incorrectly resume in "drawer open" rather than the clean default
+// state (#89's "no stuck mid-transition" acceptance criterion). Cheap
+// enough to just always clear it once resized wide.
+function handleShellResize() {
+    if (window.innerWidth > MOBILE_BREAKPOINT_PX) {
+        closeMobileSidebar();
+    }
+}
+
+window.addEventListener('resize', handleShellResize);
 
 // Global section items. Backup/Export/Restore route through
 // BackupRestore (backup-restore.js) — same operations Quick Actions

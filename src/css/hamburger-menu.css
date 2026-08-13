@@ -8,12 +8,19 @@
     position: relative;
 }
 
+/* position: fixed, not absolute — .sidebar has overflow: hidden, which
+   clips an absolutely-positioned descendant regardless of which
+   direction it grows (confirmed: moving from right:0 to left:0 didn't
+   fix the cutoff, just moved it to the other edge). Fixed positioning
+   escapes ancestor overflow clipping entirely. top/left are no longer
+   set here — sidebar.js's positionHamburgerMenu() computes and sets
+   both as inline styles from the button's actual on-screen position
+   every time the menu opens, since a static CSS anchor point doesn't
+   make sense once the menu is positioned relative to the viewport
+   instead of relative to its container. */
 .hamburger-menu {
     display: none;
-    position: absolute;
-    top: 100%;
-    right: 0;
-    margin-top: 8px;
+    position: fixed;
     width: 220px;
     background: var(--color-bg-raised);
     border: 1px solid var(--border-color);
