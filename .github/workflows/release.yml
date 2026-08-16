@@ -77,9 +77,9 @@ jobs:
       - name: publish fixed-name "latest" asset (Linux)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
-          find target -path "*bundle/deb/*.deb" -exec cp {} collectyx-linux-x86_64.deb \;
-          find target -path "*bundle/rpm/*.rpm" -exec cp {} collectyx-linux-x86_64.rpm \;
-          find target -path "*bundle/appimage/*.AppImage" -exec cp {} collectyx-linux-x86_64.AppImage \;
+          find src-tauri/target -path "*bundle/deb/*.deb" -exec cp {} collectyx-linux-x86_64.deb \;
+          find src-tauri/target -path "*bundle/rpm/*.rpm" -exec cp {} collectyx-linux-x86_64.rpm \;
+          find src-tauri/target -path "*bundle/appimage/*.AppImage" -exec cp {} collectyx-linux-x86_64.AppImage \;
           gh release upload ${{ github.ref_name }} \
             collectyx-linux-x86_64.deb collectyx-linux-x86_64.rpm collectyx-linux-x86_64.AppImage \
             --clobber
@@ -90,7 +90,7 @@ jobs:
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          $exe = Get-ChildItem -Path target -Recurse -Filter *.exe |
+          $exe = Get-ChildItem -Path src-tauri/target -Recurse -Filter *.exe |
             Where-Object { $_.FullName -like "*bundle*nsis*" } |
             Select-Object -First 1
           Copy-Item $exe.FullName collectyx-windows-x86_64.exe
@@ -102,7 +102,7 @@ jobs:
         if: matrix.platform == 'macos-latest' || matrix.platform == 'macos-15-intel'
         run: |
           ARCH_NAME="${{ matrix.platform == 'macos-latest' && 'arm64' || 'x86_64' }}"
-          find target -path "*bundle/dmg/*.dmg" -exec cp {} "collectyx-macos-${ARCH_NAME}.dmg" \;
+          find src-tauri/target -path "*bundle/dmg/*.dmg" -exec cp {} "collectyx-macos-${ARCH_NAME}.dmg" \;
           gh release upload ${{ github.ref_name }} "collectyx-macos-${ARCH_NAME}.dmg" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
