@@ -1,2 +1,0 @@
-
-(collectyx:7878): Gdk-CRITICAL **: 13:35:58.231: gdk_wayland_window_set_dbus_properties_libgtk_only: assertion 'GDK_IS_WAYLAND_WINDOW (window)' failed

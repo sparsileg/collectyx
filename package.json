@@ -1,4 +1,10 @@
 {
+  "name": "collectyx",
+  "version": "1.0.0",
+    "description": "Track and manage reading, books, and other collections",
+  "scripts": {
+    "serve:web": "npx serve src"
+  },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4"
   }

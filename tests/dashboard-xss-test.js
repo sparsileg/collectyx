@@ -29,7 +29,7 @@ function ok(label, cond, detail) {
 // thing a real browser would parse and execute — so assertions can
 // check literally whether markup reached it unescaped.
 class El {
-    constructor(tag) { this.tag = tag; this._html = ''; this._text = ''; this.children = []; this.className = ''; }
+    constructor(tag) { this.tag = tag; this._html = ''; this._text = ''; this.children = []; this.className = ''; this.dataset = {}; }
     set innerHTML(v) { this._html = v; this.children = []; }
     get innerHTML() { return this._html; }
     set textContent(v) { this._text = v; this._html = ''; }
@@ -38,6 +38,7 @@ class El {
     getContext() { return {}; }
     querySelectorAll() { return []; }
     querySelector() { return null; }
+    addEventListener() {}
 }
 
 const domStore = {};
@@ -63,15 +64,37 @@ function escapeHtml(str) {
         .replace(/'/g, '&#39;');
 }
 
+// authorGivenFirst()/splitAuthorName() also live in core.js — dashboard.js
+// (issue #88) now calls authorGivenFirst() in renderCheckedOut(),
+// renderRecentBooks(), and renderWhatsNext() to display "Given Surname"
+// instead of the stored "Surname, Given". Same real implementation
+// mirrored here, not a simplified stand-in — the escaping tests below
+// need it to actually reverse the name, not just pass it through, or a
+// bug that only shows up post-reversal (e.g. an unescaped join) would
+// go undetected.
+function splitAuthorName(combined) {
+    const value = String(combined || '').trim();
+    if (!value) return { surname: '', given: '' };
+    const commaIndex = value.indexOf(',');
+    if (commaIndex === -1) return { surname: value, given: '' };
+    return { surname: value.slice(0, commaIndex).trim(), given: value.slice(commaIndex + 1).trim() };
+}
+function authorGivenFirst(name) {
+    if (!name) return '';
+    const { given, surname } = splitAuthorName(name);
+    return [given, surname].filter(Boolean).join(' ');
+}
+
 function loadDashboard(dom) {
     const sandbox = {
         console,
         document: dom,
         CONSTANTS: {
-            ROW_LIMITS: { TOP_TAGS: 7, RECENT_FINISHED: 5, WHATS_NEXT: 4 },
+            ROW_LIMITS: { CHECKED_OUT: 5, RECENT_FINISHED: 5, WHATS_NEXT: 4 },
             DEFAULT_DAILY_READING_GOAL: 30,
         },
         escapeHtml,
+        authorGivenFirst,
         DBManager: { getSettings: async () => ({}) },
         Chart: Object.assign(function () {}, { getChart: () => null }),
         getThemeColors: () => ({ primary: '#fff', secondary: '#000' }),
@@ -80,7 +103,7 @@ function loadDashboard(dom) {
     vm.createContext(sandbox);
     vm.runInContext(
         src +
-        '\nthis.renderTopTags = renderTopTags;' +
+        '\nthis.renderCheckedOut = renderCheckedOut;' +
         '\nthis.renderRecentBooks = renderRecentBooks;' +
         '\nthis.renderWhatsNext = renderWhatsNext;' +
         '\nthis.renderReadingGoals = renderReadingGoals;',
@@ -113,15 +136,30 @@ console.log('\n1. every template interpolation is escaped or routed through text
     ok('at least one textContent-based assignment found (renderReadingGoals)', sawTextContentAssignment);
 }
 
-// ── 2. renderTopTags ─────────────────────────────────────────────────────────
-console.log('\n2. renderTopTags — hostile tag name and count');
+// ── 2. renderCheckedOut ───────────────────────────────────────────────────────
+console.log('\n2. renderCheckedOut — hostile Title, Author, and Patron');
 {
     const dom = freshDom();
     const sb = loadDashboard(dom);
-    sb.renderTopTags([{ Name: SCRIPT_PAYLOAD, Count: 3 }]);
-    const html = dom.getElementById('topTagsContent').innerHTML;
+    sb.renderCheckedOut([{
+        id: 'b1', Title: XSS_PAYLOAD, Author: XSS_PAYLOAD, Patron: SCRIPT_PAYLOAD,
+        CheckedOutDate: '2026-01-01'
+    }]);
+    const html = dom.getElementById('checkedOutContent').innerHTML;
+    ok('img payload not present as a live tag', !html.includes('<img'));
     ok('script payload not present verbatim', !html.includes('<script>'));
-    ok('escaped payload present as literal text', html.includes('&lt;script&gt;'));
+    ok('escaped Title/Author payload present as literal text', (html.match(/&lt;img/g) || []).length === 2);
+    ok('escaped Patron payload present as literal text', html.includes('&lt;script&gt;'));
+
+    // A book with no CheckedOutDate is available, not checked out —
+    // must be filtered out before ever reaching the renderer's output,
+    // not merely escaped.
+    const dom2 = freshDom();
+    const sb2 = loadDashboard(dom2);
+    sb2.renderCheckedOut([{ id: 'b2', Title: 'Dune', Author: 'Herbert, Frank', Patron: null, CheckedOutDate: null }]);
+    const html2 = dom2.getElementById('checkedOutContent').innerHTML;
+    ok('empty state shown when nothing is checked out', html2.includes('Nothing checked out'));
+    ok('available (non-checked-out) book not rendered as a row', !html2.includes('Dune'));
 }
 
 // ── 3. renderRecentBooks ─────────────────────────────────────────────────────
