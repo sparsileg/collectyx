@@ -1,0 +1,108 @@
+name: 'release'
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'   # Apple Silicon
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-15-intel'   # Intel — native hardware, not cross-compiled
+            args: ''
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            patchelf xdg-utils
+
+      - name: setup node
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: 'npm'
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: 'src-tauri -> target'
+
+      - name: install frontend dependencies
+        run: npm install
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'Collectyx v__VERSION__'
+          releaseBody: 'See the assets below to download and install this version.'
+          releaseDraft: true
+          # NOTE: github.ref_name is the pushed tag on a tag-push trigger
+          # (e.g. v0.11.0-beta.1), but on a manual `gh workflow run` /
+          # workflow_dispatch run there is no tag ref — ref_name falls
+          # back to the branch name, so this check silently never matches
+          # "-beta"/"-rc" on manual runs. Trigger real releases via tag
+          # push (git tag vX.Y.Z && git push origin vX.Y.Z); use
+          # workflow_dispatch only for build-testing, and double-check
+          # the resulting release's prerelease flag by hand if you do.
+          prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
+          args: ${{ matrix.args }}
+
+      - name: publish fixed-name "latest" asset (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          find target -path "*bundle/deb/*.deb" -exec cp {} collectyx-linux-x86_64.deb \;
+          find target -path "*bundle/rpm/*.rpm" -exec cp {} collectyx-linux-x86_64.rpm \;
+          find target -path "*bundle/appimage/*.AppImage" -exec cp {} collectyx-linux-x86_64.AppImage \;
+          gh release upload ${{ github.ref_name }} \
+            collectyx-linux-x86_64.deb collectyx-linux-x86_64.rpm collectyx-linux-x86_64.AppImage \
+            --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: publish fixed-name "latest" asset (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path target -Recurse -Filter *.exe |
+            Where-Object { $_.FullName -like "*bundle*nsis*" } |
+            Select-Object -First 1
+          Copy-Item $exe.FullName collectyx-windows-x86_64.exe
+          gh release upload ${{ github.ref_name }} collectyx-windows-x86_64.exe --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: publish fixed-name "latest" asset (macOS)
+        if: matrix.platform == 'macos-latest' || matrix.platform == 'macos-15-intel'
+        run: |
+          ARCH_NAME="${{ matrix.platform == 'macos-latest' && 'arm64' || 'x86_64' }}"
+          find target -path "*bundle/dmg/*.dmg" -exec cp {} "collectyx-macos-${ARCH_NAME}.dmg" \;
+          gh release upload ${{ github.ref_name }} "collectyx-macos-${ARCH_NAME}.dmg" --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
