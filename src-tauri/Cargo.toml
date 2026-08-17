@@ -1,7 +1,7 @@
 [package]
 name = "collectyx"
 # Keep in sync with src/js/constants.js's CONSTANTS.APP_VERSION.
-version = "1.0.0-rc.1"
+version = "1.0.0"
 description = "Collectyx — Media tracking and management"
 authors = ["Sparsile"]
 license = "MIT"

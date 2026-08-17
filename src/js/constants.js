@@ -3,7 +3,7 @@
 const CONSTANTS = {
     APP_NAME: 'Collectyx',
     // Keep in sync with src-tauri/Cargo.toml's [package] version.
-    APP_VERSION: '1.0.0-rc.1',
+    APP_VERSION: '1.0.0',
 
     DB: {
         NAME:    'collectyx-db',
