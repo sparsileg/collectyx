@@ -29,6 +29,14 @@
     CollectionView.registerAddHandler('consumed', (containerId) => ConsumedModal.open(null, containerId));
     CollectionView.registerRowOpenHandler('consumed', (id, containerId) => ConsumedModal.open(id, containerId));
 
+    // Slider drag preview (issue #95) — Books Read is fixed-sorted by
+    // Finished date (ConsumedView.load()'s data.sort() below), so that's
+    // what the preview shows. If/when column-sort is introduced, this is
+    // the one line that needs to change to read whatever field is
+    // actively sorted, not the plumbing in collection-view.js.
+    CollectionView.registerSliderPreview('consumed', (record) =>
+        DateUtils.formatDate(record.Finished, CollectionView._dateFormat()));
+
     // Advanced filter field set (issue #49). ISBN is isEmpty-only — Stan's
     // call, partial-ISBN search isn't a real use case here.
     CollectionView.registerFilterFields('consumed', [

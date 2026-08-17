@@ -40,6 +40,22 @@ const CollectionView = {
         this._filterFieldSets[collection] = fields;
     },
 
+    // Sort-key preview above the pager slider (issue #95). fn(record) ->
+    // display string, called against the first record of whichever page
+    // the slider currently points to. Registered per collection because
+    // each is sorted by a different fixed field today (Books Read by
+    // Finished, My Library by Title) — same reason
+    // registerRenderer/registerFilterFields are per-collection rather
+    // than generic. When arbitrary column-sort is introduced later, the
+    // fix is to swap what's registered here to read the active sort
+    // field dynamically (e.g. via a shared state.sortField) — this
+    // registration point and the drag-preview plumbing that calls it
+    // don't need to change, only the registered fn's body does.
+    _sliderPreviewFns: {},
+    registerSliderPreview(collection, fn) {
+        this._sliderPreviewFns[collection] = fn;
+    },
+
     // Real app: sidebar.js's initSidebarChrome() sets _dateFormatCache from
     // real settings. Harness: window.__testDateFormat, set directly by the
     // test page. Checking both means this file doesn't need to differ
@@ -86,7 +102,10 @@ const CollectionView = {
     // --primary-color every other accent element already uses — no
     // hand-rolled ::-webkit-slider-thumb/::-moz-range-thumb rules needed,
     // and it follows theme switches automatically.
-    pagerHtml(page, totalPages) {
+    // previewLabel is optional and additive — existing callers (TagsView)
+    // that pass only (page, totalPages) get undefined here and simply
+    // don't render the preview div; no signature break for them.
+    pagerHtml(page, totalPages, previewLabel) {
         if (totalPages <= 1) return '';
         const atStart = page === 0;
         const atEnd = page >= totalPages - 1;
@@ -97,6 +116,16 @@ const CollectionView = {
                        min="1" max="${totalPages}" value="${page + 1}"
                        style="flex: 1; max-width: 240px; accent-color: var(--primary-color);">
         ` : '';
+        // Sort-key preview (issue #95) — only meaningful alongside the
+        // slider (no drag to preview against otherwise), and only when
+        // the active collection has registered one via
+        // registerSliderPreview(). data-role, not an id, so the drag
+        // handler can find it via the same container.querySelector()
+        // pattern already used for page-slider-num — no containerId
+        // threading needed through this shared, TagsView-reused function.
+        const previewHtml = (showSlider && previewLabel != null) ? `
+            <div class="collection-pager-preview" data-role="page-slider-preview" style="text-align: center; font-size: 0.85em; opacity: 0.75; padding-bottom: 2px;">${escapeHtml(previewLabel)}</div>
+        ` : '';
         // The page number gets its own fixed-width span, sized to
         // totalPages' own digit count (not the current page's) — as the
         // number climbs from 9 to 10 to 100 while dragging, the digit
@@ -106,6 +135,7 @@ const CollectionView = {
         // show means it never shifts again for the life of this pager.
         const numWidth = String(totalPages).length;
         return `
+            ${previewHtml}
             <div class="collection-pager" style="display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 0; flex-wrap: wrap;">
                 <button type="button" class="btn btn-secondary" data-action="page-start" ${atStart ? 'disabled' : ''} title="First page">Start</button>
                 <button type="button" class="btn btn-secondary" style="${arrowStyle}" data-action="prev-page" ${atStart ? 'disabled' : ''} title="Previous page">&lt;</button>
@@ -154,6 +184,7 @@ const CollectionView = {
             if (actionEl && container.contains(actionEl)) {
                 const action = actionEl.dataset.action;
                 if (action === 'toggle-search') { this.toggleSearch(containerId); return; }
+                if (action === 'clear-search') { this.clearSearch(containerId); return; }
                 if (action === 'add') { this.openAdd(containerId); return; }
                 if (action === 'toggle-filter') { this.toggleFilterPanel(containerId); return; }
                 if (action === 'add-filter-row') { this.addFilterRow(containerId); return; }
@@ -174,6 +205,14 @@ const CollectionView = {
                 if (handler) handler(action, row.dataset.id, containerId);
                 return;
             }
+            // Tag typeahead suggestion pick — checked before the generic
+            // row-click fallback below since a suggestion item isn't a
+            // .collection-list-row.
+            const tagSuggestion = e.target.closest('[data-role="filter-tag-suggestion"]');
+            if (tagSuggestion && container.contains(tagSuggestion)) {
+                this._selectFilterTag(containerId, tagSuggestion.dataset.rowIndex, tagSuggestion.dataset.tag);
+                return;
+            }
             // No data-action matched — a plain click anywhere else on a
             // row opens it.
             const row = e.target.closest('.collection-list-row');
@@ -186,8 +225,24 @@ const CollectionView = {
 
         container.addEventListener('input', (e) => {
             const role = e.target && e.target.dataset && e.target.dataset.role;
-            if (role === 'quick-search-input') { this.filter(containerId, e.target.value); return; }
-            if (role === 'filter-value-input') { this._captureFilterValueDebounced(containerId, e.target); return; }
+            if (role === 'quick-search-input') {
+                this.filter(containerId, e.target.value);
+                // filter() only calls _renderRows(), deliberately — a
+                // full _renderShell() here would replace the input
+                // element mid-keystroke and drop focus/cursor position.
+                // The clear icon's visibility is toggled directly
+                // instead of waiting for the next shell re-render, which
+                // is why it used to only ever appear after an unrelated
+                // full reload (nav away/back) rather than as you type.
+                const clearBtn = document.getElementById(`${containerId}-search-clear`);
+                if (clearBtn) clearBtn.style.display = e.target.value ? 'block' : 'none';
+                return;
+            }
+            if (role === 'filter-value-input') {
+                this._captureFilterValueDebounced(containerId, e.target);
+                if (e.target.dataset.tagField) this._renderTagSuggestions(containerId, e.target);
+                return;
+            }
             if (role === 'page-slider') {
                 // Live drag feedback only — a cheap text update, not a
                 // full re-render. Only the number itself changes; "Page"
@@ -196,6 +251,7 @@ const CollectionView = {
                 // value the number could reach.
                 const numEl = container.querySelector('[data-role="page-slider-num"]');
                 if (numEl) numEl.textContent = e.target.value;
+                this._updateSliderPreview(containerId, container, parseInt(e.target.value, 10) - 1);
                 return;
             }
         });
@@ -209,6 +265,24 @@ const CollectionView = {
         });
 
         this._boundContainers[containerId] = true;
+
+        // Tag typeahead (filter panel) — open on focus (shows the full
+        // scrollable pool even before typing), close shortly after blur.
+        // focusin/focusout used rather than focus/blur since those don't
+        // bubble and this is delegated on the container. Same 150ms grace
+        // period as initTagChipInput()'s blur handler, so a suggestion
+        // click still registers before the list closes.
+        container.addEventListener('focusin', (e) => {
+            if (e.target && e.target.dataset && e.target.dataset.tagField) {
+                this._renderTagSuggestions(containerId, e.target);
+            }
+        });
+        container.addEventListener('focusout', (e) => {
+            if (e.target && e.target.dataset && e.target.dataset.tagField) {
+                const rowIndex = e.target.dataset.rowIndex;
+                setTimeout(() => this._hideTagSuggestions(containerId, rowIndex), 150);
+            }
+        });
     },
 
     _labelFor(collection) {
@@ -247,8 +321,12 @@ const CollectionView = {
                 <button type="button" class="btn btn-primary collection-add-btn" data-action="add">Add</button>
             </div>
             <div class="quick-search" id="${containerId}-search" style="display: ${state.searchOpen ? 'block' : 'none'};">
-                <input type="text" id="${containerId}-search-input" placeholder="Search title, author, or #tag..." value="${escapeHtml(state.filter)}"
-                       data-role="quick-search-input">
+                <div class="quick-search-input-wrap" style="position: relative;">
+                    <input type="text" id="${containerId}-search-input" placeholder="Search title, author, or #tag..." value="${escapeHtml(state.filter)}"
+                           data-role="quick-search-input">
+                    <button type="button" class="quick-search-clear" id="${containerId}-search-clear" data-action="clear-search" title="Clear search"
+                            style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1em; line-height: 1; padding: 2px 6px; color: inherit; opacity: 0.7; display: ${state.filter ? 'block' : 'none'};">&#x2715;</button>
+                </div>
             </div>
             ${hasFilters ? `<div class="filter-panel" id="${containerId}-filterpanel" style="display: ${state.filterPanelOpen ? 'block' : 'none'};">${this._filterPanelHtml(containerId)}</div>` : ''}
             ${renderer.headerHtml}
@@ -301,13 +379,13 @@ const CollectionView = {
             <div class="filter-row" data-row-index="${rowIndex}">
                 <select class="filter-field" data-role="filter-field" data-row-index="${rowIndex}">${fieldOptions}</select>
                 <select class="filter-operator" data-role="filter-operator" data-row-index="${rowIndex}" ${fieldDef ? '' : 'disabled'}>${operatorOptions}</select>
-                <div class="filter-value">${operatorDef ? this._filterValueHtml(rowIndex, operatorDef, row.values) : ''}</div>
+                <div class="filter-value">${operatorDef ? this._filterValueHtml(containerId, rowIndex, operatorDef, row.values) : ''}</div>
                 <button type="button" class="btn btn-danger" data-action="remove-filter-row" data-row-index="${rowIndex}">Remove</button>
             </div>
         `;
     },
 
-    _filterValueHtml(rowIndex, operatorDef, values) {
+    _filterValueHtml(containerId, rowIndex, operatorDef, values) {
         const v = (i) => escapeHtml((values && values[i] != null) ? values[i] : '');
         switch (operatorDef.valueType) {
         case 'none':
@@ -327,10 +405,28 @@ const CollectionView = {
             `;
         }
         case 'tagSelect': {
-            const opts = ['<option value="">Select Tag</option>']
-                .concat(this._allTagsFor(rowIndex).map(t => `<option value="${escapeHtml(t)}"${values && values[0] === t ? ' selected' : ''}>${escapeHtml(t)}</option>`))
-                .join('');
-            return `<select class="filter-value-input" data-role="filter-value-input" data-row-index="${rowIndex}" data-value-index="0">${opts}</select>`;
+            // Replaces the old plain <select> — with a tag pool that can
+            // run into the hundreds, a native dropdown's letter-jump-only
+            // navigation doesn't scale. This is a typeahead sibling to
+            // tag-chip-input.js's initTagChipInput(), not a reuse of it
+            // directly: chip input manages an array of tags behind one
+            // hidden field, but a filter row's Tag/equals needs exactly
+            // one value in row.values[0], so this commits a single pick
+            // instead of appending to a chip row. Visually consistent
+            // with chip input via the shared .tag-chip-suggestion item
+            // class; no per-item cap here (chip input caps at 8 for
+            // narrow while-typing autocomplete) — the whole point is
+            // showing the full scrollable pool, capped only by
+            // max-height/overflow in the wrapper below.
+            return `
+                <div class="filter-tag-typeahead" style="position: relative;">
+                    <input type="text" class="filter-value-input" id="${containerId}-filter-tag-input-${rowIndex}"
+                           data-role="filter-value-input" data-tag-field="1" data-row-index="${rowIndex}" data-value-index="0"
+                           value="${v(0)}" placeholder="Type to find tag..." autocomplete="off">
+                    <div class="tag-chip-suggestions" id="${containerId}-filter-tag-suggest-${rowIndex}"
+                         style="display: none; position: absolute; z-index: 20; max-height: 220px; overflow-y: auto; width: 100%;"></div>
+                </div>
+            `;
         }
         case 'ratingSelect': {
             // Hardcoded rather than sourced from RatingUtils — its exact
@@ -391,6 +487,18 @@ const CollectionView = {
         this._renderShell(containerId);
     },
 
+    // Shared by every path that can drop active search/filter count to
+    // zero (toggleSearch, clearSearch, clearFilters, removeFilterRow,
+    // and resetting a filter row's field/operator back to blank) — a
+    // stale "Active Search: N matches" would otherwise sit until its
+    // 60s auto-dismiss instead of clearing the moment nothing's active.
+    _maybeClearStaleMessage(containerId) {
+        const state = this._state[containerId];
+        if (!state) return;
+        const advanced = (state.filterRows || []).filter(r => r.field && r.operator);
+        if (!state.filter && advanced.length === 0) clearMessage();
+    },
+
     addFilterRow(containerId) {
         const state = this._state[containerId];
         if (!state) return;
@@ -403,6 +511,7 @@ const CollectionView = {
         if (!state) return;
         state.filterRows.splice(rowIndex, 1);
         this._renderShell(containerId);
+        this._maybeClearStaleMessage(containerId);
     },
 
     // Picking a field auto-selects a sensible default operator (Stan's
@@ -451,6 +560,7 @@ const CollectionView = {
         };
         state.page = 0;
         this._renderShell(containerId);
+        this._maybeClearStaleMessage(containerId);
     },
 
     _onFilterOperatorChange(containerId, selectEl) {
@@ -465,6 +575,7 @@ const CollectionView = {
         row.values = this._defaultValuesFor(operatorDef);
         state.page = 0;
         this._renderShell(containerId);
+        this._maybeClearStaleMessage(containerId);
     },
 
     // Text/number/date keystrokes: capture the value, then debounce the
@@ -525,6 +636,50 @@ const CollectionView = {
         const tagSet = new Set();
         state.data.forEach(r => (r.Tags || []).forEach(t => tagSet.add(t)));
         this._currentTagPool = Array.from(tagSet).sort();
+    },
+
+    // Tag typeahead for the filter panel's Tag field — full pool, no
+    // per-item cap (unlike tag-chip-input.js's 8-item cap, which suits a
+    // narrow while-typing autocomplete). The point here is a scrollable
+    // list covering however many tags exist; max-height/overflow on the
+    // wrapper (see _filterValueHtml) does the bounding, not a slice().
+    _renderTagSuggestions(containerId, inputEl) {
+        const rowIndex = inputEl.dataset.rowIndex;
+        const list = document.getElementById(`${containerId}-filter-tag-suggest-${rowIndex}`);
+        if (!list) return;
+        const val = inputEl.value.trim().toLowerCase();
+        const pool = this._allTagsFor(rowIndex);
+        const matches = val ? pool.filter(t => t.toLowerCase().includes(val)) : pool;
+        if (matches.length === 0) {
+            this._hideTagSuggestions(containerId, rowIndex);
+            return;
+        }
+        list.innerHTML = matches.map(t =>
+            `<div class="tag-chip-suggestion" data-role="filter-tag-suggestion" data-row-index="${rowIndex}" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</div>`
+        ).join('');
+        list.style.display = 'block';
+    },
+
+    _hideTagSuggestions(containerId, rowIndex) {
+        const list = document.getElementById(`${containerId}-filter-tag-suggest-${rowIndex}`);
+        if (list) { list.style.display = 'none'; list.innerHTML = ''; }
+    },
+
+    // Commits one pick into row.values[0] — the filter row's Tag/equals
+    // slot holds exactly one value, unlike chip input's array.
+    _selectFilterTag(containerId, rowIndex, tag) {
+        const state = this._state[containerId];
+        if (!state) return;
+        const ri = parseInt(rowIndex, 10);
+        const row = state.filterRows[ri];
+        if (!row) return;
+        row.values[0] = tag;
+        const input = document.getElementById(`${containerId}-filter-tag-input-${ri}`);
+        if (input) input.value = tag;
+        this._hideTagSuggestions(containerId, ri);
+        clearTimeout(this._filterDebounceTimers[containerId]);
+        state.page = 0;
+        this._renderRows(containerId);
     },
 
     // ── Per-field matchers for the advanced filter panel ─────────────────────
@@ -649,6 +804,35 @@ const CollectionView = {
         });
     },
 
+    // Per-token classification, not a whole-query startsWith('#') check —
+    // a query like `dune #scifi` mixes a text token and a tag token, and
+    // both must match (AND), not "whole query is text OR whole query is
+    // tags". Reuses _tokenizeQuery so quoting still works inside either
+    // token type (e.g. `"science fiction" #dune`).
+    _matchesQuickSearch(record, query) {
+        const tokens = this._tokenizeQuery(query);
+        if (!tokens.length) return true;
+        const tagTokens = [];
+        const textTokens = [];
+        tokens.forEach(t => {
+            if (t.startsWith('#')) {
+                const stripped = t.slice(1);
+                if (stripped) tagTokens.push(stripped);
+            } else {
+                textTokens.push(t);
+            }
+        });
+        if (tagTokens.length) {
+            const tags = (record.Tags || []).map(t => t.toLowerCase());
+            if (!tagTokens.every(t => tags.includes(t))) return false;
+        }
+        if (textTokens.length) {
+            const combined = `${record.Title || ''} ${record.Author || ''} ${record.Author2 || ''}`.toLowerCase();
+            if (!textTokens.every(t => combined.includes(t))) return false;
+        }
+        return true;
+    },
+
     // ── Row rendering / quick search ──────────────────────────────────────────
 
     _renderRows(containerId) {
@@ -656,25 +840,21 @@ const CollectionView = {
         if (!list) return;
         const state = this._state[containerId];
         const renderer = this._renderers[state.collection];
-        const q = state.filter.trim().toLowerCase();
-        const isTagSearch = q.startsWith('#');
-        const tagQuery = isTagSearch ? q.slice(1).trim() : '';
+        const q = state.filter.trim();
         // Only rows with both a field and an operator picked contribute —
         // a row still missing one (mid-edit) is silently ignored rather
         // than matching everything or nothing.
         const advanced = (state.filterRows || []).filter(r => r.field && r.operator);
 
         const rows = state.data.filter(r => {
-            if (q) {
-                if (isTagSearch) {
-                    if (tagQuery && !(r.Tags || []).some(t => t.toLowerCase() === tagQuery)) return false;
-                } else {
-                    const combined = `${r.Title || ''} ${r.Author || ''} ${r.Author2 || ''}`;
-                    if (!this._matchesTokenizedText(combined, q)) return false;
-                }
-            }
+            if (q && !this._matchesQuickSearch(r, q)) return false;
             return this._matchesAdvancedFilters(r, advanced, state.data);
         });
+        // Cached so the slider's drag handler (_updateSliderPreview) can
+        // look up "record at index N" without re-running search/filter
+        // on every input event — same already-filtered, already-sorted
+        // order the visible pages are sliced from below.
+        state._lastFilteredRows = rows;
 
         // Routed through the normal status message, not a dedicated
         // element — a search's match count is just another status
@@ -717,7 +897,29 @@ const CollectionView = {
         // Pager rendered first (Stan: top of the list, not bottom) —
         // navigating pages shouldn't require scrolling to the bottom
         // first to find the controls.
-        list.innerHTML = this.pagerHtml(state.page, totalPages) + pageRows.map(r => renderer.rowFn(r, containerId)).join('');
+        const previewFn = this._sliderPreviewFns[state.collection];
+        const previewLabel = (previewFn && pageRows[0]) ? previewFn(pageRows[0]) : undefined;
+        list.innerHTML = this.pagerHtml(state.page, totalPages, previewLabel) + pageRows.map(r => renderer.rowFn(r, containerId)).join('');
+    },
+
+    // Slider drag (issue #95) — looks up the record at the target page's
+    // start index from the cached _lastFilteredRows (set in _renderRows
+    // above) and writes its preview text directly into the DOM, mirroring
+    // the page-number span's own cheap-write approach. No-ops entirely
+    // if this collection has no registered accessor or the preview div
+    // isn't present (e.g. slider not shown).
+    _updateSliderPreview(containerId, container, pageIndex) {
+        const state = this._state[containerId];
+        if (!state) return;
+        const fn = this._sliderPreviewFns[state.collection];
+        if (!fn) return;
+        const previewEl = container.querySelector('[data-role="page-slider-preview"]');
+        if (!previewEl) return;
+        const pageSize = this.getRecordsPerPage();
+        const rows = state._lastFilteredRows || [];
+        const idx = pageSize > 0 ? pageIndex * pageSize : 0;
+        const record = rows[idx];
+        previewEl.textContent = record ? fn(record) : '';
     },
 
     prevPage(containerId) {
@@ -785,9 +987,27 @@ const CollectionView = {
             // "Active Search: N matches" message would otherwise sit
             // stale until its 60s auto-dismiss; blank it immediately
             // instead, matching Clear Filters' own immediate feedback.
-            const advanced = (state.filterRows || []).filter(r => r.field && r.operator);
-            if (advanced.length === 0) clearMessage();
+            this._maybeClearStaleMessage(containerId);
         }
+    },
+
+    // "X" icon inside the search box (distinct from toggleSearch's 🔍,
+    // which also closes the box entirely). This only clears the query
+    // and keeps the box open, refocused, ready for a new search.
+    clearSearch(containerId) {
+        const state = this._state[containerId];
+        if (!state) return;
+        state.filter = '';
+        state.page = 0;
+        this._renderShell(containerId);
+        const input = document.getElementById(`${containerId}-search-input`);
+        if (input) input.focus();
+        // Same stale-message cleanup as toggleSearch()'s close branch —
+        // _renderRows() only posts a fresh "Active Search:" message when
+        // something is still active; if no advanced filter remains
+        // either, blank the previous count immediately rather than
+        // leaving it to its own auto-dismiss.
+        this._maybeClearStaleMessage(containerId);
     },
 
     filter(containerId, value) {

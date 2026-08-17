@@ -54,6 +54,12 @@
     CollectionView.registerRenderer('owned', headerHtml, rowFn);
     CollectionView.registerAddHandler('owned', (containerId) => OwnedModal.open(null, containerId));
     CollectionView.registerRowOpenHandler('owned', (id, containerId) => OwnedModal.open(id, containerId));
+
+    // Slider drag preview (issue #95) — My Library is fixed-sorted
+    // alphabetically by Title (OwnedView.load()'s data.sort() below).
+    // Same future note as consumed-view.js: swap this one line, not the
+    // shared plumbing, if/when column-sort lands.
+    CollectionView.registerSliderPreview('owned', (record) => record.Title || '');
     // 'noop' = click landed on the actions column but not on a button
     // (the gap between them) — original markup stopped propagation on
     // the whole wrapper, not just the buttons, so this deliberately does
