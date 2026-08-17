@@ -1,2 +1,2 @@
-# Scriptum
-Keeping tracks of books read, books wanted, and on the shelf
+# Collectyx
+Keeping tracks of books read, books wanted, and on the shelf. Other media collections to be added soon.
