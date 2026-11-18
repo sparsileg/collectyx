@@ -30,6 +30,15 @@ Or individually, from the repo root:
 | `dashboard-xss-test.js` | Regression test for COLLECTYX-SEC-01. Loads the real `dashboard.js` against a DOM shim and feeds its renderers hostile record data (`<img onerror>`, `<script>`); confirms every template interpolation reaching `innerHTML` is escaped, and that `renderReadingGoals` uses `textContent` rather than `innerHTML`. Cannot verify real browser rendering — that's manual, per the issue |
 | `csp-test.js` | Regression test for COLLECTYX-SEC-02. Confirms `src/index.html` carries a CSP meta tag, that it agrees with `tauri.conf.json`'s policy on every directive including `connect-src` (identical since #51 added the IPC sources to both), and that `object-src`/`base-uri`/`form-action` are `'none'` in both. Cannot verify real enforcement — that needs a browser console watch, which is manual, per the issue |
 | `backup-restore-test.js` | Regression test for COLLECTYX-SEC-03. Runs `_validate()` against the issue's malformed-file corpus, and exercises `executeRestore()` against a mock `DBManager` to prove the snapshot-and-rollback path actually restores prior state on a mid-write failure, and logs a recoverable snapshot when rollback itself fails. Cannot verify the real Tauri/IndexedDB backends or gzip/truncated-file handling — that's the manual six-file corpus pass the issue specifies |
+| `auto-backup-test.js` | Issue #97. Loads the real `db-manager.js` write wrapper and `auto-backup.js` with a fake clock: a burst of writes gives exactly one backup after the interval, each write restarts the countdown, reads and `restoreAll` don't count, the on/off and 1/5/30-minute settings are honoured, startup catch-up of last-session changes, and every tracked write exists on both backends |
+
+## Stress tests (on demand, not in `run-all.js`)
+
+Issue #84 scale measurements; results and how to rerun them are in
+`docs/stress-test-findings.md`.
+
+- Desktop: `cd src-tauri && cargo test --release --lib stress -- --ignored --nocapture`
+- Web: `cd tests/stress && npm install && CHROME_PATH=/path/to/chrome node web-stress.js`
 
 ## Limitation
 

@@ -1,0 +1,11 @@
+{
+  "name": "collectyx-stress",
+  "private": true,
+  "description": "On-demand scale measurement for the web version (issue #84). Not part of run-all.js.",
+  "scripts": {
+    "web": "node web-stress.js"
+  },
+  "devDependencies": {
+    "playwright-core": "1.50.1"
+  }
+}

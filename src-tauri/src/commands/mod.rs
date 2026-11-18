@@ -10,4 +10,5 @@ pub mod owned;
 pub mod queued;
 pub mod restore;
 pub mod settings;
+mod stress;
 pub mod tags;

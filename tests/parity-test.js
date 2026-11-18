@@ -113,7 +113,7 @@ ok('every registered command exists (no dangling registration)',
 // A registered-but-never-invoked command is fine (attach_tag, save_item are
 // for the importer), but a *deleted* module still referenced is not.
 const modRs = fs.readFileSync(cmdDir + '/mod.rs', 'utf8');
-const declaredMods = [...modRs.matchAll(/pub mod (\w+);/g)].map(m => m[1]).sort();
+const declaredMods = [...modRs.matchAll(/^(?:pub(?:\(crate\))? )?mod (\w+);/gm)].map(m => m[1]).sort();
 const filesOnDisk = fs.readdirSync(cmdDir)
     .filter(f => f.endsWith('.rs') && f !== 'mod.rs')
     .map(f => f.replace('.rs', '')).sort();

@@ -74,7 +74,12 @@ fn row_to_record(row: &rusqlite::Row) -> Result<ConsumedRecord> {
 pub fn get_all_consumed(state: State<AppState>) -> Result<Vec<ConsumedRecord>, String> {
     let db = common::lock_db(&state.db);
     let owner = common::current_owner(&db);
+    load_all(&db, &owner)
+}
 
+/// The whole joined collection for one owner, tags attached. Split out of
+/// the command so it can run against a plain Connection (stress test, #84).
+pub(crate) fn load_all(db: &rusqlite::Connection, owner: &str) -> Result<Vec<ConsumedRecord>, String> {
     let mut stmt = db.prepare(SELECT_JOINED).map_err(common::db_err)?;
     let mut records = stmt
         .query_map(params![owner], |row| row_to_record(row))
@@ -83,7 +88,7 @@ pub fn get_all_consumed(state: State<AppState>) -> Result<Vec<ConsumedRecord>, S
         .map_err(common::db_err)?;
     drop(stmt);
 
-    let tag_map = tags_by_item(&db, &owner).map_err(common::db_err)?;
+    let tag_map = tags_by_item(db, owner).map_err(common::db_err)?;
     for record in records.iter_mut() {
         if let Some(item_id) = &record.item.item_id {
             record.item.tags = Some(tag_map.get(item_id).cloned().unwrap_or_default());
