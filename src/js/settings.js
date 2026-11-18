@@ -170,9 +170,8 @@ const SettingsModal = {
 
     // Date format (and, incidentally, the daily reading goal) only show up
     // correctly once whatever's on screen re-renders — CollectionView reads
-    // _dateFormatCache per row at render time, not reactively. Same
-    // active-view-refresh pattern BackupRestore.executeRestore() already
-    // uses, so this isn't guessing at each view's internals.
+    // _dateFormatCache per row at render time, not reactively. Reloads only
+    // the active view; any other view re-fetches when it's next shown.
     _refreshActiveView() {
         ['consumed', 'queued', 'owned'].forEach(collection => {
             const containerId = collection + 'View';

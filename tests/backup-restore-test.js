@@ -140,6 +140,12 @@ function loadBackupRestore(dom, db) {
             '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
         }[c])),
         showMessage: () => {},
+        // #99: a successful restore stashes its summary and reloads the
+        // window — both recorded here so tests can assert on them.
+        _stashed: [],
+        _reloads: 0,
+        stashPendingMessage: (text, type) => { sandbox._stashed.push({ text, type }); },
+        location: { reload: () => { sandbox._reloads++; } },
         downloadFile: () => {},
         pako: { gzip: () => new Uint8Array(), ungzip: () => '' },
         DBManager: db,
@@ -149,6 +155,7 @@ function loadBackupRestore(dom, db) {
     const { stripped, bindings } = stripEsmImports(src);
     Object.assign(sandbox, esmStubs(bindings));
     vm.runInContext(stripped + '\nthis.BackupRestore = BackupRestore;', sandbox);
+    sandbox.BackupRestore._sandbox = sandbox;
     return sandbox.BackupRestore;
 }
 
@@ -280,6 +287,10 @@ console.log("\n1. _validate() — { fatal, skippable } contract (#74)");
         check('tags reflect only what the new data references', state.tags.map(t => t.Name).sort(), ['newtag']);
         check('new settings applied', state.settings, { dailyReadingGoal: 99 });
         ok('no error banner shown', dom.getElementById('restoreError').textContent === '');
+        check('window reloaded once after a successful restore (#99)', BR._sandbox._reloads, 1);
+        ok('restore summary stashed to show after the reload (#99)',
+           BR._sandbox._stashed.length === 1 && BR._sandbox._stashed[0].text.startsWith('Restore complete — 1 in Books Read'),
+           JSON.stringify(BR._sandbox._stashed));
     }
 
     console.log('\n4. executeRestore() — restoreAll fails, pre-restore state is untouched (#40, no rollback needed)');
@@ -307,6 +318,7 @@ console.log("\n1. _validate() — { fatal, skippable } contract (#74)");
         contains('error banner explains the failure and confirms data is unchanged',
                  dom.getElementById('restoreError').textContent, 'your previous data is unchanged');
         ok('confirm button disabled after failure', dom.getElementById('restoreConfirmBtn').disabled === true);
+        check('no reload after a failed restore (#99)', BR._sandbox._reloads, 0);
     }
 
     console.log('\n5. executeRestore() — no parsed data is a no-op');

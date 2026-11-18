@@ -608,22 +608,17 @@ const BackupRestore = {
             await DBManager.restoreAll(data);
 
             this.close();
-            showMessage(
+            const summary =
                 `Restore complete — ${(data.Consumed || []).length} in ${MediaLabels.ConsumedLabel}, ` +
                 `${(data.Queued || []).length} in ${MediaLabels.QueuedLabel}, ` +
-                `${(data.Owned || []).length} in ${MediaLabels.OwnedLabel}. Must reset backup folder.`,
-                CONSTANTS.MESSAGE_TYPES.SUCCESS
-            );
+                `${(data.Owned || []).length} in ${MediaLabels.OwnedLabel}. Must reset backup folder.`;
 
-            // Refresh whichever collection view is currently on screen, if any.
-            ['consumed', 'queued', 'owned'].forEach(collection => {
-                const containerId = collection + 'View';
-                const el = document.getElementById(containerId);
-                const view = collection === 'consumed' ? (typeof ConsumedView !== 'undefined' && ConsumedView)
-                    : collection === 'queued' ? (typeof QueuedView !== 'undefined' && QueuedView)
-                    : (typeof OwnedView !== 'undefined' && OwnedView);
-                if (el && el.classList.contains('active') && view) view.load(containerId);
-            });
+            // Reload the whole window (#99) so every view, label, setting
+            // and cache reflects the restored data — refreshing only the
+            // active view left everything else stale. The summary is
+            // stashed for core.js to show once the page is back up.
+            stashPendingMessage(summary, CONSTANTS.MESSAGE_TYPES.SUCCESS);
+            window.location.reload();
         } catch (e) {
             // Nothing committed — restoreAll's transaction guarantees the
             // pre-restore state is untouched on any failure, so this is a

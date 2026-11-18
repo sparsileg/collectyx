@@ -29,6 +29,8 @@ window.onload = async function () {
     if (versionDisplay) {
         versionDisplay.textContent = CONSTANTS.APP_VERSION;
     }
+
+    showPendingMessage();
 };
 
 // ── View routing ──────────────────────────────────────────────────────────────
@@ -93,6 +95,33 @@ function showMessage(text, type = CONSTANTS.MESSAGE_TYPES.INFO) {
         messageArea.textContent = '';
         _messageDismissTimer = null;
     }, MESSAGE_AUTO_DISMISS_MS);
+}
+
+// A message meant to survive a deliberate window reload (e.g. the restore
+// summary, #99). sessionStorage can be unavailable or throw — losing the
+// message is acceptable there; the reload itself must still happen.
+const PENDING_MESSAGE_KEY = 'collectyx.pendingMessage';
+
+function stashPendingMessage(text, type) {
+    try {
+        sessionStorage.setItem(PENDING_MESSAGE_KEY, JSON.stringify({ text, type }));
+    } catch (e) {
+        console.warn('stashPendingMessage: sessionStorage unavailable', e);
+    }
+}
+
+function showPendingMessage() {
+    let pending = null;
+    try {
+        const raw = sessionStorage.getItem(PENDING_MESSAGE_KEY);
+        sessionStorage.removeItem(PENDING_MESSAGE_KEY);
+        if (raw) pending = JSON.parse(raw);
+    } catch (e) {
+        console.warn('showPendingMessage: could not read pending message', e);
+    }
+    if (pending && typeof pending.text === 'string') {
+        showMessage(pending.text, pending.type || CONSTANTS.MESSAGE_TYPES.INFO);
+    }
 }
 
 function clearMessage() {
@@ -421,6 +450,7 @@ function getThemeColors() {
 window.showView = showView;
 window.showMessage = showMessage;
 window.clearMessage = clearMessage;
+window.stashPendingMessage = stashPendingMessage;
 window.getYearFromFinishedDate = getYearFromFinishedDate;
 window.validateDateInput = validateDateInput;
 window.dateFromStorage = dateFromStorage;
