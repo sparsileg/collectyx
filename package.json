@@ -1,6 +1,6 @@
 {
   "name": "collectyx",
-  "version": "1.1.0",
+  "version": "1.2.0",
     "description": "Track and manage reading, books, and other collections",
   "scripts": {
     "serve:web": "npx serve src"
