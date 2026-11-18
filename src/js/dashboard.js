@@ -61,21 +61,19 @@ function renderCheckedOut(owned) {
         .slice(0, CONSTANTS.ROW_LIMITS.CHECKED_OUT);
 
     if (checkedOut.length === 0) {
-        container.innerHTML = '<p class="goal-placeholder">Nothing checked out</p>';
+        setPlaceholder(container, 'p', 'goal-placeholder', 'Nothing checked out');
         return;
     }
 
-    const html = checkedOut.map(book => `
-        <div class="checked-out-item" data-id="${escapeHtml(String(book.id))}">
+    setHtml(container, html`${checkedOut.map(book => html`
+        <div class="checked-out-item" data-id="${String(book.id)}">
             <div class="checked-out-details">
-                <div class="checked-out-title">${escapeHtml(String(book.Title || ''))}</div>
-                <div class="checked-out-author">by ${escapeHtml(authorGivenFirst(book.Author))}</div>
+                <div class="checked-out-title">${String(book.Title || '')}</div>
+                <div class="checked-out-author">by ${authorGivenFirst(book.Author)}</div>
             </div>
-            <div class="checked-out-patron">${escapeHtml(String(book.Patron || ''))}</div>
+            <div class="checked-out-patron">${String(book.Patron || '')}</div>
         </div>
-    `).join('');
-
-    container.innerHTML = html;
+    `)}`);
 
     // Delegated click, bound once (guarded via a dataset flag) — rows are
     // replaced wholesale on every renderCheckedOut() call, so this can't
@@ -104,18 +102,16 @@ function renderRecentBooks(consumed) {
           .slice(0, CONSTANTS.ROW_LIMITS.RECENT_FINISHED);
 
     if (recentBooks.length === 0) {
-        recentBooksContainer.innerHTML = '<p class="goal-placeholder">No books finished yet</p>';
+        setPlaceholder(recentBooksContainer, 'p', 'goal-placeholder', 'No books finished yet');
         return;
     }
 
-    const html = recentBooks.map(book => `
+    setHtml(recentBooksContainer, html`${recentBooks.map(book => html`
         <div class="recent-book-item">
-            <div class="recent-book-title">${escapeHtml(String(book.Title || ''))}</div>
-            <div class="recent-book-author">by ${escapeHtml(authorGivenFirst(book.Author))}</div>
+            <div class="recent-book-title">${String(book.Title || '')}</div>
+            <div class="recent-book-author">by ${authorGivenFirst(book.Author)}</div>
         </div>
-    `).join('');
-
-    recentBooksContainer.innerHTML = html;
+    `)}`);
 }
 
 
@@ -127,11 +123,7 @@ async function renderReadingGoals(consumed) {
     // Single line of text, no markup to preserve — textContent rather than
     // innerHTML so a hostile dailyReadingGoal from a restored backup can't
     // inject markup here.
-    goalDisplay.innerHTML = '';
-    const goalLine = document.createElement('p');
-    goalLine.className = 'goal-current';
-    goalLine.textContent = `Daily Goal: ${dailyGoal} pages`;
-    goalDisplay.appendChild(goalLine);
+    setPlaceholder(goalDisplay, 'p', 'goal-current', `Daily Goal: ${dailyGoal} pages`);
 
     renderReadingGoalChart(dailyGoal, consumed);
 }
@@ -262,7 +254,7 @@ function renderWhatsNext(queued) {
     const whatsNextContainer = document.getElementById('whatsNextContent');
 
     if (queued.length === 0) {
-        whatsNextContainer.innerHTML = '<p class="goal-placeholder">No books in reading list yet</p>';
+        setPlaceholder(whatsNextContainer, 'p', 'goal-placeholder', 'No books in reading list yet');
         return;
     }
 
@@ -276,20 +268,18 @@ function renderWhatsNext(queued) {
         })
         .slice(0, CONSTANTS.ROW_LIMITS.WHATS_NEXT);
 
-    const html = sortedList.map(book => {
+    setHtml(whatsNextContainer, html`${sortedList.map(book => {
         const rankDisplay = book.Rank || 'Unranked';
-        return `
+        return html`
             <div class="whats-next-item">
-                <div class="whats-next-rank">${escapeHtml(String(rankDisplay))}</div>
+                <div class="whats-next-rank">${String(rankDisplay)}</div>
                 <div class="whats-next-details">
-                    <div class="whats-next-title">${escapeHtml(String(book.Title || ''))}</div>
-                    <div class="whats-next-author">by ${escapeHtml(authorGivenFirst(book.Author))}</div>
+                    <div class="whats-next-title">${String(book.Title || '')}</div>
+                    <div class="whats-next-author">by ${authorGivenFirst(book.Author)}</div>
                 </div>
             </div>
         `;
-    }).join('');
-
-    whatsNextContainer.innerHTML = html;
+    })}`);
 }
 
 

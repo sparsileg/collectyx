@@ -8,7 +8,7 @@
 // index.html's #queuedView markup.
 
 (function registerQueuedView() {
-    const headerHtml = `
+    const headerHtml = html`
         <div class="collection-list-header queued-columns">
             <span>Order</span>
             <span>Book</span>
@@ -18,15 +18,15 @@
 
     function rowFn(record, containerId) {
         const reading = !!record.CurrentlyReading;
-        return `
-            <div class="collection-list-row queued-columns${reading ? ' currently-reading' : ''}" data-id="${escapeHtml(record.id)}">
-                <span class="col-extra">${record.Rank != null ? escapeHtml(String(record.Rank)) : 'Unranked'}</span>
+        return html`
+            <div class="collection-list-row queued-columns${reading ? ' currently-reading' : ''}" data-id="${record.id}">
+                <span class="col-extra">${record.Rank != null ? String(record.Rank) : 'Unranked'}</span>
                 <div class="col-stacked">
-                    <div class="stacked-title">${escapeHtml(record.Title || '')}
+                    <div class="stacked-title">${record.Title || ''}
                         <button type="button" class="tbr-lookup-icon" data-action="lookup-book" title="Show in discovery card">?</button>
                     </div>
-                    <div class="stacked-author">by ${escapeHtml(authorGivenFirst(record.Author))}${record.Author2 ? ' &amp; ' + escapeHtml(authorGivenFirst(record.Author2)) : ''}</div>
-                    <div class="stacked-source">${reading ? '<span class="currently-reading-badge">Currently Reading</span> ' : ''}Source: ${escapeHtml(record.Source || '')}</div>
+                    <div class="stacked-author">by ${authorGivenFirst(record.Author)}${record.Author2 ? html` &amp; ${authorGivenFirst(record.Author2)}` : ''}</div>
+                    <div class="stacked-source">${reading ? html`<span class="currently-reading-badge">Currently Reading</span> ` : ''}Source: ${record.Source || ''}</div>
                 </div>
                 <div class="col-actions">
                     <button type="button" class="btn btn-secondary queued-reading-btn"
@@ -77,20 +77,20 @@ const QueuedDiscovery = {
         this._lastFeatured = featured;
 
         if (!featured) {
-            container.innerHTML = `<div class="tbr-discovery-empty">Nothing queued yet.</div>`;
+            setPlaceholder(container, 'div', 'tbr-discovery-empty', 'Nothing queued yet.');
             return;
         }
 
         const comments = (featured.Comments || '').trim();
 
-        container.innerHTML = `
+        setHtml(container, html`
             <div class="tbr-discovery-card">
-                <div class="tbr-featured-title">${escapeHtml(featured.Title || '')}</div>
-                <div class="tbr-featured-author">by ${escapeHtml(authorGivenFirst(featured.Author))}${featured.Author2 ? ' &amp; ' + escapeHtml(authorGivenFirst(featured.Author2)) : ''}</div>
-                ${featured.Source ? `<div class="tbr-featured-source">Source: ${escapeHtml(featured.Source)}</div>` : ''}
-                <div class="tbr-featured-synopsis" data-role="discovery-synopsis">${comments ? escapeHtml(comments) : 'Loading synopsis…'}</div>
+                <div class="tbr-featured-title">${featured.Title || ''}</div>
+                <div class="tbr-featured-author">by ${authorGivenFirst(featured.Author)}${featured.Author2 ? html` &amp; ${authorGivenFirst(featured.Author2)}` : ''}</div>
+                ${featured.Source ? html`<div class="tbr-featured-source">Source: ${featured.Source}</div>` : ''}
+                <div class="tbr-featured-synopsis" data-role="discovery-synopsis">${comments || 'Loading synopsis…'}</div>
             </div>
-        `;
+        `);
 
         this._afterRender(discoveryContainerId, featured);
     },
@@ -163,7 +163,7 @@ const QueuedView = {
             }
             CollectionView.render(listContainerId, 'queued', []);
             const discoveryEl = document.getElementById(discoveryContainerId);
-            if (discoveryEl) discoveryEl.innerHTML = '';
+            if (discoveryEl) discoveryEl.replaceChildren();
         }
     },
 

@@ -14,7 +14,7 @@
 // DBManager writes.
 
 (function registerOwnedView() {
-    const headerHtml = `
+    const headerHtml = html`
         <div class="collection-list-header owned-columns">
             <span>Book</span>
             <span>Tags</span>
@@ -25,28 +25,28 @@
 
     function rowFn(record, containerId) {
         const checkedOut = !!record.CheckedOutDate;
-        const statusText = checkedOut ? `C/O by ${escapeHtml(record.Patron || '')}` : 'Available';
+        const statusText = checkedOut ? `C/O by ${record.Patron || ''}` : 'Available';
         const showToRead = !checkedOut && !OwnedView.isQueuedFromLibrary(record.ItemId);
 
         const buttons = [];
         if (showToRead) {
-            buttons.push(`<button type="button" class="btn btn-secondary" data-action="to-read">To Read</button>`);
+            buttons.push(html`<button type="button" class="btn btn-secondary" data-action="to-read">To Read</button>`);
         }
         if (!checkedOut) {
-            buttons.push(`<button type="button" class="btn btn-secondary" data-action="checkout">C/O</button>`);
+            buttons.push(html`<button type="button" class="btn btn-secondary" data-action="checkout">C/O</button>`);
         } else {
-            buttons.push(`<button type="button" class="btn btn-secondary" data-action="check-in">C/I</button>`);
+            buttons.push(html`<button type="button" class="btn btn-secondary" data-action="check-in">C/I</button>`);
         }
 
-        return `
-            <div class="collection-list-row owned-columns" data-id="${escapeHtml(record.id)}">
+        return html`
+            <div class="collection-list-row owned-columns" data-id="${record.id}">
                 <div class="col-stacked">
-                    <div class="stacked-title">${escapeHtml(record.Title || '')}</div>
-                    <div class="stacked-author">by ${escapeHtml(authorGivenFirst(record.Author))}${record.Author2 ? ' &amp; ' + escapeHtml(authorGivenFirst(record.Author2)) : ''}</div>
+                    <div class="stacked-title">${record.Title || ''}</div>
+                    <div class="stacked-author">by ${authorGivenFirst(record.Author)}${record.Author2 ? html` &amp; ${authorGivenFirst(record.Author2)}` : ''}</div>
                 </div>
-                <span class="col-tags">${escapeHtml((record.Tags || []).join(', '))}</span>
+                <span class="col-tags">${(record.Tags || []).join(', ')}</span>
                 <span class="col-status">${statusText}</span>
-                <span class="col-actions" data-action="noop">${buttons.join('')}</span>
+                <span class="col-actions" data-action="noop">${buttons}</span>
             </div>
         `;
     }

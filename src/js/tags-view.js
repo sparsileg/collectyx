@@ -166,7 +166,7 @@ const TagsView = {
         const sorted = this._sorted();
 
         if (sorted.length === 0) {
-            container.innerHTML = '<p class="placeholder-content">No tags found in library</p>';
+            setPlaceholder(container, 'p', 'placeholder-content', 'No tags found in library');
             return;
         }
 
@@ -187,16 +187,16 @@ const TagsView = {
         }
 
         // Pager rendered first (Stan: top of the list, not bottom).
-        container.innerHTML = CollectionView.pagerHtml(this._page, totalPages) + pageTags.map(tag => `
-            <div class="tag-item" data-id="${escapeHtml(tag.id)}">
-                <span class="tag-name">${escapeHtml(tag.Name)}</span>
+        setHtml(container, html`${CollectionView.pagerHtml(this._page, totalPages)}${pageTags.map(tag => html`
+            <div class="tag-item" data-id="${tag.id}">
+                <span class="tag-name">${tag.Name}</span>
                 <span class="tag-count">${tag.Count || 0}</span>
                 <div class="tag-actions">
                     <button type="button" class="btn btn-small btn-secondary" data-action="rename">Rename</button>
                     <button type="button" class="btn btn-small btn-danger" data-action="delete">Delete</button>
                 </div>
             </div>
-        `).join('');
+        `)}`);
     },
 
     // Called after any Add/Rename/Delete. Refreshes this view, the chip-

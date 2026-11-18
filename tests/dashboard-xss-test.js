@@ -3,13 +3,17 @@
  * feeds its renderers hostile record data — the kind a CSV import or a
  * restored backup can deliver — and checks that no markup survives into
  * innerHTML unescaped. Does not touch a real DOM or a real browser; that
- * verification is manual (see the issue's own acceptance criteria) —
- * this suite only proves the source keeps calling escapeHtml() at every
- * sink, so a future edit that drops one is caught here instead of in
- * the field.
+ * verification is manual (see the issue's own acceptance criteria).
+ *
+ * Since #101 the escaping comes from the real html`` template tag in
+ * src/js/safe-html.js (loaded into the sandbox), and markup only reaches
+ * the DOM through setHtml(); section 1 checks the source keeps it that
+ * way, so a future edit that bypasses it is caught here instead of in the
+ * field.
  */
 const fs = require('fs');
 const vm = require('vm');
+const { loadSafeHtml } = require('./lib/safe-html');
 
 const R = process.env.COLLECTYX_ROOT || '../';
 const src = fs.readFileSync(R + '/src/js/dashboard.js', 'utf8');
@@ -30,8 +34,13 @@ function ok(label, cond, detail) {
 // check literally whether markup reached it unescaped.
 class El {
     constructor(tag) { this.tag = tag; this._html = ''; this._text = ''; this.children = []; this.className = ''; this.dataset = {}; }
-    set innerHTML(v) { this._html = v; this.children = []; }
-    get innerHTML() { return this._html; }
+    set innerHTML(v) { this._html = String(v); this.children = []; }
+    // Children added via replaceChildren()/appendChild() serialize as
+    // plain-text elements, so assertions can read empty-state text too.
+    get innerHTML() {
+        return this._html + this.children.map(c => `<${c.tag} class="${c.className}">${c._text}</${c.tag}>`).join('');
+    }
+    replaceChildren(...nodes) { this._html = ''; this.children = nodes; }
     set textContent(v) { this._text = v; this._html = ''; }
     get textContent() { return this._text; }
     appendChild(c) { this.children.push(c); }
@@ -50,18 +59,6 @@ function freshDom() {
         querySelectorAll: () => [],
         querySelector: () => null,
     };
-}
-
-// The real escapeHtml() lives in core.js, not uploaded for this suite —
-// use the same entity-escaping contract dashboard.js's six sibling
-// files already rely on (core.js ~line 212, per the issue).
-function escapeHtml(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
 }
 
 // authorGivenFirst()/splitAuthorName() also live in core.js — dashboard.js
@@ -93,7 +90,6 @@ function loadDashboard(dom) {
             ROW_LIMITS: { CHECKED_OUT: 5, RECENT_FINISHED: 5, WHATS_NEXT: 4 },
             DEFAULT_DAILY_READING_GOAL: 30,
         },
-        escapeHtml,
         authorGivenFirst,
         DBManager: { getSettings: async () => ({}) },
         Chart: Object.assign(function () {}, { getChart: () => null }),
@@ -101,6 +97,7 @@ function loadDashboard(dom) {
     };
     sandbox.window = sandbox;
     vm.createContext(sandbox);
+    loadSafeHtml(sandbox);
     vm.runInContext(
         src +
         '\nthis.renderCheckedOut = renderCheckedOut;' +
@@ -115,25 +112,19 @@ function loadDashboard(dom) {
 const XSS_PAYLOAD = '<img src=x onerror=alert(1)>';
 const SCRIPT_PAYLOAD = '<script>alert(1)</script>';
 
-// grep-equivalent structural guard: every `${` in the file must be inside
-// an escapeHtml(...) call or attached to a textContent assignment, never
-// bare inside a template that flows into innerHTML. This is the same
-// check the issue's acceptance criteria specify by hand
-// (`grep -n '${' src/js/dashboard.js`), automated.
-console.log('\n1. every template interpolation is escaped or routed through textContent');
+// Structural guard (#101): markup reaches the DOM only via setHtml() with
+// an html`` template, which escapes every interpolation itself. So: no
+// direct innerHTML assignment, no escapeHtml() (it would double-escape
+// inside html``), and every template literal that starts with markup is
+// html-tagged.
+console.log('\n1. markup only reaches the DOM through setHtml(html`...`)');
 {
-    const lines = src.split('\n');
-    let sawTextContentAssignment = false;
-    lines.forEach((line, i) => {
-        if (!line.includes('${')) return;
-        if (/\.textContent\s*=/.test(line)) { sawTextContentAssignment = true; return; }
-        const interpolations = [...line.matchAll(/\$\{([^}]*)\}/g)].map(m => m[1]);
-        interpolations.forEach(expr => {
-            ok(`line ${i + 1}: \${${expr}} is escaped`, /^escapeHtml\(/.test(expr.trim()),
-               'raw interpolation: ' + line.trim());
-        });
-    });
-    ok('at least one textContent-based assignment found (renderReadingGoals)', sawTextContentAssignment);
+    ok('no direct innerHTML assignment', !/\.innerHTML\s*=/.test(src));
+    ok('no escapeHtml() calls', !/escapeHtml\(/.test(src));
+    const untagged = [...src.matchAll(/(\w*)`\s*</g)].filter(m => m[1] !== 'html');
+    ok('every markup template literal is html-tagged', untagged.length === 0,
+       'untagged: ' + untagged.map(m => m[0]).join(' | '));
+    ok('setHtml() is used for the list renderers', (src.match(/setHtml\(/g) || []).length >= 3);
 }
 
 // ── 2. renderCheckedOut ───────────────────────────────────────────────────────
@@ -200,7 +191,7 @@ console.log('\n5. renderReadingGoals — hostile dailyReadingGoal, and normal ca
     sb.DBManager.getSettings = async () => ({ dailyReadingGoal: '<b>x</b>' });
     return sb.renderReadingGoals([]).then(() => {
         const gd = dom.getElementById('goalDisplay');
-        ok('goalDisplay.innerHTML left empty (content set via textContent instead)', gd.innerHTML === '');
+        ok('no raw HTML assigned to goalDisplay (content set via textContent instead)', gd._html === '');
         ok('a child element was appended rather than raw HTML injected', gd.children.length === 1);
         const child = gd.children[0];
         ok('no bold tag produced from the hostile value', !child.textContent.includes('<b>'));

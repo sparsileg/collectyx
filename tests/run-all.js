@@ -56,6 +56,7 @@ const tests = [
     ['restore-all-test.js',   'atomic full-database restore_all / restoreAll (issue #40)'],
     ['security-audit-52-58-test.js', 'owner-from-payload / membership BOLA (issues #52-#58)'],
     ['auto-backup-test.js',   'automatic backup debounce timer and write tracking (issue #97)'],
+    ['trusted-types-test.js', 'html`` escaping, setHtml() policy, no raw DOM sinks (issue #101)'],
 ];
 
 let failed = 0;

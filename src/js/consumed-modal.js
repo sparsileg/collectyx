@@ -118,7 +118,7 @@ const ConsumedModal = {
         finishedEl.value = DateUtils.formatDate(finishedIso, format);
         finishedEl.setCustomValidity('');
 
-        document.getElementById('cbrRating').innerHTML = RatingUtils.optionsHtml(record ? record.Rating : null);
+        RatingUtils.fillSelect(document.getElementById('cbrRating'), record ? record.Rating : null);
         document.getElementById('cbrComments').value = record ? (record.Comments || '') : '';
 
         this._tagsController.setTags(source.Tags || []);

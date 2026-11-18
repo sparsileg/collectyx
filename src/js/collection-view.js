@@ -106,16 +106,16 @@ const CollectionView = {
     // that pass only (page, totalPages) get undefined here and simply
     // don't render the preview div; no signature break for them.
     pagerHtml(page, totalPages, previewLabel) {
-        if (totalPages <= 1) return '';
+        if (totalPages <= 1) return html``;
         const atStart = page === 0;
         const atEnd = page >= totalPages - 1;
         const arrowStyle = 'font-size: 1.4em; font-weight: 700; line-height: 1; padding: 2px 10px;';
         const showSlider = totalPages > this.SLIDER_MIN_PAGES;
-        const sliderHtml = showSlider ? `
+        const sliderHtml = showSlider ? html`
                 <input type="range" class="collection-pager-slider" data-role="page-slider"
                        min="1" max="${totalPages}" value="${page + 1}"
                        style="flex: 1; max-width: 240px; accent-color: var(--primary-color);">
-        ` : '';
+        ` : null;
         // Sort-key preview (issue #95) — only meaningful alongside the
         // slider (no drag to preview against otherwise), and only when
         // the active collection has registered one via
@@ -123,9 +123,9 @@ const CollectionView = {
         // handler can find it via the same container.querySelector()
         // pattern already used for page-slider-num — no containerId
         // threading needed through this shared, TagsView-reused function.
-        const previewHtml = (showSlider && previewLabel != null) ? `
-            <div class="collection-pager-preview" data-role="page-slider-preview" style="text-align: center; font-size: 0.85em; opacity: 0.75; padding-bottom: 2px;">${escapeHtml(previewLabel)}</div>
-        ` : '';
+        const previewHtml = (showSlider && previewLabel != null) ? html`
+            <div class="collection-pager-preview" data-role="page-slider-preview" style="text-align: center; font-size: 0.85em; opacity: 0.75; padding-bottom: 2px;">${previewLabel}</div>
+        ` : null;
         // The page number gets its own fixed-width span, sized to
         // totalPages' own digit count (not the current page's) — as the
         // number climbs from 9 to 10 to 100 while dragging, the digit
@@ -134,7 +134,7 @@ const CollectionView = {
         // Reserving width for the widest value totalPages could ever
         // show means it never shifts again for the life of this pager.
         const numWidth = String(totalPages).length;
-        return `
+        return html`
             ${previewHtml}
             <div class="collection-pager" style="display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 0; flex-wrap: wrap;">
                 <button type="button" class="btn btn-secondary" data-action="page-start" ${atStart ? 'disabled' : ''} title="First page">Start</button>
@@ -312,26 +312,26 @@ const CollectionView = {
         const existingList = document.getElementById(`${containerId}-list`);
         const savedScrollTop = existingList ? existingList.scrollTop : 0;
 
-        container.innerHTML = `
+        setHtml(container, html`
             <div class="collection-view-header">
-                <h2>${escapeHtml(this._labelFor(state.collection))}
+                <h2>${this._labelFor(state.collection)}
                     <span class="search-icon" data-action="toggle-search">🔍</span>
-                    ${hasFilters ? `<span class="filter-icon" data-action="toggle-filter" title="Advanced filters">▤</span>` : ''}
+                    ${hasFilters ? html`<span class="filter-icon" data-action="toggle-filter" title="Advanced filters">▤</span>` : ''}
                 </h2>
                 <button type="button" class="btn btn-primary collection-add-btn" data-action="add">Add</button>
             </div>
             <div class="quick-search" id="${containerId}-search" style="display: ${state.searchOpen ? 'block' : 'none'};">
                 <div class="quick-search-input-wrap" style="position: relative;">
-                    <input type="text" id="${containerId}-search-input" placeholder="Search title, author, or #tag..." value="${escapeHtml(state.filter)}"
+                    <input type="text" id="${containerId}-search-input" placeholder="Search title, author, or #tag..." value="${state.filter}"
                            data-role="quick-search-input">
                     <button type="button" class="quick-search-clear" id="${containerId}-search-clear" data-action="clear-search" title="Clear search"
                             style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1em; line-height: 1; padding: 2px 6px; color: inherit; opacity: 0.7; display: ${state.filter ? 'block' : 'none'};">&#x2715;</button>
                 </div>
             </div>
-            ${hasFilters ? `<div class="filter-panel" id="${containerId}-filterpanel" style="display: ${state.filterPanelOpen ? 'block' : 'none'};">${this._filterPanelHtml(containerId)}</div>` : ''}
+            ${hasFilters ? html`<div class="filter-panel" id="${containerId}-filterpanel" style="display: ${state.filterPanelOpen ? 'block' : 'none'};">${this._filterPanelHtml(containerId)}</div>` : ''}
             ${renderer.headerHtml}
             <div class="collection-list" id="${containerId}-list"></div>
-        `;
+        `);
         this._renderRows(containerId);
 
         if (savedScrollTop) {
@@ -345,8 +345,8 @@ const CollectionView = {
     _filterPanelHtml(containerId) {
         const state = this._state[containerId];
         const fields = this._filterFieldSets[state.collection] || [];
-        const rowsHtml = state.filterRows.map((row, i) => this._filterRowHtml(containerId, fields, row, i)).join('');
-        return `
+        const rowsHtml = state.filterRows.map((row, i) => this._filterRowHtml(containerId, fields, row, i));
+        return html`
             ${rowsHtml}
             <div class="filter-panel-actions">
                 <button type="button" class="btn btn-secondary" data-action="add-filter-row">Add Filter</button>
@@ -367,40 +367,38 @@ const CollectionView = {
         const operators = fieldDef ? fieldDef.operators : [];
         const operatorDef = fieldDef ? operators.find(o => o.key === row.operator) : null;
 
-        const fieldOptions = ['<option value="">Select Field</option>']
-            .concat(fields.map(f => `<option value="${escapeHtml(f.key)}"${f.key === row.field ? ' selected' : ''}>${escapeHtml(f.label)}</option>`))
-            .join('');
+        const fieldOptions = [html`<option value="">Select Field</option>`]
+            .concat(fields.map(f => html`<option value="${f.key}"${f.key === row.field ? ' selected' : ''}>${f.label}</option>`));
 
-        const operatorOptions = ['<option value="">Select Operator</option>']
-            .concat(operators.map(o => `<option value="${escapeHtml(o.key)}"${o.key === row.operator ? ' selected' : ''}>${escapeHtml(o.label)}</option>`))
-            .join('');
+        const operatorOptions = [html`<option value="">Select Operator</option>`]
+            .concat(operators.map(o => html`<option value="${o.key}"${o.key === row.operator ? ' selected' : ''}>${o.label}</option>`));
 
-        return `
+        return html`
             <div class="filter-row" data-row-index="${rowIndex}">
                 <select class="filter-field" data-role="filter-field" data-row-index="${rowIndex}">${fieldOptions}</select>
                 <select class="filter-operator" data-role="filter-operator" data-row-index="${rowIndex}" ${fieldDef ? '' : 'disabled'}>${operatorOptions}</select>
-                <div class="filter-value">${operatorDef ? this._filterValueHtml(containerId, rowIndex, operatorDef, row.values) : ''}</div>
+                <div class="filter-value">${operatorDef ? this._filterValueHtml(containerId, rowIndex, operatorDef, row.values) : null}</div>
                 <button type="button" class="btn btn-danger" data-action="remove-filter-row" data-row-index="${rowIndex}">Remove</button>
             </div>
         `;
     },
 
     _filterValueHtml(containerId, rowIndex, operatorDef, values) {
-        const v = (i) => escapeHtml((values && values[i] != null) ? values[i] : '');
+        const v = (i) => (values && values[i] != null) ? values[i] : '';
         switch (operatorDef.valueType) {
         case 'none':
-            return '';
+            return html``;
         case 'text':
         case 'number':
-            return `<input type="text" class="filter-value-input" data-role="filter-value-input" data-row-index="${rowIndex}" data-value-index="0" value="${v(0)}" placeholder="Enter value">`;
+            return html`<input type="text" class="filter-value-input" data-role="filter-value-input" data-row-index="${rowIndex}" data-value-index="0" value="${v(0)}" placeholder="Enter value">`;
         case 'dateRange': {
             const format = this._dateFormat();
             const ph = DateUtils.placeholderFor(format);
-            return `
+            return html`
                 <div class="date-range">
-                    <input type="text" class="filter-value-input" data-role="filter-value-input" data-row-index="${rowIndex}" data-value-index="0" value="${v(0)}" placeholder="${escapeHtml(ph)}" maxlength="10">
+                    <input type="text" class="filter-value-input" data-role="filter-value-input" data-row-index="${rowIndex}" data-value-index="0" value="${v(0)}" placeholder="${ph}" maxlength="10">
                     <span>to</span>
-                    <input type="text" class="filter-value-input" data-role="filter-value-input" data-row-index="${rowIndex}" data-value-index="1" value="${v(1)}" placeholder="${escapeHtml(ph)}" maxlength="10">
+                    <input type="text" class="filter-value-input" data-role="filter-value-input" data-row-index="${rowIndex}" data-value-index="1" value="${v(1)}" placeholder="${ph}" maxlength="10">
                 </div>
             `;
         }
@@ -418,7 +416,7 @@ const CollectionView = {
             // narrow while-typing autocomplete) — the whole point is
             // showing the full scrollable pool, capped only by
             // max-height/overflow in the wrapper below.
-            return `
+            return html`
                 <div class="filter-tag-typeahead" style="position: relative;">
                     <input type="text" class="filter-value-input" id="${containerId}-filter-tag-input-${rowIndex}"
                            data-role="filter-value-input" data-tag-field="1" data-row-index="${rowIndex}" data-value-index="0"
@@ -434,24 +432,24 @@ const CollectionView = {
             // file should assume. Word map matches #76's design-doc
             // correction: 1=Skip, 2=Okay, 3=Good, 4=Excellent, 5=Essential.
             const ratingWords = ['Skip', 'Okay', 'Good', 'Excellent', 'Essential'];
-            const opts = ['<option value="">Select Rating</option>']
+            const opts = [html`<option value="">Select Rating</option>`]
                 .concat(ratingWords.map((word, i) => {
                     const n = i + 1;
-                    return `<option value="${n}"${values && values[0] === String(n) ? ' selected' : ''}>${n} - ${escapeHtml(word)}</option>`;
-                })).join('');
-            return `<select class="filter-value-input" data-role="filter-value-input" data-row-index="${rowIndex}" data-value-index="0">${opts}</select>`;
+                    return html`<option value="${n}"${values && values[0] === String(n) ? ' selected' : ''}>${n} - ${word}</option>`;
+                }));
+            return html`<select class="filter-value-input" data-role="filter-value-input" data-row-index="${rowIndex}" data-value-index="0">${opts}</select>`;
         }
         case 'checkedOutSelect': {
             const opts = [
                 { val: 'available', label: 'Available' },
                 { val: 'checkedout', label: 'Checked Out' }
-            ].map(o => `<option value="${o.val}"${values && values[0] === o.val ? ' selected' : ''}>${o.label}</option>`).join('');
-            return `<select class="filter-value-input" data-role="filter-value-input" data-row-index="${rowIndex}" data-value-index="0"><option value="">Select</option>${opts}</select>`;
+            ].map(o => html`<option value="${o.val}"${values && values[0] === o.val ? ' selected' : ''}>${o.label}</option>`);
+            return html`<select class="filter-value-input" data-role="filter-value-input" data-row-index="${rowIndex}" data-value-index="0"><option value="">Select</option>${opts}</select>`;
         }
         case 'fixedNumber':
-            return `<input type="text" class="filter-value-input" value="${escapeHtml(String(operatorDef.fixedValue))}" readonly>`;
+            return html`<input type="text" class="filter-value-input" value="${String(operatorDef.fixedValue)}" readonly>`;
         default:
-            return '';
+            return html``;
         }
     },
 
@@ -654,15 +652,15 @@ const CollectionView = {
             this._hideTagSuggestions(containerId, rowIndex);
             return;
         }
-        list.innerHTML = matches.map(t =>
-            `<div class="tag-chip-suggestion" data-role="filter-tag-suggestion" data-row-index="${rowIndex}" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</div>`
-        ).join('');
+        setHtml(list, html`${matches.map(t =>
+            html`<div class="tag-chip-suggestion" data-role="filter-tag-suggestion" data-row-index="${rowIndex}" data-tag="${t}">${t}</div>`
+        )}`);
         list.style.display = 'block';
     },
 
     _hideTagSuggestions(containerId, rowIndex) {
         const list = document.getElementById(`${containerId}-filter-tag-suggest-${rowIndex}`);
-        if (list) { list.style.display = 'none'; list.innerHTML = ''; }
+        if (list) { list.style.display = 'none'; list.replaceChildren(); }
     },
 
     // Commits one pick into row.values[0] — the filter row's Tag/equals
@@ -872,7 +870,7 @@ const CollectionView = {
         }
 
         if (rows.length === 0) {
-            list.innerHTML = `<div class="collection-list-empty">${state.data.length === 0 ? 'Nothing here yet.' : 'No matches.'}</div>`;
+            setPlaceholder(list, 'div', 'collection-list-empty', state.data.length === 0 ? 'Nothing here yet.' : 'No matches.');
             return;
         }
 
@@ -899,7 +897,7 @@ const CollectionView = {
         // first to find the controls.
         const previewFn = this._sliderPreviewFns[state.collection];
         const previewLabel = (previewFn && pageRows[0]) ? previewFn(pageRows[0]) : undefined;
-        list.innerHTML = this.pagerHtml(state.page, totalPages, previewLabel) + pageRows.map(r => renderer.rowFn(r, containerId)).join('');
+        setHtml(list, html`${this.pagerHtml(state.page, totalPages, previewLabel)}${pageRows.map(r => renderer.rowFn(r, containerId))}`);
     },
 
     // Slider drag (issue #95) — looks up the record at the target page's

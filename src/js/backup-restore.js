@@ -485,17 +485,16 @@ const BackupRestore = {
         document.getElementById('restoreDefectiveModal').classList.add('open');
 
         const count = skippable.length;
-        document.getElementById('restoreDefectiveCount').innerHTML =
-            `<strong>${count} record${count === 1 ? '' : 's'} could not be restored.</strong> ` +
-            `Review below — Stop leaves your current data untouched, or skip these and restore everything else.`;
+        setHtml(document.getElementById('restoreDefectiveCount'),
+            html`<strong>${count} record${count === 1 ? '' : 's'} could not be restored.</strong> Review below — Stop leaves your current data untouched, or skip these and restore everything else.`);
 
         const listDiv = document.getElementById('restoreDefectiveList');
-        listDiv.innerHTML = skippable.map(entry => `
+        setHtml(listDiv, html`${skippable.map(entry => html`
             <div style="border-bottom: 1px solid var(--border-color); padding: 10px 0;">
-                <div style="margin-bottom: 4px;"><strong>${escapeHtml(entry.label)}[${entry.index}]</strong> — ${escapeHtml(entry.reason)}</div>
-                <pre style="white-space: pre-wrap; word-break: break-all; margin: 0; font-size: 0.85em; user-select: text;">${escapeHtml(JSON.stringify(entry.record, null, 2))}</pre>
+                <div style="margin-bottom: 4px;"><strong>${entry.label}[${entry.index}]</strong> — ${entry.reason}</div>
+                <pre style="white-space: pre-wrap; word-break: break-all; margin: 0; font-size: 0.85em; user-select: text;">${JSON.stringify(entry.record, null, 2)}</pre>
             </div>
-        `).join('');
+        `)}`);
     },
 
     stopRestore() {
@@ -526,12 +525,12 @@ const BackupRestore = {
         const checkRow = document.getElementById('restoreCheckboxRow');
 
         if (errorMsg || !data) {
-            metaDiv.innerHTML = `
+            setHtml(metaDiv, html`
                 <div style="display: grid; grid-template-columns: 120px 1fr; gap: 6px;">
-                    <span style="opacity: 0.6;">File:</span><span>${escapeHtml(this._fileName || 'Unknown')}</span>
-                    <span style="opacity: 0.6;">Size:</span><span>${escapeHtml(this._fileSize || 'Unknown')}</span>
-                </div>`;
-            countsDiv.innerHTML = '';
+                    <span style="opacity: 0.6;">File:</span><span>${this._fileName || 'Unknown'}</span>
+                    <span style="opacity: 0.6;">Size:</span><span>${this._fileSize || 'Unknown'}</span>
+                </div>`);
+            countsDiv.replaceChildren();
             errorDiv.textContent = `Error reading backup file: ${errorMsg || 'Unknown error'}`;
             errorDiv.style.display = 'block';
             warningDiv.style.display = 'none';
@@ -542,13 +541,13 @@ const BackupRestore = {
         errorDiv.style.display = 'none';
 
         const header = data.Header || {};
-        metaDiv.innerHTML = `
+        setHtml(metaDiv, html`
             <div style="display: grid; grid-template-columns: 120px 1fr; gap: 6px;">
-                <span style="opacity: 0.6;">File:</span><span>${escapeHtml(this._fileName)}</span>
-                <span style="opacity: 0.6;">Size:</span><span>${escapeHtml(this._fileSize)}</span>
-                <span style="opacity: 0.6;">Created:</span><span>${escapeHtml(header.timestamp ? new Date(header.timestamp).toLocaleString() : 'Unknown')}</span>
-                <span style="opacity: 0.6;">App Version:</span><span>${escapeHtml(header.appVersion || 'Unknown')}</span>
-            </div>`;
+                <span style="opacity: 0.6;">File:</span><span>${this._fileName}</span>
+                <span style="opacity: 0.6;">Size:</span><span>${this._fileSize}</span>
+                <span style="opacity: 0.6;">Created:</span><span>${header.timestamp ? new Date(header.timestamp).toLocaleString() : 'Unknown'}</span>
+                <span style="opacity: 0.6;">App Version:</span><span>${header.appVersion || 'Unknown'}</span>
+            </div>`);
 
         let currentConsumed = [], currentQueued = [], currentOwned = [], currentTags = [];
         try {
@@ -566,20 +565,20 @@ const BackupRestore = {
         // Queued/Owned/Tags are arrays. current/backup are escaped here
         // regardless (CTX-SEC-117), but the assumption is load-bearing for
         // the counts being meaningful.
-        const countRow = (label, current, backup) => `
+        const countRow = (label, current, backup) => html`
             <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0;
                         border-bottom: 1px solid var(--border-color);">
-                <span style="flex: 1;">${escapeHtml(label)}</span>
-                <span style="min-width: 40px; text-align: right;">${escapeHtml(String(current))}</span>
+                <span style="flex: 1;">${label}</span>
+                <span style="min-width: 40px; text-align: right;">${String(current)}</span>
                 <span style="opacity: 0.6;">→</span>
-                <span style="min-width: 40px; text-align: right;">${escapeHtml(String(backup))}</span>
+                <span style="min-width: 40px; text-align: right;">${String(backup)}</span>
             </div>`;
 
         // Coerce to a real count so a non-array value can never reach the
         // template, even though _validate() already guarantees arrays here.
         const count = (v) => (Array.isArray(v) ? v.length : 0);
 
-        countsDiv.innerHTML = `
+        setHtml(countsDiv, html`
             <div style="display: flex; gap: 12px; padding: 0 0 4px; font-weight: bold; opacity: 0.6;">
                 <span style="flex: 1;">Data Store</span>
                 <span style="min-width: 40px; text-align: right;">Current</span>
@@ -590,7 +589,7 @@ const BackupRestore = {
             ${countRow(MediaLabels.QueuedLabel, currentQueued.length, count(data.Queued))}
             ${countRow(MediaLabels.OwnedLabel, currentOwned.length, count(data.Owned))}
             ${countRow('Tags', currentTags.length, count(data.Tags))}
-        `;
+        `);
 
         warningDiv.style.display = 'block';
         checkRow.style.display = 'block';

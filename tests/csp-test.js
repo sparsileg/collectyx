@@ -12,6 +12,8 @@
  *     drift from the other
  *   - the required directives (object-src/base-uri/form-action 'none')
  *     are present in both
+ *   - Trusted Types (#101) is enforced in all three policies, with the
+ *     policy name src/js/safe-html.js actually creates
  *   - the structural assumptions the policy depends on still hold: no
  *     inline event handlers, no inline <script> content, no eval/Function
  *     usage — the same greps the issue used to justify a strict policy
@@ -118,6 +120,21 @@ Object.keys(webCsp).forEach(directive => {
 });
 ok('header CSP has no Tauri IPC sources',
    !Object.values(headerCsp).some(srcs => srcs.some(s => ipcOnly.has(s))));
+
+// ── 7. Trusted Types enforced in all three policies (issue #101) ──────────────
+// The policy name must be the one safe-html.js creates; any other name
+// (or a missing trusted-types directive) and every setHtml() call throws.
+console.log('\n7. Trusted Types enforced, with the policy safe-html.js creates (#101)');
+const safeHtmlSrc = fs.readFileSync(R + '/src/js/safe-html.js', 'utf8');
+const policyName = (safeHtmlSrc.match(/const TRUSTED_TYPES_POLICY = '([^']+)'/) || [])[1];
+ok('safe-html.js declares its policy name', !!policyName);
+[['web meta', webCsp], ['tauri', tauriCsp], ['_headers', headerCsp]].forEach(([name, csp]) => {
+    check(`${name}: require-trusted-types-for 'script'`, csp['require-trusted-types-for'], ["'script'"]);
+    check(`${name}: trusted-types allows only '${policyName}'`, csp['trusted-types'], [policyName]);
+});
+ok('safe-html.js is loaded before core.js and the view modules',
+   htmlSrc.indexOf('js/safe-html.js') !== -1 &&
+   htmlSrc.indexOf('js/safe-html.js') < htmlSrc.indexOf('js/core.js'));
 
 console.log('\n' + (failures === 0
     ? 'ALL CSP TESTS PASSED'

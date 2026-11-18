@@ -14,19 +14,20 @@ const RatingUtils = {
     ],
 
     // List/row display — stars only, no word. Used by consumed-view.js's
-    // Books Read rows. The Add/Edit modal shows both (see optionsHtml
+    // Books Read rows. The Add/Edit modal shows both (see fillSelect
     // below); the list is meant to be scannable, not descriptive.
     display(value) {
         const entry = this.LABELS.find(r => r.value === value);
         return entry ? entry.stars : '—';
     },
 
-    optionsHtml(selectedValue) {
-        const blank = `<option value="">Select</option>`;
-        const opts = this.LABELS.map(r =>
-            `<option value="${r.value}"${selectedValue === r.value ? ' selected' : ''}>${r.stars} ${r.word}</option>`
-        ).join('');
-        return blank + opts;
+    // Fills the Add/Edit modal's Rating <select> — stars and word.
+    fillSelect(select, selectedValue) {
+        setOptions(select, [{ value: '', label: 'Select' }].concat(this.LABELS.map(r => ({
+            value: String(r.value),
+            label: `${r.stars} ${r.word}`,
+            selected: selectedValue === r.value,
+        }))));
     }
 };
 

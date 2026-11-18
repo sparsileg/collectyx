@@ -23,6 +23,7 @@
 const fs = require('fs');
 const vm = require('vm');
 const { stripEsmImports, esmStubs } = require('./lib/esm-shim');
+const { loadSafeHtml } = require('./lib/safe-html');
 
 const R = process.env.COLLECTYX_ROOT || '../';
 const src = fs.readFileSync(R + '/src/js/backup-restore.js', 'utf8');
@@ -60,6 +61,7 @@ class El {
         this.checked = false;
         this.files = [];
     }
+    replaceChildren() { this.innerHTML = ''; }
 }
 
 function freshDom() {
@@ -133,12 +135,6 @@ function loadBackupRestore(dom, db) {
         document: dom,
         CONSTANTS: { APP_VERSION: '0.1.0', MESSAGE_TYPES: { SUCCESS: 'success', ERROR: 'error' } },
         MediaLabels: { ConsumedLabel: 'Books Read', QueuedLabel: 'To Be Read', OwnedLabel: 'My Library' },
-        // A real implementation, not a passthrough — CTX-SEC-117's test
-        // (section 6) needs to see actual escaping happen at the sink, not
-        // just that some string reached innerHTML.
-        escapeHtml: (s) => String(s).replace(/[&<>"']/g, (c) => ({
-            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-        }[c])),
         showMessage: () => {},
         // #99: a successful restore stashes its summary and reloads the
         // window — both recorded here so tests can assert on them.
@@ -152,6 +148,10 @@ function loadBackupRestore(dom, db) {
     };
     sandbox.window = sandbox;
     vm.createContext(sandbox);
+    // The real html``/setHtml() (#101) — CTX-SEC-117's test (section 6)
+    // needs to see actual escaping happen at the sink, not just that some
+    // string reached innerHTML.
+    loadSafeHtml(sandbox);
     const { stripped, bindings } = stripEsmImports(src);
     Object.assign(sandbox, esmStubs(bindings));
     vm.runInContext(stripped + '\nthis.BackupRestore = BackupRestore;', sandbox);

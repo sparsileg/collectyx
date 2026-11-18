@@ -146,7 +146,7 @@ async function initNavigation() {
 
     const list = document.getElementById('sidebarNavList');
     if (!list) return;
-    list.innerHTML = '';
+    list.replaceChildren();
 
     SIDEBAR_CONSTANTS.NAV_ITEMS.forEach((item) => {
         const label =
@@ -407,17 +407,17 @@ function updateHamburgerContextualSection(viewName) {
     const section = document.getElementById('hamburgerContextualSection');
     if (!section) return;
     if (!SIDEBAR_CONSTANTS.HAMBURGER_CONTEXTUAL_VIEWS.includes(viewName)) {
-        section.innerHTML = '';
+        section.replaceChildren();
         return;
     }
     const label = viewName === 'consumed' ? MediaLabels.ConsumedLabel
         : viewName === 'queued' ? MediaLabels.QueuedLabel
         : MediaLabels.OwnedLabel;
-    section.innerHTML = `
-        <div class="hamburger-menu-item" data-action="export-csv" data-collection="${viewName}">${escapeHtml(label)} Export CSV</div>
-        <div class="hamburger-menu-item" data-action="export-json" data-collection="${viewName}">${escapeHtml(label)} Export JSON</div>
-        <div class="hamburger-menu-item" data-action="import-csv" data-collection="${viewName}">${escapeHtml(label)} Import CSV</div>
-    `;
+    setHtml(section, html`
+        <div class="hamburger-menu-item" data-action="export-csv" data-collection="${viewName}">${label} Export CSV</div>
+        <div class="hamburger-menu-item" data-action="export-json" data-collection="${viewName}">${label} Export JSON</div>
+        <div class="hamburger-menu-item" data-action="import-csv" data-collection="${viewName}">${label} Import CSV</div>
+    `);
 }
 
 // initSidebarChrome/initNavigation are called from core.js's window.onload;

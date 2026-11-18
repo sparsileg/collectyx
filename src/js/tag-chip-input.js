@@ -71,18 +71,18 @@ function initTagChipInput(ids) {
     }
 
     function renderChips() {
-        chipRow.innerHTML = tags.map((tag, i) => `
+        setHtml(chipRow, html`${tags.map((tag, i) => html`
             <span class="tag-chip">
-                ${escapeHtml(tag)}
-                <button type="button" class="tag-chip-remove" data-i="${i}" aria-label="Remove ${escapeHtml(tag)}">&times;</button>
+                ${tag}
+                <button type="button" class="tag-chip-remove" data-i="${i}" aria-label="Remove ${tag}">&times;</button>
             </span>
-        `).join('');
+        `)}`);
         syncHidden();
     }
 
     function hideSuggestions() {
         suggestions.style.display = 'none';
-        suggestions.innerHTML = '';
+        suggestions.replaceChildren();
     }
 
     // Inline, next to the field that rejected the tag — falls back to the
@@ -110,9 +110,9 @@ function initTagChipInput(ids) {
         const allTags = Object.keys(getAllLibraryTags()).sort();
         const matches = allTags.filter(t => t.includes(val) && !tags.includes(t)).slice(0, 8);
         if (matches.length === 0) { hideSuggestions(); return; }
-        suggestions.innerHTML = matches.map(t =>
-            `<div class="tag-chip-suggestion" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</div>`
-        ).join('');
+        setHtml(suggestions, html`${matches.map(t =>
+            html`<div class="tag-chip-suggestion" data-tag="${t}">${t}</div>`
+        )}`);
         suggestions.style.display = 'block';
     }
 

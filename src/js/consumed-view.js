@@ -1,7 +1,7 @@
 // ── Books Read (consumed) view ───────────────────────────────────────────────
 
 (function registerConsumedView() {
-    const headerHtml = `
+    const headerHtml = html`
         <div class="collection-list-header consumed-columns">
             <span>Finished</span>
             <span>Book</span>
@@ -12,15 +12,15 @@
 
     function rowFn(record, containerId) {
         const format = CollectionView._dateFormat();
-        return `
-            <div class="collection-list-row consumed-columns" data-id="${escapeHtml(record.id)}">
-                <span class="col-extra">${escapeHtml(DateUtils.formatDate(record.Finished, format))}</span>
+        return html`
+            <div class="collection-list-row consumed-columns" data-id="${record.id}">
+                <span class="col-extra">${DateUtils.formatDate(record.Finished, format)}</span>
                 <div class="col-stacked">
-                    <div class="stacked-title">${escapeHtml(record.Title || '')}</div>
-                    <div class="stacked-author">by ${escapeHtml(authorGivenFirst(record.Author))}${record.Author2 ? ' &amp; ' + escapeHtml(authorGivenFirst(record.Author2)) : ''}</div>
+                    <div class="stacked-title">${record.Title || ''}</div>
+                    <div class="stacked-author">by ${authorGivenFirst(record.Author)}${record.Author2 ? html` &amp; ${authorGivenFirst(record.Author2)}` : ''}</div>
                 </div>
-                <span class="col-tags">${escapeHtml((record.Tags || []).join(', '))}</span>
-                <span class="col-rating">${escapeHtml(RatingUtils.display(record.Rating))}</span>
+                <span class="col-tags">${(record.Tags || []).join(', ')}</span>
+                <span class="col-rating">${RatingUtils.display(record.Rating)}</span>
             </div>
         `;
     }

@@ -245,17 +245,10 @@ function dateToStorage(userDate) {
 
 // ── HTML escaping ─────────────────────────────────────────────────────────────
 
-// Escapes user/imported data before interpolation into innerHTML. Does not
-// affect trusted, developer-authored template markup around it.
-function escapeHtml(str) {
-    if (str === null || str === undefined) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
+// Escaping lives in safe-html.js (#101): the html`` template tag escapes
+// every interpolated value itself, and setHtml() is the only way markup
+// reaches the DOM. There is deliberately no standalone escapeHtml() any
+// more — calling it inside html`` would escape values twice.
 
 // ── Author formatting ─────────────────────────────────────────────────────────
 
@@ -450,7 +443,7 @@ function getThemeColors() {
 // its own implementation rather than adapting these.
 
 // core.js's declarations are read as globals throughout the rest of the
-// app (e.g. escapeHtml in every *-view.js row renderer, MediaLabels in
+// app (e.g. authorGivenFirst in every *-view.js row renderer, MediaLabels in
 // every modal) — module scope no longer leaks these automatically, so
 // every one used outside this file is attached explicitly (#66 /
 // CTX-SEC-116).
@@ -462,7 +455,6 @@ window.getYearFromFinishedDate = getYearFromFinishedDate;
 window.validateDateInput = validateDateInput;
 window.dateFromStorage = dateFromStorage;
 window.dateToStorage = dateToStorage;
-window.escapeHtml = escapeHtml;
 window.formatAuthorName = formatAuthorName;
 window.splitAuthorName = splitAuthorName;
 window.authorGivenFirst = authorGivenFirst;

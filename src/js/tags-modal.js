@@ -142,8 +142,8 @@ const TagDeleteModal = {
             .filter(t => t.id !== tagId)
             .slice()
             .sort((a, b) => a.Name.localeCompare(b.Name));
-        select.innerHTML = '<option value="">No substitute</option>' +
-            others.map(t => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.Name)}</option>`).join('');
+        setOptions(select, [{ value: '', label: 'No substitute' }]
+            .concat(others.map(t => ({ value: t.id, label: t.Name }))));
         select.value = '';
 
         document.getElementById('tagDeleteModal').classList.add('open');

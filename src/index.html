@@ -9,7 +9,7 @@
          IPC even though tauri.conf.json allows it (CTX-SEC-101 follow-up).
          connect-src must therefore carry the ipc: / http://ipc.localhost
          sources here too, not just in tauri.conf.json. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://covers.openlibrary.org https://archive.org https://*.archive.org https://books.google.com https://books.googleusercontent.com; connect-src 'self' ipc: http://ipc.localhost https://openlibrary.org https://covers.openlibrary.org https://archive.org https://*.archive.org https://www.googleapis.com https://books.google.com https://books.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://covers.openlibrary.org https://archive.org https://*.archive.org https://books.google.com https://books.googleusercontent.com; connect-src 'self' ipc: http://ipc.localhost https://openlibrary.org https://covers.openlibrary.org https://archive.org https://*.archive.org https://www.googleapis.com https://books.google.com https://books.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types collectyx">
     <title>Collectyx</title>
 
     <link rel="stylesheet" href="css/themes/nordic.css" id="themeLink">
@@ -692,6 +692,7 @@
     <script src="include/pako.min.js"></script>
     <script src="include/chart.umd.js"></script>
     <script type="module" src="js/constants.js"></script>
+    <script type="module" src="js/safe-html.js"></script>
     <script type="module" src="js/core.js"></script>
     <script type="module" src="js/sidebar.js"></script>
     <script type="module" src="js/db-manager-web.js"></script>
