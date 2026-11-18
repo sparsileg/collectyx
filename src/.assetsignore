@@ -1,0 +1,4 @@
+# Files in src/ that must not be published to the web version (#100).
+# Cloudflare reads this file; the desktop build ignores it.
+# library/ is a set of personal CSV imports, not part of the app.
+library/

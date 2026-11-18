@@ -143,3 +143,6 @@ Thumbs.db
 *.db
 *.db-wal
 *.db-shm
+
+# Wrangler (Cloudflare) local state
+.wrangler

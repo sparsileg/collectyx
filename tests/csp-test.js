@@ -93,6 +93,32 @@ ok('at least one <script> tag present', scriptTags.length > 0);
 ok('every <script> tag has a src attribute (no inline script content)',
    scriptTags.every(m => /\bsrc\s*=/.test(m[0])));
 
+// ── 6. web response headers (issue #75) ───────────────────────────────────────
+// Cloudflare serves src/_headers on every web response. Its CSP must be the
+// meta policy minus the Tauri-only IPC sources, plus frame-ancestors 'none'.
+console.log('\n6. src/_headers (Cloudflare) carries the security headers (#75)');
+const headersSrc = fs.readFileSync(R + '/src/_headers', 'utf8');
+const headerLines = headersSrc.split('\n').filter(l => /^\s+\S/.test(l)).map(l => l.trim());
+const header = (name) => {
+    const line = headerLines.find(l => l.toLowerCase().startsWith(name.toLowerCase() + ':'));
+    return line ? line.slice(name.length + 1).trim() : null;
+};
+ok('_headers applies to every path (/*)', /^\/\*\s*$/m.test(headersSrc));
+check('X-Frame-Options', header('X-Frame-Options'), 'DENY');
+check('X-Content-Type-Options', header('X-Content-Type-Options'), 'nosniff');
+check('Referrer-Policy', header('Referrer-Policy'), 'no-referrer');
+const headerCspRaw = header('Content-Security-Policy');
+ok('Content-Security-Policy header present', !!headerCspRaw);
+const headerCsp = parseCsp(headerCspRaw || '');
+check("header CSP frame-ancestors 'none'", headerCsp['frame-ancestors'], ["'none'"]);
+const ipcOnly = new Set(['ipc:', 'http://ipc.localhost']);
+Object.keys(webCsp).forEach(directive => {
+    check(`header ${directive} matches meta policy (minus IPC sources)`,
+          headerCsp[directive], webCsp[directive].filter(s => !ipcOnly.has(s)));
+});
+ok('header CSP has no Tauri IPC sources',
+   !Object.values(headerCsp).some(srcs => srcs.some(s => ipcOnly.has(s))));
+
 console.log('\n' + (failures === 0
     ? 'ALL CSP TESTS PASSED'
     : failures + ' FAILURE(S)'));

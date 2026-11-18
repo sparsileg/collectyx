@@ -1,0 +1,12 @@
+{
+  // Cloudflare Workers static-assets deploy for the web version
+  // (collectyx.astryx.tools), same setup as Astryx (#100). The repo is
+  // connected to Cloudflare Workers Builds, which runs `npx wrangler deploy`
+  // on every push to main. src/ is served as-is — there is no build step.
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "collectyx",
+  "compatibility_date": "2026-07-28",
+  "assets": {
+    "directory": "./src"
+  }
+}

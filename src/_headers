@@ -1,0 +1,12 @@
+# Security response headers for the web version (#75), applied by
+# Cloudflare to every response. A <meta> CSP can't express frame-ancestors
+# and the other headers here need a real HTTP response, so they live here.
+#
+# The CSP is the index.html meta policy minus the Tauri-only IPC sources
+# (ipc:, http://ipc.localhost), plus frame-ancestors 'none'. Keep the two in
+# sync — tests/csp-test.js checks this.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://covers.openlibrary.org https://archive.org https://*.archive.org https://books.google.com https://books.googleusercontent.com; connect-src 'self' https://openlibrary.org https://covers.openlibrary.org https://archive.org https://*.archive.org https://www.googleapis.com https://books.google.com https://books.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
