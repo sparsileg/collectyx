@@ -133,6 +133,12 @@ const CONSTANTS = {
     DEFAULT_RECORDS_PER_PAGE: 50,
     RECORDS_PER_PAGE_OPTIONS: [10, 50, 250, 0],
 
+    // Automatic backup (#97): after a data change, wait this many minutes
+    // with no further changes, then back up. On by default in both builds.
+    DEFAULT_AUTO_BACKUP_ENABLED: true,
+    DEFAULT_AUTO_BACKUP_MINUTES: 5,
+    AUTO_BACKUP_MINUTES_OPTIONS: [1, 5, 30],
+
     // # rows in dashboard cards
     ROW_LIMITS: {
         RECENT_FINISHED: 4,

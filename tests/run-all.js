@@ -55,6 +55,7 @@ const tests = [
     ['queued-rank-test.js',   'rank validation and shift overflow guard (issue #72)'],
     ['restore-all-test.js',   'atomic full-database restore_all / restoreAll (issue #40)'],
     ['security-audit-52-58-test.js', 'owner-from-payload / membership BOLA (issues #52-#58)'],
+    ['auto-backup-test.js',   'automatic backup debounce timer and write tracking (issue #97)'],
 ];
 
 let failed = 0;

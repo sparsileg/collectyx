@@ -48,6 +48,11 @@ const SettingsModal = {
         document.getElementById('settingsRecordsPerPage').value =
             settings.recordsPerPage != null ? settings.recordsPerPage : CONSTANTS.DEFAULT_RECORDS_PER_PAGE;
         document.getElementById('settingsBackupFolder').value = settings.backupFolder || '';
+        document.getElementById('settingsAutoBackupEnabled').checked =
+            typeof settings.autoBackupEnabled === 'boolean' ? settings.autoBackupEnabled : CONSTANTS.DEFAULT_AUTO_BACKUP_ENABLED;
+        document.getElementById('settingsAutoBackupMinutes').value = String(
+            CONSTANTS.AUTO_BACKUP_MINUTES_OPTIONS.includes(settings.autoBackupMinutes)
+                ? settings.autoBackupMinutes : CONSTANTS.DEFAULT_AUTO_BACKUP_MINUTES);
 
         // Same pattern as Scriptum's Settings view: folder picker only
         // means anything in Tauri; the web build has no filesystem access
@@ -137,7 +142,11 @@ const SettingsModal = {
         const dateFormat = document.getElementById('settingsDateFormat').value;
         const recordsPerPageInput = document.getElementById('settingsRecordsPerPage').value;
         const recordsPerPage = recordsPerPageInput !== '' ? parseInt(recordsPerPageInput, 10) : CONSTANTS.DEFAULT_RECORDS_PER_PAGE;
-        const backupFolder = document.getElementById('settingsBackupFolder').value.trim();
+        // The web build shows a placeholder here, not a real path — never
+        // save that placeholder as if it were a folder.
+        const backupFolder = isTauri() ? document.getElementById('settingsBackupFolder').value.trim() : (current.backupFolder || '');
+        const autoBackupEnabled = document.getElementById('settingsAutoBackupEnabled').checked;
+        const autoBackupMinutes = parseInt(document.getElementById('settingsAutoBackupMinutes').value, 10);
 
         try {
             await DBManager.saveSettings({
@@ -145,8 +154,15 @@ const SettingsModal = {
                 dailyReadingGoal: goal,
                 dateFormat: dateFormat,
                 recordsPerPage: recordsPerPage,
-                backupFolder: backupFolder
+                backupFolder: backupFolder,
+                autoBackupEnabled: autoBackupEnabled,
+                autoBackupMinutes: CONSTANTS.AUTO_BACKUP_MINUTES_OPTIONS.includes(autoBackupMinutes)
+                    ? autoBackupMinutes : CONSTANTS.DEFAULT_AUTO_BACKUP_MINUTES
             });
+            // Turning auto-backup off cancels a pending countdown. (Saving
+            // settings is itself a tracked write, so with it on, the
+            // countdown has just restarted at the new interval.)
+            if (!autoBackupEnabled && typeof AutoBackup !== 'undefined') AutoBackup.cancel();
 
             // CollectionView reads both synchronously on every render —
             // same cache sidebar.js's initSidebarChrome() populates at

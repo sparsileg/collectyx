@@ -280,8 +280,17 @@ const BackupRestore = {
 
     // ── Export ───────────────────────────────────────────────────────────────
 
-    async backupDatabase() {
+    // Shared by the hamburger-menu "Backup Database" action and automatic
+    // backups (#97) — one code path, one file format. opts.auto changes only
+    // the wording of the messages; opts.fromLastSession marks a catch-up
+    // backup of changes made before the app was last closed. Returns true
+    // when a backup file was written (Tauri) or handed to the browser as a
+    // download (web).
+    async backupDatabase(opts = {}) {
         const isTauriBuild = isTauri();
+        const auto = !!opts.auto;
+        const label = !auto ? 'Backup'
+            : opts.fromLastSession ? 'Auto-backup of changes from your last session' : 'Auto-backup';
 
         try {
             const data = await this._gatherAllData();
@@ -303,8 +312,8 @@ const BackupRestore = {
                 }
                 const folder = (rawSettings.backupFolder || '').trim();
                 if (!folder) {
-                    showMessage('Backup folder is not set — set it in Settings before backing up.', CONSTANTS.MESSAGE_TYPES.ERROR);
-                    return;
+                    showMessage(`${label} skipped — backup folder is not set. Set it in Settings.`, CONSTANTS.MESSAGE_TYPES.ERROR);
+                    return false;
                 }
 
                 const contents = useGzip
@@ -315,19 +324,28 @@ const BackupRestore = {
                     await tauriInvoke('save_backup_file', { filename: filename, contents: contents });
                 } catch (writeErr) {
                     console.error('BackupRestore.backupDatabase: write to backup folder failed', writeErr);
-                    showMessage('Backup folder is missing or inaccessible — set it again in Settings.', CONSTANTS.MESSAGE_TYPES.ERROR);
-                    return;
+                    showMessage(`${label} failed — backup folder is missing or inaccessible. Set it again in Settings.`, CONSTANTS.MESSAGE_TYPES.ERROR);
+                    return false;
                 }
-            } else if (useGzip) {
-                downloadFile(filename, pako.gzip(json), 'application/gzip');
+                showMessage(auto ? `${label} saved` : 'Backup complete', CONSTANTS.MESSAGE_TYPES.SUCCESS);
             } else {
-                downloadFile(filename, json, 'application/json');
+                if (useGzip) {
+                    downloadFile(filename, pako.gzip(json), 'application/gzip');
+                } else {
+                    downloadFile(filename, json, 'application/json');
+                }
+                // A page can't tell whether the browser actually saved the
+                // download, so an automatic one doesn't claim it did.
+                showMessage(auto ? `${label} downloaded — check your Downloads folder` : 'Backup complete',
+                    CONSTANTS.MESSAGE_TYPES.SUCCESS);
             }
 
-            showMessage('Backup complete', CONSTANTS.MESSAGE_TYPES.SUCCESS);
+            if (typeof AutoBackup !== 'undefined') AutoBackup.recordBackup();
+            return true;
         } catch (e) {
             console.error('BackupRestore.backupDatabase failed', e);
-            showMessage('Backup failed — see console for details', CONSTANTS.MESSAGE_TYPES.ERROR);
+            showMessage(`${label} failed — see console for details`, CONSTANTS.MESSAGE_TYPES.ERROR);
+            return false;
         }
     },
 

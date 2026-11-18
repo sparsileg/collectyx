@@ -31,6 +31,13 @@ window.onload = async function () {
     }
 
     showPendingMessage();
+
+    // Back up changes left over from the last session, or resume their
+    // countdown (#97). After showPendingMessage so a catch-up backup's own
+    // message isn't overwritten.
+    if (typeof AutoBackup !== 'undefined') {
+        AutoBackup.init().catch(e => console.error('AutoBackup.init failed', e));
+    }
 };
 
 // ── View routing ──────────────────────────────────────────────────────────────
