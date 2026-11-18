@@ -348,6 +348,23 @@ function ok(label, cond) {
     await DB.setAppMeta(OWNER_KEY, OWNER_DEFAULT);
     check('owner restored to default for any future sections', DB._owner(), OWNER_DEFAULT);
 
+    // ── 14. issue #98 — Pages entered on To Be Read carries into Books Read ──
+    console.log('\n14. issue #98 — To Be Read Pages reaches the Books Read record');
+    const tbr = await DB.saveCollectionRecord('queued', {
+        Title: 'Pages Carry Test', Author: 'Writer, Some', ISBN: '9780000000002', Pages: 321, Source: 'a friend',
+    });
+    const tbrRow = (await DB.getCollection('queued')).find(r => r.id === tbr.id);
+    check('queued record round-trips Pages', tbrRow.Pages, 321);
+    // Same payload QueuedView.markFinished hands ConsumedModal, then saved.
+    const read = await DB.saveCollectionRecord('consumed', {
+        ItemId: tbrRow.ItemId, Title: tbrRow.Title, Author: tbrRow.Author,
+        Pages: tbrRow.Pages, ISBN: tbrRow.ISBN, Finished: '2026-11-18',
+    });
+    await DB.deleteCollectionRecord('queued', tbr.id);
+    const readRow = (await DB.getCollection('consumed')).find(r => r.id === read.id);
+    check('Books Read record has the Pages entered on To Be Read', readRow.Pages, 321);
+    check('Books Read record reuses the same item', readRow.ItemId, tbrRow.ItemId);
+
     console.log('\n' + (failures === 0
         ? 'ALL WEB BACKEND TESTS PASSED'
         : failures + ' FAILURE(S)'));

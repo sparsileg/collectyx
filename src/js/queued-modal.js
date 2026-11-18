@@ -1,7 +1,8 @@
 // ── To Be Read (queued) modal ───────────────────────────────────────────────
-// Title, Order (formerly Rank), Author, Author 2, Source. Deliberately no
-// Tags/Pages/ISBN — Stan's spec for this one is lean by design (quick
-// queue entry, not a full catalog record); omitting the Tags key entirely
+// Title, ISBN, Pages, Order (formerly Rank), Author, Author 2, Source.
+// Deliberately no Tags — this is quick queue entry, not a full catalog
+// record. Pages is here (#98) so it carries into Books Read via the shared
+// item when the book is marked finished. Omitting the Tags key entirely
 // means an existing item's tags (set via another collection) are left
 // alone, not wiped. Add mode: Save/Cancel only. Edit mode (opened from a
 // row click): adds Delete.
@@ -73,6 +74,7 @@ const QueuedModal = {
 
         document.getElementById('tbrTitle').value = record ? (record.Title || '') : '';
         document.getElementById('tbrISBN').value = record ? (record.ISBN || '') : '';
+        document.getElementById('tbrPages').value = record && record.Pages != null ? record.Pages : '';
         const isbnStatusEl = document.getElementById('tbrIsbnStatus');
         if (isbnStatusEl) { isbnStatusEl.textContent = ''; isbnStatusEl.className = 'isbn-find-status'; }
         document.getElementById('tbrOrder').value = record && record.Rank != null ? record.Rank : '';
@@ -128,6 +130,7 @@ const QueuedModal = {
         const payload = {
             Title: title,
             ISBN: document.getElementById('tbrISBN').value.trim() || null,
+            Pages: document.getElementById('tbrPages').value ? parseInt(document.getElementById('tbrPages').value, 10) : null,
             Author: formatAuthorName(document.getElementById('tbrAuthorSurname').value, document.getElementById('tbrAuthorGiven').value),
             Author2: formatAuthorName(document.getElementById('tbrAuthor2Surname').value, document.getElementById('tbrAuthor2Given').value),
             Source: document.getElementById('tbrSource').value.trim()
